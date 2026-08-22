@@ -11,8 +11,8 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  PlayerAnimationSystem
-    //! @brief  プレイヤーの状態（接地/移動/スプリント/攻撃入力）を見て、
-    //!         Idle/Run/FastRun/Jump/Attack1-3のアニメーションステートマシンを進行させるシステム
+    //! @brief  プレイヤーの状態（移動/スプリント/攻撃・回避入力）を見て、
+    //!         Idle/Run/FastRun/Dodge/Attack1-3のアニメーションステートマシンを進行させるシステム
     //-------------------------------------------------------------
     class PlayerAnimationSystem : public Tsukino::ECS::ISystem {
     public:
@@ -29,6 +29,6 @@ namespace CombatAndroid::ECS {
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
 
     private:
-        StateMachine<PlayerAnimState> m_stateMachine;    //!< Idle/Run/FastRun/Jump/Attack1-3の遷移とクリップ切り替えを管理する
+        StateMachine<PlayerAnimState> m_stateMachine;    //!< Idle/Run/FastRun/Dodge/Attack1-3の遷移とクリップ切り替えを管理する
     };
 }    // namespace CombatAndroid::ECS

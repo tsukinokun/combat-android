@@ -9,8 +9,8 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  PlayerSystem
-    //! @brief  プレイヤーの入力を読み取り、CharacterControllerComponentへ
-    //!         移動・ジャンプ要求を書き込むシステム
+    //! @brief  プレイヤーの入力を読み取り、CharacterControllerComponentへ移動を、
+    //!         PlayerComponentへ攻撃・回避の生入力を書き込むシステム
     //-------------------------------------------------------------
     class PlayerSystem : public Tsukino::ECS::ISystem {
     public:

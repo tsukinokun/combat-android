@@ -382,9 +382,13 @@ namespace CombatAndroid::ECS {
 
         Tsukino::BuiltIn::ECS::TransformComponent* playerTransform = nullptr;
         HealthComponent*                           playerHealth   = nullptr;
+        // 回避の無敵時間中か。本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、
+        // ここで読めるのは今フレームの確定値になる
+        bool                                       playerInvincible = false;
         if(playerEntity != entt::null) {
-            playerTransform = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
-            playerHealth    = &registry.GetComponent<HealthComponent>(playerEntity);
+            playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
+            playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
+            playerInvincible = registry.GetComponent<PlayerComponent>(playerEntity).isInvincible;
         }
 
         auto enemyView = registry.View<EnemyComponent, Tsukino::BuiltIn::ECS::TransformComponent, HealthComponent>();
@@ -421,6 +425,13 @@ namespace CombatAndroid::ECS {
             toPlayer.y              = 0.0f;
             float distance          = hlslpp::length(toPlayer);
             if(distance <= enemy.bodyRadius + playerRadius) {
+                //-------------------------------------------------------------
+                // 回避の無敵時間中は敵をすり抜ける。敵のattackTimer（接触ダメージのクールタイム）も
+                // 消費させない：ここで消費してしまうと、回避で避けた直後の一撃まで無効化してしまう
+                //-------------------------------------------------------------
+                if(playerInvincible)
+                    return;
+
                 playerHealth->currentHealth -= enemy.contactDamage;
                 if(playerHealth->currentHealth <= 0.0f) {
                     playerHealth->currentHealth = 0.0f;

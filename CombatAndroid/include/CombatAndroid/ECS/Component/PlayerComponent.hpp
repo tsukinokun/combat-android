@@ -27,6 +27,28 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::Entity pickupTarget = entt::null;    //!< 現在拾える対象（Fキーの対象）。PickupSystemが毎フレーム更新する
 
         //-------------------------------------------------------------
+        // 回避（Sprinting Forward Roll）のチューニング値。
+        // エンジンはルートモーションをTransformへ適用しないため（in_placeで殺すのみ）、
+        // 回避中の前進は攻撃中の停止と同じ流儀で、PlayerAnimationSystemが
+        // CharacterControllerComponent::moveInputを上書きして出す
+        //-------------------------------------------------------------
+        float dodgeSpeed              = 600.0f;    //!< 回避中の水平移動速度（moveSpeed=300の2倍相当）
+        float dodgePlaybackSpeed      = 1.5f;      //!< 回避クリップの再生速度倍率（AttackStep::playbackSpeedと同趣旨）。大きいほど回避が短く終わり、進む距離もその分縮む
+        float dodgeInvincibleDuration = 0.3f;      //!< 回避開始からこの秒数だけ無敵（実時間。dodgePlaybackSpeedを変えたら合わせて調整する）。回避全体より短くして「終わり際は被弾する」ようにする
+        float dodgeCooldown           = 0.3f;      //!< 回避終了後、次の回避を受け付けない秒数
+        float dodgeTimeoutSafety      = 2.0f;      //!< クリップ設定ミス等でis_finishedが立たなかった場合に回避ステートへ留まり続けないための保険値（attackTimeoutSafetyと同趣旨）
+
+        //-------------------------------------------------------------
+        // スペースキーの生入力。PlayerSystemが立て、PlayerAnimationSystemが消費してfalseへ戻す
+        // （attackInputPressedと同じ流儀）。実際に回避が始まるかどうか（クールダウン中か、
+        //   攻撃モーション中か）の判定はPlayerAnimationSystem側で行う
+        //-------------------------------------------------------------
+        bool dodgeInputPressed = false;
+
+        bool isDodging    = false;    //!< 回避モーション再生中か。PlayerAnimationSystemが毎フレーム確定させ、PlayerSystemが向き直りの抑制に参照する
+        bool isInvincible = false;    //!< 回避の無敵時間中か。PlayerAnimationSystemが確定させ、CombatSystem（後で走る）が接触ダメージのスキップに使う
+
+        //-------------------------------------------------------------
         // 左クリックの生入力。PlayerSystemが立て、PlayerAnimationSystemが消費してfalseへ戻す。
         // WeaponComponent::attackRequestedとは意味が異なる点に注意：こちらは「入力があったか」、
         // attackRequestedは「（コンボ受付を含めた判定の結果）攻撃スイングが実際に始まったか」を表す。

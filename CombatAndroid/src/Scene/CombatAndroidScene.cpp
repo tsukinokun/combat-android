@@ -222,14 +222,14 @@ namespace CombatAndroid {
         Tsukino::Asset::AssetHandle modelHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Player.fbx"));
 
-        Tsukino::Asset::AssetHandle animationHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Jump.fbx"));
-
         // プレイヤーのアニメーションステートマシン（PlayerAnimationSystem）が使うクリップ
         Tsukino::Asset::AssetHandle idleAnimHandle = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Idle.fbx"));
         Tsukino::Asset::AssetHandle runAnimHandle  = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Run.fbx"));
         Tsukino::Asset::AssetHandle fastRunAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Fast Run.fbx"));
+        // 回避（前転）。クリップのルート前進はin_placeで殺し、移動はCharacterControllerが担当する
+        Tsukino::Asset::AssetHandle dodgeAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Sprinting Forward Roll.fbx"));
         // Weapon Attack.fbx は3回斬るモーションが1クリップに入っており、連撃の各段は
         // 同じハンドルを時間レンジだけ変えて3回参照する（下のattackSteps初期化を参照）
         Tsukino::Asset::AssetHandle attackAnimHandle =
@@ -295,7 +295,7 @@ namespace CombatAndroid {
         characterController.halfHeight    = 70.0f;
         characterController.maxSlopeDeg   = 45.0f;
         characterController.gravityFactor = 100.0f;    // 1ユニット=1cm換算でほぼ実重力(9.81m/s^2)相当
-        characterController.jumpSpeed     = 300.0f;    // 約45cm跳ぶ想定（v^2 / (2*981)）
+        // jumpSpeedは設定しない（ジャンプは回避へ差し替えたため、jumpRequestedを立てる箇所が無い）
         // カプセル中心をTransform位置から (halfHeight+radius) だけ上にずらし、
         // Transform位置＝カプセル底面（足元）を表すようにする（モデルの足元原点と揃えるため）
         characterController.centerOffset = hlslpp::float3(0.0f, characterController.halfHeight + characterController.radius, 0.0f);
@@ -332,8 +332,18 @@ namespace CombatAndroid {
         animSet.idleClip                                      = idleAnimHandle;
         animSet.runClip                                       = runAnimHandle;
         animSet.fastRunClip                                   = fastRunAnimHandle;
-        animSet.jumpClip                                      = animationHandle;
+        animSet.dodgeClip                                     = dodgeAnimHandle;
         animSet.currentState                                  = CombatAndroid::ECS::PlayerAnimState::Idle;
+
+        //-------------------------------------------------------------
+        // 回避（スペースキー）のチューニング値。攻撃の分割定数と同じく、実機で見ながら
+        // ここで詰める前提の初期値（_DEBUGビルドのPlayerAnimationSystemが出すDODGEログを見る）。
+        // dodgeInvincibleDurationは回避全体より短くして「終わり際は被弾する」ようにしている
+        //-------------------------------------------------------------
+        player.dodgeSpeed              = 600.0f;    // moveSpeed(300)の2倍
+        player.dodgePlaybackSpeed      = 1.5f;      // 前転を等速より速く。回避時間が1/1.5になり、進む距離も同じだけ縮む
+        player.dodgeInvincibleDuration = 0.3f;      // 実時間。dodgePlaybackSpeedを変えたら合わせて見直す
+        player.dodgeCooldown           = 0.3f;
 
         // Weapon Attack.fbx は3回斬るモーションが1クリップ（30fps / 106フレーム = 3.5333秒）に
         // 入っている。各段のstartTime/endTime/playbackSpeedは実機で見ながら個別に微調整する前提の

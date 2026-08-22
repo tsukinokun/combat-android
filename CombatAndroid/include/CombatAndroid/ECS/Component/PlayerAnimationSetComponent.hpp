@@ -6,6 +6,7 @@
 #pragma once
 #include <Tsukino/Engine/Asset/AssetHandle.hpp>
 #include <Tsukino/Core/typedef.hpp>
+#include <hlsl++.h>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
@@ -16,10 +17,21 @@ namespace CombatAndroid::ECS {
         Idle,
         Run,
         FastRun,
-        Jump,
+        Dodge,      //!< 回避（前転）
         Attack1,    //!< 連撃1段目
         Attack2,    //!< 連撃2段目
         Attack3,    //!< 連撃3段目
+    };
+
+    //-------------------------------------------------------------
+    //! @enum   BufferedInput
+    //! @brief  攻撃・回避モーション中に受け付ける先行入力。1つだけ保持し、
+    //!         後から押された入力で上書きされる（最新の入力が勝つ）
+    //-------------------------------------------------------------
+    enum class BufferedInput {
+        None,
+        Attack,
+        Dodge,
     };
 
     //-------------------------------------------------------------
@@ -49,15 +61,15 @@ namespace CombatAndroid::ECS {
         Tsukino::Asset::AssetHandle idleClip;       //!< 待機
         Tsukino::Asset::AssetHandle runClip;         //!< 通常移動
         Tsukino::Asset::AssetHandle fastRunClip;    //!< スプリント移動
-        Tsukino::Asset::AssetHandle jumpClip;        //!< ジャンプ
+        Tsukino::Asset::AssetHandle dodgeClip;       //!< 回避（前転）
 
         static constexpr u32 kAttackComboCount = 3;    //!< 連撃の段数
         AttackStep            attackSteps[kAttackComboCount];    //!< 各段の再生範囲
 
         PlayerAnimState currentState = PlayerAnimState::Idle;    //!< 現在のステート（クリップの重複要求を避けるため保持）
 
-        u32   attackComboIndex    = 0;        //!< 現在再生中の段（0..kAttackComboCount-1）
-        bool  attackInputBuffered = false;    //!< 先行入力を1回だけ保持する（連打しても2段先へは飛ばない）
+        u32           attackComboIndex = 0;                        //!< 現在再生中の段（0..kAttackComboCount-1）
+        BufferedInput bufferedInput    = BufferedInput::None;    //!< 先行入力を1つだけ保持する（連打しても2段先へは飛ばない）。攻撃中のスペースはここへ入り、段の再生完了後に回避として消費される
 
         //-------------------------------------------------------------
         // 攻撃アニメーションの終了判定は、原則としてAnimationPlayerComponent::is_finished
@@ -68,5 +80,13 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         float attackTimer          = 0.0f;    //!< 現在の攻撃段に入ってからの経過時間
         float attackTimeoutSafety = 2.5f;    //!< attackTimerがこの秒数を超えたら強制的に攻撃ステートを抜ける保険値
+
+        //-------------------------------------------------------------
+        // 回避（Dodgeステート）の進行状態。チューニング値はPlayerComponent側が持ち、
+        // ここではフレームをまたぐ実行時の状態だけを保持する
+        //-------------------------------------------------------------
+        float          dodgeTimer         = 0.0f;                            //!< 回避ステートに入ってからの経過時間（無敵時間の判定と保険タイムアウトに使う）
+        float          dodgeCooldownTimer = 0.0f;                            //!< 0より大きい間は回避入力を受け付けない（回避終了時にPlayerComponent::dodgeCooldownを積む）
+        hlslpp::float3 dodgeDirection     = {0.0f, 0.0f, 1.0f};    //!< 回避開始時に確定した進行方向（水平・正規化済み）。回避中は入力に関わらずこの方向へ進む
     };
 }    // namespace CombatAndroid::ECS

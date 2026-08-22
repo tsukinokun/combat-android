@@ -76,6 +76,15 @@ namespace CombatAndroid::ECS {
             bool attackTriggeredThisFrame = inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::LButton);
 
             //-------------------------------------------------------------
+            // 回避も攻撃と全く同じ事情を持つ：PlayerComponent::isDodgingを確定させるのは
+            // 本Systemより後に走るPlayerAnimationSystemなので、ここで読めるのは前フレームの値。
+            // 回避を押した瞬間のフレームだけ向き直りが1フレーム分紛れ込み、
+            // 前転の向きが最後の移動入力に引っ張られてしまうため、今フレームのスペース押下も
+            // 抑制条件へ含める（回避の向きはPlayerAnimationSystemが開始時に一度だけ確定させる）
+            //-------------------------------------------------------------
+            bool dodgeTriggeredThisFrame = inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Space);
+
+            //-------------------------------------------------------------
             // 移動方向の入力を取得（カメラの向きを基準にしたXZ平面）
             //-------------------------------------------------------------
             hlslpp::float3 moveDir = hlslpp::float3(0.0f, 0.0f, 0.0f);
@@ -100,7 +109,7 @@ namespace CombatAndroid::ECS {
                 // CharacterControllerComponentへ水平方向の希望移動速度を渡す
                 cc.moveInput = moveDir * currentSpeed;
 
-                if(!isAttacking && !attackTriggeredThisFrame) {
+                if(!isAttacking && !attackTriggeredThisFrame && !player.isDodging && !dodgeTriggeredThisFrame) {
                     // 移動方向へ向き直す（瞬時に向かず、slerpで滑らかに補間する）
                     float               yawRad         = std::atan2(moveDir.x, moveDir.z);
                     hlslpp::quaternion targetRotation = hlslpp::quaternion::rotation_y(yawRad);
@@ -114,10 +123,12 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 接地している時のみジャンプ要求を出す
+            // 接地している時のみ回避（前転）の生入力をプレイヤーへ伝える。
+            // 実際に回避へ移れるか（クールダウン中でないか、攻撃モーション中でないか）の判定と、
+            // 攻撃中に押された場合の先行入力バッファへの積み込みはPlayerAnimationSystemが行う
             //-------------------------------------------------------------
-            if(cc.isGrounded && inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Space)) {
-                cc.jumpRequested = true;
+            if(cc.isGrounded && dodgeTriggeredThisFrame) {
+                player.dodgeInputPressed = true;
             }
 
             //-------------------------------------------------------------
