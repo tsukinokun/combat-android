@@ -13,6 +13,7 @@
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/PickupPromptComponent.hpp>
+#include <CombatAndroid/ECS/Component/DamageNumberComponent.hpp>
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/AI/BigZombieBehavior.hpp>
@@ -26,6 +27,7 @@
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
 #include <CombatAndroid/ECS/System/HealthBarSystem.hpp>
+#include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -119,6 +121,11 @@ namespace CombatAndroid {
             WeaponAttach,     // 武器の追従（ボーンアタッチ）はAnimationSystemが今フレームのボーン姿勢を書き込んだ後に行う
             HealthBar,        // 頭上HPバーの表示可否・残量幅の更新。被弾（WeaponAttachでCombatSystemが
                               // hpBarVisibleTimerをセット）の後、WorldAnchorSystemが座標を確定させる前に行う
+            DamageNumber,     // ダメージ数値のスロット割り当てとアニメーション更新。被弾（WeaponAttachで
+                              // CombatSystemがWeaponHitEventをPublish）の後でなければ表示が1フレーム遅れる。
+                              // またWorldAnchorSystemが座標を確定させ、TransformUIがworldMatrixへ焼き込む前に
+                              // fixedWorldPosition/screenOffset/scaleを書き終えている必要がある
+                              // （さもないとポップの拡大率が1フレーム古い値で描かれてガタつく）
             TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
                               // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                               // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分
@@ -168,6 +175,13 @@ namespace CombatAndroid {
 #endif
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CombatSystem>(), (int)SystemPriority::WeaponAttach);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::HealthBarSystem>(), (int)SystemPriority::HealthBar);
+        {
+            // WeaponHitEventを購読してダメージ数値を出す。購読解除はSystemが持つ
+            // ScopedConnectionのデストラクタに任せる（EventBusはSystemManagerより長生きする）
+            auto damageNumberSystem = std::make_shared<CombatAndroid::ECS::DamageNumberSystem>();
+            m_scene.AddSystem(damageNumberSystem, (int)SystemPriority::DamageNumber);
+            damageNumberSystem->Initialize(eventBus);
+        }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TpsCameraSystem>(), (int)SystemPriority::Camera3D);
 #ifdef _DEBUG
@@ -697,6 +711,33 @@ namespace CombatAndroid {
         // 日本語をそのまま渡してよい（旧Arial.spritefontはASCII専用でDirectXTKが例外を投げる）
 
         registry.AddComponent<CombatAndroid::ECS::PickupPromptComponent>(pickupPromptEntity);
+
+        //--------------------------------------------------------------
+        // ダメージ数値用エンティティのプール。「Fキーで拾う」ラベルと同じく毎フレーム生成せず
+        // 固定数を使い回す。WeaponHitEventはCombatSystemのview.eachの内側からPublishされるため、
+        // そのハンドラでエンティティを生成するとEnTTのイテレータが壊れる。
+        // DamageNumberSystemはここで作ったスロットの空きを探して再利用する
+        //--------------------------------------------------------------
+        for(int i = 0; i < CombatAndroid::ECS::kDamageNumberPoolSize; ++i) {
+            Tsukino::ECS::Entity damageNumberEntity = m_scene.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& damageNumberTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(damageNumberEntity);
+            damageNumberTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
+            damageNumberTransform.dirty = true;
+
+            Tsukino::BuiltIn::ECS::WorldAnchorComponent& damageNumberAnchor =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(damageNumberEntity);
+            damageNumberAnchor.target = entt::null;    // 以後DamageNumberSystemがfixedWorldPositionを使う
+
+            Tsukino::BuiltIn::ECS::FontComponent& damageNumberFont =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(damageNumberEntity);
+            damageNumberFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
+            damageNumberFont.sortOrder = 10;     // HPバー等より手前に描く
+            // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われる
+
+            registry.AddComponent<CombatAndroid::ECS::DamageNumberComponent>(damageNumberEntity);
+        }
 
 #ifdef _DEBUG
         //--------------------------------------------------------------
