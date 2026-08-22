@@ -1,0 +1,7 @@
+.build/
+bin/
+bin-int/
+packages/
+Cache/
+.vs/
+*.user
