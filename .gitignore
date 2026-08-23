@@ -5,3 +5,6 @@ packages/
 Cache/
 .vs/
 *.user
+
+# 負荷試験（--stress-benchmark）の計測結果
+StressTestResult.csv
