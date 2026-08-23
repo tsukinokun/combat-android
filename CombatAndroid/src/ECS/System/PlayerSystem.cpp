@@ -114,7 +114,11 @@ namespace CombatAndroid::ECS {
                     float               yawRad         = std::atan2(moveDir.x, moveDir.z);
                     hlslpp::quaternion targetRotation = hlslpp::quaternion::rotation_y(yawRad);
                     float               turnT          = 1.0f - std::exp(-player.turnLerpSpeed * deltaTime);
-                    transform.rotation                 = hlslpp::slerp(transform.rotation, targetRotation, turnT);
+                    // slerpの結果をtransform.rotationへ自己代入し続けると誤差が蓄積して非正規化する。
+                    // このrotationはPhysicsSystemがJoltへ渡す（Kinematicセンサー同期・CharacterVirtual同期の
+                    // 両方）ほか、worldMatrixの生成や武器のアタッチ計算でも読まれるため、
+                    // 単位クォータニオンであることをここで保証しておく
+                    transform.rotation                 = hlslpp::normalize(hlslpp::slerp(transform.rotation, targetRotation, turnT));
                     transform.dirty                     = true;
                 }
             } else {

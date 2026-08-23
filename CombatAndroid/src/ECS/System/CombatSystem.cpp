@@ -7,11 +7,12 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldPoseComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldMatrixComponent.hpp>
@@ -41,6 +42,41 @@ namespace CombatAndroid::ECS {
         constexpr float kHitStopScale    = 0.02f;    //!< 持続時間中のdeltaTimeへのスケール値（小さいほど強い停止）
 
         constexpr float kHpBarVisibleDuration = 3.0f;    //!< 被弾時に頭上HPバーを表示し続ける時間（秒）。HealthBarSystemが減算する
+
+        //-------------------------------------------------------------
+        //! @brief  エンティティのModelComponentが指すモデルに対し、名前でボーンのnodeIndexを解決する。
+        //!         WeaponComponentの手ボーン追従・EnemyAttackHitboxComponentの両方が使う共通ロジック。
+        //!         resolvedAgainstModelが対象モデルと一致していれば何もしない（毎フレームの名前検索を避ける）
+        //! @param  ctx                  [in]     アセットマネージャを引くためのエンジンコンテキスト
+        //! @param  registry             [in]     ECSレジストリ
+        //! @param  modelEntity          [in]     ModelComponentを持つエンティティ（ボーンの持ち主）
+        //! @param  boneName             [in]     解決したいボーン名
+        //! @param  resolvedAgainstModel [in,out] 最後に解決した時点のモデルハンドル（キャッシュキー）
+        //! @param  outNodeIndex         [in,out] 解決結果のnodeIndex（見つからなければUINT32_MAXのまま）
+        //-------------------------------------------------------------
+        void ResolveBoneNodeIndex(Tsukino::EngineIntegration::EngineContext* ctx, Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity modelEntity,
+                                  const std::string& boneName, Tsukino::Asset::AssetHandle& resolvedAgainstModel, u32& outNodeIndex) {
+            if(!ctx || !ctx->assetManager || !registry.HasComponent<Tsukino::BuiltIn::ECS::ModelComponent>(modelEntity))
+                return;
+
+            auto& model = registry.GetComponent<Tsukino::BuiltIn::ECS::ModelComponent>(modelEntity);
+            if(resolvedAgainstModel == model.modelHandle)
+                return;    // 既に同じモデルに対して解決済み
+
+            auto asset = ctx->assetManager->Get(model.modelHandle);
+            if(!asset || asset->GetType() != Tsukino::Asset::AssetType::Model)
+                return;
+
+            auto modelAsset = std::static_pointer_cast<Tsukino::Asset::ModelAsset>(asset);
+            outNodeIndex     = UINT32_MAX;
+            for(u32 i = 0; i < modelAsset->modelData.nodes.size(); ++i) {
+                if(modelAsset->modelData.nodes[i].name == boneName) {
+                    outNodeIndex = i;
+                    break;
+                }
+            }
+            resolvedAgainstModel = model.modelHandle;    // アセットが読めた時点で確定（見つからなければUINT32_MAXのまま）
+        }
 
 #ifdef _DEBUG
         //-------------------------------------------------------------
@@ -87,24 +123,7 @@ namespace CombatAndroid::ECS {
                 // （再生中のクリップのnode配列ではない。クリップ側は名前でチャンネルを引くためだけに
                 // 使われ、ノードindex空間はモデル側で固定される）。そのため解決もModelComponent側の
                 // ノード一覧に対して行い、再生中のクリップが切り替わっても再解決は不要になる
-                if(ctx && ctx->assetManager
-                   && registry.HasComponent<Tsukino::BuiltIn::ECS::ModelComponent>(weapon.owner)) {
-                    auto& ownerModel = registry.GetComponent<Tsukino::BuiltIn::ECS::ModelComponent>(weapon.owner);
-                    if(weapon.resolvedAgainstModel != ownerModel.modelHandle) {
-                        auto asset = ctx->assetManager->Get(ownerModel.modelHandle);
-                        if(asset && asset->GetType() == Tsukino::Asset::AssetType::Model) {
-                            auto modelAss           = std::static_pointer_cast<Tsukino::Asset::ModelAsset>(asset);
-                            weapon.handBoneNodeIndex = UINT32_MAX;
-                            for(u32 i = 0; i < modelAss->modelData.nodes.size(); ++i) {
-                                if(modelAss->modelData.nodes[i].name == weapon.handBoneName) {
-                                    weapon.handBoneNodeIndex = i;
-                                    break;
-                                }
-                            }
-                            weapon.resolvedAgainstModel = ownerModel.modelHandle;    // アセットが読めた時点で確定（見つからなければUINT32_MAXのまま）
-                        }
-                    }
-                }
+                ResolveBoneNodeIndex(ctx, registry, weapon.owner, weapon.handBoneName, weapon.resolvedAgainstModel, weapon.handBoneNodeIndex);
 
                 // isAttackingがfalse/trueへ瞬時に切り替わっても追従先の「目標」自体が不連続にジャンプ
                 // しないよう、0(非攻撃)↔1(攻撃)の連続値attackBlendを指数減衰で追従させ、
@@ -322,6 +341,7 @@ namespace CombatAndroid::ECS {
                         if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
                             continue;
 
+                        auto& enemy       = registry.GetComponent<EnemyComponent>(hitEntity);
                         auto& enemyHealth = registry.GetComponent<HealthComponent>(hitEntity);
                         if(enemyHealth.isDead)
                             continue;
@@ -330,7 +350,10 @@ namespace CombatAndroid::ECS {
                            != weapon.hitEnemiesThisAttack.end())
                             continue;
 
-                        enemyHealth.currentHealth -= weapon.damage;
+                        // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
+                        float dealtDamage = weapon.damage * weapon.damageMultiplier;
+
+                        enemyHealth.currentHealth -= dealtDamage;
                         if(enemyHealth.currentHealth <= 0.0f) {
                             enemyHealth.currentHealth = 0.0f;
                             enemyHealth.isDead         = true;
@@ -338,13 +361,18 @@ namespace CombatAndroid::ECS {
                         enemyHealth.hpBarVisibleTimer = kHpBarVisibleDuration;    // 被弾した瞬間だけ頭上HPバーを表示する
                         weapon.hitEnemiesThisAttack.push_back(hitEntity);
 
+                        // 一定以上の単発ダメージでノックバックを要求する（BTのPlayKnockbackが消費する）。
+                        // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
+                        if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
+                            enemy.pendingKnockback = true;
+
                         hlslpp::float3 hitPosition = capsuleCenter;
                         if(registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
                             hitPosition = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity).position;
 
                         // ヒット通知（エフェクト・SE等の副作用処理用）を発火する
                         if(eventBus) {
-                            eventBus->Publish(WeaponHitEvent{weapon.owner, entity, hitEntity, hitPosition, weapon.damage});
+                            eventBus->Publish(WeaponHitEvent{weapon.owner, entity, hitEntity, hitPosition, dealtDamage});
                         }
 
                         // ヒットストップを要求する（同一フレームで複数ヒットしても同じ値で上書きされるだけで問題ない）
@@ -372,79 +400,99 @@ namespace CombatAndroid::ECS {
             break;
         }
 
-        //-------------------------------------------------------------
-        // 敵：攻撃クールタイム更新、プレイヤーとの距離判定による接触ダメージ
-        //-------------------------------------------------------------
-        float playerRadius = 35.0f;    // CharacterControllerComponent.radiusと同じ値をフォールバックとして使う
-        if(playerEntity != entt::null && registry.HasComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity)) {
-            playerRadius = registry.GetComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity).radius;
-        }
-
-        Tsukino::BuiltIn::ECS::TransformComponent* playerTransform = nullptr;
-        HealthComponent*                           playerHealth   = nullptr;
+        HealthComponent* playerHealth = nullptr;
         // 回避の無敵時間中か。本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、
         // ここで読めるのは今フレームの確定値になる
-        bool                                       playerInvincible = false;
+        bool             playerInvincible = false;
         if(playerEntity != entt::null) {
-            playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
             playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
             playerInvincible = registry.GetComponent<PlayerComponent>(playerEntity).isInvincible;
         }
 
-        auto enemyView = registry.View<EnemyComponent, Tsukino::BuiltIn::ECS::TransformComponent, HealthComponent>();
-        enemyView.each([&](entt::entity                                  entity,
-                           EnemyComponent&                               enemy,
-                           Tsukino::BuiltIn::ECS::TransformComponent&    enemyTransform,
-                           HealthComponent&                              enemyHealth) {
-            //-------------------------------------------------------------
-            // 死亡していたら破棄のみ行う
-            //-------------------------------------------------------------
-            if(enemyHealth.isDead) {
-                // view の反復中なので即時破棄してはならない（イテレータが壊れる）。
-                // 予約だけ行い、実際の破棄は Scene::Update() が全 System の更新後に行う。
-                registry.QueueDestroy(entity);
-                // 頭上HPバー（背景・残量）も一緒に破棄しないと残留してしまう
-                registry.QueueDestroy(enemyHealth.hpBarBackgroundEntity);
-                registry.QueueDestroy(enemyHealth.hpBarFillEntity);
-                return;
-            }
-
-            if(enemy.attackTimer > 0.0f) {
-                enemy.attackTimer -= deltaTime;
-                if(enemy.attackTimer < 0.0f)
-                    enemy.attackTimer = 0.0f;
-                return;    // クールタイム中は接触判定を行わない
-            }
-
-            if(!playerTransform || !playerHealth || playerHealth->isDead)
+        //-------------------------------------------------------------
+        // 敵の攻撃当たり判定：距離だけで成立していた旧・接触ダメージを廃止し、
+        // 攻撃モーション（Attackステート）のhitStartTime〜hitStartTime+hitDurationの間だけ、
+        // 手ボーンに判定球を出してプレイヤーへダメージを与える。振りかぶっただけでは当たらない。
+        // プレイヤー側はKinematic+isSensorのCollisionComponent（CombatAndroidScene::OnInitialize）を
+        // 持つため、敵の武器と同じOverlapCapsuleで検出できる
+        //-------------------------------------------------------------
+        auto enemyAttackView = registry.View<EnemyComponent, EnemyAnimationSetComponent, EnemyAttackHitboxComponent,
+                                             Tsukino::BuiltIn::ECS::TransformComponent>();
+        enemyAttackView.each([&](entt::entity                                  enemyEntity,
+                                 EnemyComponent& /*enemy*/,
+                                 EnemyAnimationSetComponent&                  animSet,
+                                 EnemyAttackHitboxComponent&                  hitbox,
+                                 Tsukino::BuiltIn::ECS::TransformComponent& enemyTransform) {
+            if(animSet.currentState != EnemyAnimState::Attack)
                 return;
 
-            // 高さ方向のずれ（プレイヤー/敵モデルの原点位置の違いなど）に接触判定が
-            // 左右されないよう、水平（XZ）距離のみで判定する
-            hlslpp::float3 toPlayer = enemyTransform.position - playerTransform->position;
-            toPlayer.y              = 0.0f;
-            float distance          = hlslpp::length(toPlayer);
-            if(distance <= enemy.bodyRadius + playerRadius) {
-                //-------------------------------------------------------------
-                // 回避の無敵時間中は敵をすり抜ける。敵のattackTimer（接触ダメージのクールタイム）も
-                // 消費させない：ここで消費してしまうと、回避で避けた直後の一撃まで無効化してしまう
-                //-------------------------------------------------------------
+            if(hitbox.hasLandedThisAttack)
+                return;
+
+            if(animSet.attackTimer < hitbox.hitStartTime || animSet.attackTimer > hitbox.hitStartTime + hitbox.hitDuration)
+                return;    // まだ判定区間に入っていない、または過ぎた
+
+            if(playerEntity == entt::null || !playerHealth || playerHealth->isDead)
+                return;    // 当てる相手がいない
+
+            if(!ctx || !ctx->physicsSystem)
+                return;
+
+            ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.handBoneName, hitbox.resolvedAgainstModel, hitbox.handBoneNodeIndex);
+            if(hitbox.handBoneNodeIndex == UINT32_MAX
+               || !registry.HasComponent<Tsukino::BuiltIn::ECS::NodeWorldMatrixComponent>(enemyEntity))
+                return;
+
+            auto& enemyMatrices = registry.GetComponent<Tsukino::BuiltIn::ECS::NodeWorldMatrixComponent>(enemyEntity);
+            if(hitbox.handBoneNodeIndex >= enemyMatrices.matrices.size())
+                return;
+
+            // モデルローカルのボーン姿勢 → ワールド空間。WeaponComponentの手ボーン追従と同じ規約
+            // （hlsl++のクォータニオン積は行列積と合成順が逆なので、親を左に置くmul(q_parent, q_local)を使う。
+            //   CombatSystem冒頭の武器アタッチ処理のコメント参照）
+            hlslpp::float3     boneLocalPos;
+            hlslpp::quaternion boneLocalRot;
+            Tsukino::Core::Math::matrix::decomposePositionRotation(enemyMatrices.matrices[hitbox.handBoneNodeIndex], boneLocalPos, boneLocalRot);
+
+            hlslpp::float3     boneWorldPos =
+                enemyTransform.position + hlslpp::mul(boneLocalPos * enemyTransform.scale, enemyTransform.rotation);
+            hlslpp::quaternion boneWorldRot = hlslpp::mul(enemyTransform.rotation, boneLocalRot);
+
+            hlslpp::float3 hitCenter = boneWorldPos + hlslpp::mul(hitbox.boneLocalOffset, boneWorldRot);
+
+            std::vector<entt::entity> overlapping = ctx->physicsSystem->OverlapCapsule(hitCenter, boneWorldRot, hitbox.radius, 1.0f);
+
+            for(entt::entity hitEntity : overlapping) {
+                if(!registry.HasComponent<PlayerComponent>(hitEntity))
+                    continue;
+
+                // 回避の無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
+                // 同じ判定区間内であれば改めて当たり得る
                 if(playerInvincible)
-                    return;
+                    continue;
 
-                playerHealth->currentHealth -= enemy.contactDamage;
+                playerHealth->currentHealth -= hitbox.damage;
                 if(playerHealth->currentHealth <= 0.0f) {
                     playerHealth->currentHealth = 0.0f;
                     playerHealth->isDead         = true;
                 }
-                enemy.attackTimer = enemy.attackInterval;
+                hitbox.hasLandedThisAttack = true;
+                break;
             }
+
+#ifdef _DEBUG
+            if(ctx->renderer) {
+                hlslpp::float4 color = hitbox.hasLandedThisAttack ? hlslpp::float4(1.0f, 0.2f, 0.8f, 1.0f) : hlslpp::float4(0.3f, 0.6f, 1.0f, 1.0f);
+                DrawWireCircleXZ(ctx->renderer, hitCenter, hitbox.radius, color);
+            }
+#endif
         });
 
 #ifdef _DEBUG
-        // 敵の当たり判定範囲（EnemyComponent::bodyRadius）をワイヤーフレームで可視化する。
-        // 敵にはJolt物理コライダーが無く判定は距離計算のみのため、目視で確認する手段がこれまでなかった
+        // 敵の当たり判定範囲（EnemyComponent::bodyRadius。武器ヒット判定用カプセルの寸法決めに使う参考値）を
+        // ワイヤーフレームで可視化する
         if(ctx && ctx->renderer) {
+            auto enemyView = registry.View<EnemyComponent, Tsukino::BuiltIn::ECS::TransformComponent, HealthComponent>();
             enemyView.each([&](entt::entity, EnemyComponent& enemy, Tsukino::BuiltIn::ECS::TransformComponent& enemyTransform, HealthComponent& enemyHealth) {
                 if(enemyHealth.isDead)
                     return;

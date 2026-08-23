@@ -4,6 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
+#include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
@@ -12,8 +13,10 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kAnimBlendTime   = 0.15f;    //!< Idle/Walkへ切り替える際のクロスフェード時間（秒）
-        constexpr float kAttackBlendTime = 0.10f;    //!< Attackへ切り替える際のクロスフェード時間（秒。素早く反応させるため短め）
+        constexpr float kAnimBlendTime      = 0.15f;    //!< Idle/Walkへ切り替える際のクロスフェード時間（秒）
+        constexpr float kAttackBlendTime    = 0.10f;    //!< Attackへ切り替える際のクロスフェード時間（秒。素早く反応させるため短め）
+        constexpr float kKnockbackBlendTime = 0.06f;    //!< Knockbackへ切り替える際のクロスフェード時間（秒。被弾の反応は最速で入れたい）
+        constexpr float kDeathBlendTime     = 0.10f;    //!< Deathへ切り替える際のクロスフェード時間（秒）
 
         //-------------------------------------------------------------
         //! @brief  「指定クリップへクロスフェードする」OnEnterコールバックを作るヘルパー
@@ -59,13 +62,31 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(EnemyAnimState::Idle, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, kAnimBlendTime, true));
         m_stateMachine.RegisterState(EnemyAnimState::Walk, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, kAnimBlendTime, true));
 
-        // Attackへ入るときはattackTimer（BigZombieBehavior::PlayAttackの終了判定ウォッチドッグ）も
+        // Attackへ入るときはattackTimer（ZombieBehavior::PlayAttackの終了判定ウォッチドッグ）も
         // ここでリセットする。PlayAttackはこのOnEnterが実行される1フレーム前から加算を始めているため、
-        // 実際にAttackクリップへ切り替わった瞬間を基準に測り直す
+        // 実際にAttackクリップへ切り替わった瞬間を基準に測り直す。
+        // 併せてEnemyAttackHitboxComponentのhasLandedThisAttackもクリアし、
+        // 新しい一振りで再度ヒットを取れるようにする
         auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, false, kAttackBlendTime, true);
         m_stateMachine.RegisterState(EnemyAnimState::Attack, [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             attackClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
+            if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity))
+                hitbox->hasLandedThisAttack = false;
+        });
+
+        // Knockbackへ入るときはknockbackTimer（ZombieBehavior::PlayKnockbackの終了判定ウォッチドッグ）をリセットする
+        auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, false, kKnockbackBlendTime, true);
+        m_stateMachine.RegisterState(EnemyAnimState::Knockback, [knockbackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+            knockbackClipEnter(registry, entity);
+            registry.GetComponent<EnemyAnimationSetComponent>(entity).knockbackTimer = 0.0f;
+        });
+
+        // Deathへ入るときはdeathTimer（ZombieBehavior::PlayDeathの終了判定ウォッチドッグ）をリセットする
+        auto deathClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::deathClip, false, kDeathBlendTime, true);
+        m_stateMachine.RegisterState(EnemyAnimState::Death, [deathClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+            deathClipEnter(registry, entity);
+            registry.GetComponent<EnemyAnimationSetComponent>(entity).deathTimer = 0.0f;
         });
     }
 

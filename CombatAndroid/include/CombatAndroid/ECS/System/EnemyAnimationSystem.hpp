@@ -12,7 +12,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  EnemyAnimationSystem
     //! @brief  EnemyAnimationSetComponent::desiredState（EnemyBehaviorSystemが書き込む）を見て、
-    //!         Idle/Walk/Attackのアニメーションステートマシンを進行させるシステム
+    //!         Idle/Walk/Attack/Knockback/Deathのアニメーションステートマシンを進行させるシステム
     //-------------------------------------------------------------
     class EnemyAnimationSystem : public Tsukino::ECS::ISystem {
     public:
@@ -29,6 +29,6 @@ namespace CombatAndroid::ECS {
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
 
     private:
-        StateMachine<EnemyAnimState> m_stateMachine;    //!< Idle/Walk/Attackの遷移とクリップ切り替えを管理する
+        StateMachine<EnemyAnimState> m_stateMachine;    //!< Idle/Walk/Attack/Knockback/Deathの遷移とクリップ切り替えを管理する
     };
 }    // namespace CombatAndroid::ECS

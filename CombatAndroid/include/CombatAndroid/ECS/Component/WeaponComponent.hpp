@@ -69,7 +69,9 @@ namespace CombatAndroid::ECS {
                                                      //!< PlayerSystemが武器切り替え時に更新する
         float floatSelectedHeightBoost = 40.0f;    //!< floatSelected中に追加で浮かせる高さ
 
-        float damage         = 20.0f;    //!< 命中時に与えるダメージ
+        float damage           = 20.0f;    //!< 命中時に与える基礎ダメージ
+        float damageMultiplier = 1.0f;     //!< 実ダメージ = damage * damageMultiplier。連撃の段ごとにPlayerAnimationSystemが書き換える
+                                             //!< （AttackStep::damageMultiplier）。ノックバック閾値の判定もこの実ダメージで行う
         // 当たり判定はPhase B(Jolt物理)のカプセルで行う。グリップ位置(transform.position)を起点に
         // 武器のローカルY軸（＝刃の向き。モデルがエクスポート時点でY-upのため）方向へrangeだけ伸びる
         // カプセルを毎フレーム構築してCombatSystemがOverlapCapsuleへ渡す

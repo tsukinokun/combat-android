@@ -16,11 +16,11 @@
 #include <CombatAndroid/ECS/Component/DamageNumberComponent.hpp>
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
-#include <CombatAndroid/ECS/AI/BigZombieBehavior.hpp>
+#include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
+#include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
 #include <CombatAndroid/ECS/System/CombatSystem.hpp>
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
-#include <CombatAndroid/ECS/System/EnemySystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
@@ -52,6 +52,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/AnimationSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionBlurSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionVectorSnapshotSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/DebugCameraSystem.hpp>
@@ -75,6 +76,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/PointLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpotLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/MotionBlurComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpringBoneComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DebugCameraComponent.hpp>
@@ -147,6 +149,7 @@ namespace CombatAndroid {
             Light,      // ディレクショナル/点光源/スポットをまとめてRendererへ渡す。
                         // worldMatrixから位置を取るのでTransform系より後である必要がある
             SkyAtmosphere,
+            Fog,    // フォグはカメラ位置と太陽方向を使うため、Camera / Light より後に置く
         };
 
         // 登録
@@ -157,9 +160,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::MotionVectorSnapshotSystem>(), (int)SystemPriority::MotionVectorSnapshot);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::Transform);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSystem>(), (int)SystemPriority::Movement);
-        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySystem>(), (int)SystemPriority::Movement);
-        // BT駆動の敵（現状BigZombieのみ）。EnemyComponentは共有するがBehaviorTreeComponentの有無で
-        // EnemySystem（直進追跡のみ）とは排他に動く（EnemySystem::Update側でスキップする）
+        // 敵は全てBehaviorTreeComponentを持つBT駆動（歩いて近づき、射程内で攻撃・被弾でノックバック・死亡演出）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyBehaviorSystem>(), (int)SystemPriority::Movement);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerAnimationSystem>(), (int)SystemPriority::Gameplay);
         // EnemyAnimationSystemが書いたAnimationControllerComponent::nextを同フレームでAnimationSystemが
@@ -214,6 +215,7 @@ namespace CombatAndroid {
         }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::LightSystem>(), (int)SystemPriority::Light);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SkyAtmosphereSystem>(), (int)SystemPriority::SkyAtmosphere);
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FogSystem>(), (int)SystemPriority::Fog);
 
         //--------------------------------------------------------------
         // アセットのロード
@@ -241,6 +243,18 @@ namespace CombatAndroid {
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Walking.fbx"));
         Tsukino::Asset::AssetHandle bigZombieAttackAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx"));
+
+        // SmallZombie（EnemyAnimationSystem）が使うクリップ
+        Tsukino::Asset::AssetHandle smallZombieWalkAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Unarmed Walk Forward.fbx"));
+        Tsukino::Asset::AssetHandle smallZombieAttackAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx"));
+        // ノックバック・死亡クリップ。両方ともMixamoの標準ヒューマノイドリグ（mixamorig:）で
+        // 作られているため、専用クリップの無いBigZombie側にもそのまま流用する
+        Tsukino::Asset::AssetHandle zombieKnockbackAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));
+        Tsukino::Asset::AssetHandle zombieDeathAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx"));
 
         Tsukino::ECS::Registry& registry = m_scene.GetRegistry();
 
@@ -300,10 +314,26 @@ namespace CombatAndroid {
         // Transform位置＝カプセル底面（足元）を表すようにする（モデルの足元原点と揃えるため）
         characterController.centerOffset = hlslpp::float3(0.0f, characterController.halfHeight + characterController.radius, 0.0f);
 
+        //-------------------------------------------------------------
+        // プレイヤーはCharacterVirtual（Jolt物理のBodyではない仮想キャラクタ）で動いているため、
+        // NarrowPhaseQuery::CollideShape（=PhysicsSystem::OverlapCapsule）では検出できない。
+        // 敵の攻撃判定（CombatSystem）がプレイヤーを見つけられるよう、敵と同じ構成
+        // （Kinematic + isSensor）のセンサーカプセルを別途持たせる。isSensor=trueなので
+        // 物理的な押し出しは発生せず、移動は引き続きCharacterVirtualが担当する
+        //-------------------------------------------------------------
+        Tsukino::BuiltIn::ECS::RigidbodyComponent& playerRigidbody = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(playerEntity);
+        playerRigidbody.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
+
+        Tsukino::BuiltIn::ECS::CollisionComponent& playerCollision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(playerEntity);
+        playerCollision.type           = Tsukino::BuiltIn::ECS::ColliderType::Capsule;
+        playerCollision.extent         = hlslpp::float3(characterController.radius, characterController.halfHeight, 0.0f);
+        playerCollision.isSensor       = true;
+        playerCollision.offsetPosition = characterController.centerOffset;
+
         // プレイヤーコンポーネントをつける（PlayerSystemが入力を読み取るための目印）
         CombatAndroid::ECS::PlayerComponent& player = registry.AddComponent<CombatAndroid::ECS::PlayerComponent>(playerEntity);
 
-        // HPを持たせる（Phase A: 敵の接触ダメージ計算に使用）
+        // HPを持たせる（敵の攻撃当たり判定によるダメージ計算に使用）
         registry.AddComponent<CombatAndroid::ECS::HealthComponent>(playerEntity);
 
         // ModelComponent の追加
@@ -379,6 +409,9 @@ namespace CombatAndroid {
         // 斬撃が敵へ届く前にヒット判定が閉じてしまう。暫定的に長めの値を設定する。
         // 最終値は実機でF10/F11 + ATTACKログ（PlayerAnimationSystem）を見ながら詰めること
         animSet.attackSteps[2].hitWindowDuration = 0.6f;
+        // 3段目（フィニッシュ）だけ重い一撃としてダメージを2倍にする。
+        // 敵のknockbackDamageThresholdと組み合わせて「重い武器の3段目だけノックバックする」を実現する
+        animSet.attackSteps[2].damageMultiplier   = 2.0f;
 
         Tsukino::BuiltIn::ECS::SpringBoneComponent& springBone = registry.AddComponent<Tsukino::BuiltIn::ECS::SpringBoneComponent>(playerEntity);
 
@@ -473,7 +506,11 @@ namespace CombatAndroid {
         player.weaponInventory     = {warhammerEntity};
         player.selectedWeaponIndex = 0;
         player.weaponEntity         = warhammerEntity;
-        registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity).floatSelected = true;
+        {
+            auto& warhammerWeapon    = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
+            warhammerWeapon.floatSelected = true;
+            warhammerWeapon.damage         = 38.0f;    // 重量武器。3段目（damageMultiplier 2.0）で76となり、SmallZombie/BigZombie両方を怯ませる
+        }
 
         //--------------------------------------------------------------
         // 地面に落ちている武器の生成（Fキーで拾える）。
@@ -522,56 +559,91 @@ namespace CombatAndroid {
         // 動作確認用に近い位置へ2本まとめて置き、「同時に範囲内でも1つだけ光る」ことを確認できるようにする。
         // greatswordはwarhammerと同じ調整済み値を暫定適用（メッシュが違うため厳密には別値が必要になりうる。
         // ずれる場合はWeaponGripDebugSystemのF6調整モードで別途詰める）
-        spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/greatsword.fbx"),
-                         hlslpp::float3(250.0f, 10.0f, 0.0f), L"グレートソード",
-                         hlslpp::float3(0.0f, 0.0f, 10.0f),
-                         hlslpp::float3(0.0f, 0.0f, 0.0f),
-                         hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        Tsukino::ECS::Entity greatswordEntity =
+            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/greatsword.fbx"),
+                             hlslpp::float3(250.0f, 10.0f, 0.0f), L"グレートソード",
+                             hlslpp::float3(0.0f, 0.0f, 10.0f),
+                             hlslpp::float3(0.0f, 0.0f, 0.0f),
+                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        // 軽量武器。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
+        registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity).damage = 22.0f;
+
         // warhammerは最初から装備している個体（spawnFloatingWeapon）と同じモデルのため、同じ調整済み値を使う
-        spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"),
-                         hlslpp::float3(340.0f, 10.0f, 0.0f), L"ウォーハンマー",
-                         hlslpp::float3(0.0f, 0.0f, 10.0f),
-                         hlslpp::float3(0.0f, 0.0f, 0.0f),
-                         hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        Tsukino::ECS::Entity warhammerWorldEntity =
+            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"),
+                             hlslpp::float3(340.0f, 10.0f, 0.0f), L"ウォーハンマー",
+                             hlslpp::float3(0.0f, 0.0f, 10.0f),
+                             hlslpp::float3(0.0f, 0.0f, 0.0f),
+                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerWorldEntity).damage = 38.0f;
 
         //--------------------------------------------------------------
-        // 敵エンティティ生成（Phase A: 本番の敵アセットが無いため、既存のBlock.fbxを仮の敵体として流用）。
-        // 当たり判定はPhase Bとして物理形状（Joltのカプセルセンサー）ベースに差し替え済み。
-        // bodyRadius/bodyHalfHeightは呼び出し側でモデルの見た目に合わせて指定する
-        // （プレイヤーとの接触ダメージ判定は引き続きEnemyComponent::bodyRadiusを使った距離判定のまま）
+        // 敵エンティティ生成。全敵共通でビヘイビアツリー駆動（歩く→射程内で攻撃、被弾でノックバック、
+        // 死亡でStunned→フェードアウト）にする。当たり判定は物理形状（Joltのカプセルセンサー）で行う。
+        // 将来的に湧き潰し（サバイバー化）で使い回せるよう、1体分の生成を1つの設定構造体＋ラムダに
+        // まとめてある
         //--------------------------------------------------------------
         // 頭上HPバー（背景・残量）の見た目に使う単色テクスチャ。
         // 全ての敵で使い回すため、ここで1回だけロードする
         Tsukino::Asset::AssetHandle hpBarTextureHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
 
-        auto spawnEnemy = [&](hlslpp::float3 spawnPosition, float moveSpeed, float maxHealth,
-                               const Tsukino::Core::Path& modelPath, hlslpp::float3 scale,
-                               float bodyRadius, float bodyHalfHeight) -> Tsukino::ECS::Entity {
+        //-------------------------------------------------------------
+        //! @struct ZombieSpawnConfig
+        //! @brief  spawnBehaviorEnemyへ渡す1体分の生成パラメータ
+        //-------------------------------------------------------------
+        struct ZombieSpawnConfig {
+            hlslpp::float3       spawnPosition;
+            float                 moveSpeed;
+            float                 maxHealth;
+            Tsukino::Core::Path modelPath;
+            hlslpp::float3       scale;
+            float                 bodyRadius;         //!< 武器ヒット判定用カプセルの半径
+            float                 bodyHalfHeight;      //!< 武器ヒット判定用カプセルの半高さ
+            float                 attackRange;         //!< BTが攻撃へ移る距離
+            float                 knockbackDamageThreshold;    //!< この値以上の単発ダメージでノックバックする
+
+            Tsukino::Asset::AssetHandle walkClip;
+            Tsukino::Asset::AssetHandle attackClip;
+            Tsukino::Asset::AssetHandle knockbackClip;
+            Tsukino::Asset::AssetHandle deathClip;
+
+            // 敵の攻撃当たり判定（EnemyAttackHitboxComponent）
+            std::string     handBoneName = "mixamorig:RightHand";
+            hlslpp::float3 hitboxLocalOffset{0.0f, 0.0f, 0.0f};
+            float           hitboxRadius = 45.0f;
+            float           hitboxDamage  = 15.0f;
+            float           hitStartTime = 0.40f;    //!< Attackへ入ってからの経過秒。ここから判定が有効になる
+            float           hitDuration   = 0.20f;
+        };
+
+        auto spawnBehaviorEnemy = [&](const ZombieSpawnConfig& config) -> Tsukino::ECS::Entity {
             Tsukino::ECS::Entity enemyEntity = m_scene.CreateEntity();
 
             Tsukino::BuiltIn::ECS::TransformComponent& enemyTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity);
-            enemyTransform.position                                   = spawnPosition;
+            enemyTransform.position                                   = config.spawnPosition;
             enemyTransform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
-            enemyTransform.scale                                      = scale;
+            enemyTransform.scale                                      = config.scale;
             enemyTransform.dirty                                      = true;
             enemyTransform.parent                                     = entt::null;
 
-            Tsukino::Asset::AssetHandle enemyModelHandle = context->assetManager->Load(modelPath);
+            Tsukino::Asset::AssetHandle enemyModelHandle = context->assetManager->Load(config.modelPath);
             Tsukino::BuiltIn::ECS::ModelComponent& enemyModel = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(enemyEntity);
             enemyModel.modelHandle                            = enemyModelHandle;
             enemyModel.visible                                = true;
 
             CombatAndroid::ECS::EnemyComponent& enemy = registry.AddComponent<CombatAndroid::ECS::EnemyComponent>(enemyEntity);
-            enemy.moveSpeed                        = moveSpeed;
-            enemy.bodyRadius                       = bodyRadius;
+            enemy.moveSpeed                 = config.moveSpeed;
+            enemy.bodyRadius                = config.bodyRadius;
+            enemy.attackRange               = config.attackRange;
+            enemy.knockbackDamageThreshold = config.knockbackDamageThreshold;
 
             CombatAndroid::ECS::HealthComponent& enemyHealth = registry.AddComponent<CombatAndroid::ECS::HealthComponent>(enemyEntity);
-            enemyHealth.maxHealth                         = maxHealth;
-            enemyHealth.currentHealth                     = maxHealth;
+            enemyHealth.maxHealth                         = config.maxHealth;
+            enemyHealth.currentHealth                     = config.maxHealth;
 
             // 武器のヒット判定（CombatSystemのOverlapCapsule）に拾わせるためのカプセルセンサー。
-            // Kinematicにすることで、EnemySystemが毎フレーム書き換えるTransformへPhysicsSystemが
+            // Kinematicにすることで、EnemyBehaviorSystemが毎フレーム書き換えるTransformへPhysicsSystemが
             // 追従してくれる（Static/RigidbodyComponent無しだと初期位置に固定されたままになる）。
             // isSensor=trueなので物理的な押し出し（ブロッキング）は発生しない
             Tsukino::BuiltIn::ECS::RigidbodyComponent& enemyRigidbody = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(enemyEntity);
@@ -579,18 +651,19 @@ namespace CombatAndroid {
 
             Tsukino::BuiltIn::ECS::CollisionComponent& enemyCollision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(enemyEntity);
             enemyCollision.type                                       = Tsukino::BuiltIn::ECS::ColliderType::Capsule;
-            enemyCollision.extent                                     = hlslpp::float3(bodyRadius, bodyHalfHeight, 0.0f);
+            enemyCollision.extent                                     = hlslpp::float3(config.bodyRadius, config.bodyHalfHeight, 0.0f);
             enemyCollision.isSensor                                   = true;
             // Transform位置＝足元とみなし、カプセル中心をそこから上へオフセットする
             // （CharacterControllerComponent::centerOffsetと同じ考え方）
-            enemyCollision.offsetPosition = hlslpp::float3(0.0f, bodyHalfHeight + bodyRadius, 0.0f);
+            enemyCollision.offsetPosition = hlslpp::float3(0.0f, config.bodyHalfHeight + config.bodyRadius, 0.0f);
 
             //-------------------------------------------------------------
             // 頭上HPバー（背景＋残量の2エンティティ）。カプセル上端（2*(bodyHalfHeight+bodyRadius)）より
             // 少し上に浮かせる。WorldAnchorSystemが毎フレームスクリーン座標へ投影し、
             // HealthBarSystemが残量に応じて見た目を更新する（被弾時のみ表示）
             //-------------------------------------------------------------
-            hlslpp::float3 hpBarWorldOffset = hlslpp::float3(0.0f, (bodyHalfHeight + bodyRadius) * 2.0f + 20.0f, 0.0f);
+            hlslpp::float3 hpBarWorldOffset =
+                hlslpp::float3(0.0f, (config.bodyHalfHeight + config.bodyRadius) * 2.0f + 20.0f, 0.0f);
 
             Tsukino::ECS::Entity hpBarBackgroundEntity = m_scene.CreateEntity();
             {
@@ -627,61 +700,87 @@ namespace CombatAndroid {
             enemyHealth.hpBarBackgroundEntity = hpBarBackgroundEntity;
             enemyHealth.hpBarFillEntity       = hpBarFillEntity;
 
-            return enemyEntity;
-        };
-
-        const Tsukino::Core::Path blockModelPath("CombatAndroid/Assets/Models/Block.fbx");
-        spawnEnemy(hlslpp::float3(200.0f, 20.0f, 200.0f), 100.0f, 40.0f, blockModelPath, hlslpp::float3(1.5f, 1.5f, 1.5f), 40.0f, 70.0f);    // 弱い近接タイプ
-        spawnEnemy(hlslpp::float3(-200.0f, 20.0f, 200.0f), 80.0f, 80.0f, blockModelPath, hlslpp::float3(1.5f, 1.5f, 1.5f), 40.0f, 70.0f);    // やや硬い近接タイプ
-        spawnEnemy(hlslpp::float3(0.0f, 20.0f, -250.0f), 90.0f, 60.0f, blockModelPath, hlslpp::float3(1.5f, 1.5f, 1.5f), 40.0f, 70.0f);      // 3体目
-
-        // BigZombie（Phase A: モデルは仮配置。カプセルサイズは見た目のスケール(2.2倍)に合わせて拡大している）
-        Tsukino::ECS::Entity bigZombieEntity =
-            spawnEnemy(hlslpp::float3(-250.0f, 20.0f, -250.0f), 70.0f, 150.0f,
-                       Tsukino::Core::Path("CombatAndroid/Assets/Models/BigZombie.fbx"),
-                       hlslpp::float3(2.2f, 2.2f, 2.2f), 70.0f, 110.0f);
-
-        //--------------------------------------------------------------
-        // BigZombieはビヘイビアツリー駆動（歩いて近づき、射程内で攻撃する）にする。
-        // 他の敵（Block.fbxの3体）はEnemyComponentのみでBehaviorTreeComponentを持たないため
-        // 従来通りEnemySystemの直進追跡のまま
-        //--------------------------------------------------------------
-        {
+            //-------------------------------------------------------------
             // アニメーション再生・制御用コンポーネント（初期状態はIdle。以後はEnemyAnimationSystemが管理する）
-            Tsukino::BuiltIn::ECS::AnimationPlayerComponent& bigZombieAnimPlayer =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(bigZombieEntity);
-            bigZombieAnimPlayer.current_clip_id       = bigZombieWalkAnimHandle;
-            bigZombieAnimPlayer.animation_index       = 1;    // Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
-            bigZombieAnimPlayer.elapsed_time          = 0.0f;
-            bigZombieAnimPlayer.playback_speed        = 1.0f;
-            bigZombieAnimPlayer.is_looping            = true;
-            bigZombieAnimPlayer.is_playing            = true;
-            bigZombieAnimPlayer.in_place              = true;    // その場足踏み（移動はEnemyBehaviorSystemがTransformを直接書く）
-            bigZombieAnimPlayer.root_motion_node_name = "mixamorig:Hips";
+            //-------------------------------------------------------------
+            Tsukino::BuiltIn::ECS::AnimationPlayerComponent& animPlayer =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(enemyEntity);
+            animPlayer.current_clip_id       = config.walkClip;
+            animPlayer.animation_index       = 1;    // Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
+            animPlayer.elapsed_time          = 0.0f;
+            animPlayer.playback_speed        = 1.0f;
+            animPlayer.is_looping            = true;
+            animPlayer.is_playing            = true;
+            animPlayer.in_place              = true;    // その場足踏み（移動はEnemyBehaviorSystemがTransformを直接書く）
+            animPlayer.root_motion_node_name = "mixamorig:Hips";
 
             // クリップの切り替え（AnimationSystemが読む「次に再生するクリップ」の受け皿）
-            registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(bigZombieEntity);
+            registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(enemyEntity);
 
             // 計算されたボーン行列の出力先（スキニング用）コンポーネント。
             // これが無いとAnimationSystemのView<AnimationPlayerComponent, SkeletonOutputComponent>に
             // 乗らずアニメーションが再生されない
-            registry.AddComponent<Tsukino::BuiltIn::ECS::SkeletonOutputComponent>(bigZombieEntity);
+            registry.AddComponent<Tsukino::BuiltIn::ECS::SkeletonOutputComponent>(enemyEntity);
 
             // EnemyAnimationSystemが参照する、ステートごとのアニメーションクリップ一式
-            CombatAndroid::ECS::EnemyAnimationSetComponent& bigZombieAnimSet =
-                registry.AddComponent<CombatAndroid::ECS::EnemyAnimationSetComponent>(bigZombieEntity);
-            bigZombieAnimSet.walkClip   = bigZombieWalkAnimHandle;
-            bigZombieAnimSet.attackClip = bigZombieAttackAnimHandle;
+            CombatAndroid::ECS::EnemyAnimationSetComponent& animSet =
+                registry.AddComponent<CombatAndroid::ECS::EnemyAnimationSetComponent>(enemyEntity);
+            animSet.walkClip      = config.walkClip;
+            animSet.attackClip    = config.attackClip;
+            animSet.knockbackClip = config.knockbackClip;
+            animSet.deathClip     = config.deathClip;
 
-            // ビヘイビアツリー本体（歩く→射程内で攻撃、を行う）
-            CombatAndroid::ECS::BehaviorTreeComponent& bigZombieBehaviorTree =
-                registry.AddComponent<CombatAndroid::ECS::BehaviorTreeComponent>(bigZombieEntity);
-            bigZombieBehaviorTree.root = CombatAndroid::ECS::BuildBigZombieTree();
+            // 敵の攻撃当たり判定。手ボーンにEnemyAttackHitboxComponent::radiusの判定球を出し、
+            // Attackステートのhit窓（hitStartTime〜+hitDuration）の間だけプレイヤーへダメージを与える
+            CombatAndroid::ECS::EnemyAttackHitboxComponent& hitbox =
+                registry.AddComponent<CombatAndroid::ECS::EnemyAttackHitboxComponent>(enemyEntity);
+            hitbox.handBoneName      = config.handBoneName;
+            hitbox.boneLocalOffset = config.hitboxLocalOffset;
+            hitbox.radius            = config.hitboxRadius;
+            hitbox.damage             = config.hitboxDamage;
+            hitbox.hitStartTime      = config.hitStartTime;
+            hitbox.hitDuration       = config.hitDuration;
 
-            // 攻撃射程の調整。bodyRadius(70)+playerRadiusより広く取り、振りかぶる前に
-            // 接触ダメージ（CombatSystem）が先に成立しないようにする
-            registry.GetComponent<CombatAndroid::ECS::EnemyComponent>(bigZombieEntity).attackRange = 150.0f;
-        }
+            // ビヘイビアツリー本体（歩く→射程内で攻撃、被弾でノックバック、死亡でフェードアウト）
+            CombatAndroid::ECS::BehaviorTreeComponent& behaviorTree =
+                registry.AddComponent<CombatAndroid::ECS::BehaviorTreeComponent>(enemyEntity);
+            behaviorTree.root = CombatAndroid::ECS::BuildZombieTree();
+
+            return enemyEntity;
+        };
+
+        // SmallZombie×3（旧・箱の敵の跡地）。実寸未計測のため暫定スケール・カプセル寸法で置き、
+        // 実機のコリジョンワイヤーフレーム（_DEBUG常時ON）を見ながら詰める前提の初期値
+        spawnBehaviorEnemy({.spawnPosition = hlslpp::float3(200.0f, 20.0f, 200.0f), .moveSpeed = 100.0f, .maxHealth = 40.0f,
+                            .modelPath = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx"),
+                            .scale = hlslpp::float3(2.0f, 2.0f, 2.0f), .bodyRadius = 40.0f, .bodyHalfHeight = 70.0f,
+                            .attackRange = 120.0f, .knockbackDamageThreshold = 40.0f,
+                            .walkClip = smallZombieWalkAnimHandle, .attackClip = smallZombieAttackAnimHandle,
+                            .knockbackClip = zombieKnockbackAnimHandle, .deathClip = zombieDeathAnimHandle});
+        spawnBehaviorEnemy({.spawnPosition = hlslpp::float3(-200.0f, 20.0f, 200.0f), .moveSpeed = 100.0f, .maxHealth = 40.0f,
+                            .modelPath = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx"),
+                            .scale = hlslpp::float3(2.0f, 2.0f, 2.0f), .bodyRadius = 40.0f, .bodyHalfHeight = 70.0f,
+                            .attackRange = 120.0f, .knockbackDamageThreshold = 40.0f,
+                            .walkClip = smallZombieWalkAnimHandle, .attackClip = smallZombieAttackAnimHandle,
+                            .knockbackClip = zombieKnockbackAnimHandle, .deathClip = zombieDeathAnimHandle});
+        spawnBehaviorEnemy({.spawnPosition = hlslpp::float3(0.0f, 20.0f, -250.0f), .moveSpeed = 100.0f, .maxHealth = 40.0f,
+                            .modelPath = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx"),
+                            .scale = hlslpp::float3(2.0f, 2.0f, 2.0f), .bodyRadius = 40.0f, .bodyHalfHeight = 70.0f,
+                            .attackRange = 120.0f, .knockbackDamageThreshold = 40.0f,
+                            .walkClip = smallZombieWalkAnimHandle, .attackClip = smallZombieAttackAnimHandle,
+                            .knockbackClip = zombieKnockbackAnimHandle, .deathClip = zombieDeathAnimHandle});
+
+        // BigZombie（Phase A: モデルは仮配置。カプセルサイズは見た目のスケール(2.2倍)に合わせて拡大している。
+        // ノックバック・死亡クリップはSmallZombieのものを流用（専用アセット未用意のため）
+        spawnBehaviorEnemy({.spawnPosition = hlslpp::float3(-250.0f, 20.0f, -250.0f), .moveSpeed = 70.0f, .maxHealth = 150.0f,
+                            .modelPath = Tsukino::Core::Path("CombatAndroid/Assets/Models/BigZombie.fbx"),
+                            .scale = hlslpp::float3(2.2f, 2.2f, 2.2f), .bodyRadius = 70.0f, .bodyHalfHeight = 110.0f,
+                            // 攻撃射程はbodyRadius(70)+playerRadiusより広く取り、振りかぶる前に手判定より先に
+                            // 別の判定が成立することのないようにする
+                            .attackRange = 150.0f, .knockbackDamageThreshold = 60.0f,
+                            .walkClip = bigZombieWalkAnimHandle, .attackClip = bigZombieAttackAnimHandle,
+                            .knockbackClip = zombieKnockbackAnimHandle, .deathClip = zombieDeathAnimHandle,
+                            .hitboxRadius = 60.0f, .hitboxDamage = 15.0f});
 
         //--------------------------------------------------------------
         // 2Dカメラエンティティの生成
@@ -919,6 +1018,41 @@ namespace CombatAndroid {
         {
             Tsukino::ECS::Entity skyEntity = m_scene.CreateEntity();
             registry.AddComponent<Tsukino::BuiltIn::ECS::SkyAtmosphereComponent>(skyEntity);
+        }
+
+        //--------------------------------------------------------------
+        // フォグエンティティの生成
+        //
+        // FogComponentのデフォルトは「1ユニット = 1m」想定なので、
+        // このシーンのスケール（TPSカメラがプレイヤーの400ユニット後方、
+        // 200ユニット上）に合わせて距離系のパラメータを入れ直す。
+        //--------------------------------------------------------------
+        {
+            Tsukino::ECS::Entity fogEntity = m_scene.CreateEntity();
+            auto&                fog       = registry.AddComponent<Tsukino::BuiltIn::ECS::FogComponent>(fogEntity);
+
+            // 距離フォグ：戦闘範囲（〜500）は素通しで、そこから奥を徐々に霞ませる
+            fog.color         = hlslpp::float3(0.55f, 0.60f, 0.65f);
+            fog.density       = 0.00030f;
+            fog.startDistance = 500.0f;
+            fog.maxOpacity    = 1.0f;
+
+            // 高さフォグ：地面（y = -5）付近に溜め、カメラの高さ（y ≒ 205）では薄くする
+            fog.heightFogEnabled = true;
+            fog.height           = 0.0f;
+            fog.heightFalloff    = 0.004f;
+            fog.heightDensity    = 0.00050f;
+
+            // 太陽方向の前方散乱
+            fog.sunColor        = hlslpp::float3(1.0f, 0.85f, 0.65f);
+            fog.sunScatterPower = 8.0f;
+
+            // ノイズ：700ユニット程度の塊がゆっくり流れる
+            fog.noiseEnabled   = true;
+            fog.noiseScale     = 0.0015f;
+            fog.noiseIntensity = 0.50f;
+            fog.windDirection  = hlslpp::float3(1.0f, 0.0f, 0.3f);
+            fog.windSpeed      = 60.0f;
         }
     }
 

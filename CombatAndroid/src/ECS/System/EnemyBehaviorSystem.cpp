@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 
@@ -39,11 +40,21 @@ namespace CombatAndroid::ECS {
                      BehaviorTreeComponent&                      behaviorTree,
                      EnemyComponent&                               enemy,
                      Tsukino::BuiltIn::ECS::TransformComponent& transform) {
-            // 死亡している敵は動かさない（破棄はCombatSystemがQueueDestroy経由で行う）
-            if(auto* health = registry.try_get<HealthComponent>(entity); health && health->isDead)
-                return;
+            // 死亡・ノックバックはRunning中のAttack/Chase分岐を即座に打ち切りたいが、
+            // 記憶付きSequence/Selectorは自分より前段の条件をRunning中は再評価しない
+            // （BehaviorTree.hpp参照）。そこでこの2つのケースだけは明示的にReset()して
+            // 次のTickを必ず先頭（Death/Knockback分岐）から評価させる。
+            // まだDeathへ移っていない場合に限定することで、死亡後は毎フレームResetし続けない
+            auto* health = registry.try_get<HealthComponent>(entity);
+            auto* animSet = registry.try_get<EnemyAnimationSetComponent>(entity);
+            bool  justDied = health && health->isDead && animSet && animSet->desiredState != EnemyAnimState::Death;
+            if(enemy.pendingKnockback || justDied) {
+                if(behaviorTree.root)
+                    behaviorTree.root->Reset();
+            }
 
-            // 攻撃クールタイムの減算
+            // 攻撃クールタイムの減算（死亡・硬直中でも進めて構わない。硬直明けにPlayKnockbackが
+            // 上書きするため、ここで負にしても実害はない）
             if(enemy.attackCooldownTimer > 0.0f) {
                 enemy.attackCooldownTimer -= deltaTime;
                 if(enemy.attackCooldownTimer < 0.0f)

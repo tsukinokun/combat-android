@@ -100,6 +100,7 @@ namespace CombatAndroid::ECS {
                     weapon.attackRequested = true;
                     weapon.cooldownTimer   = 0.0f;
                     weapon.nextActiveDurationOverride = step.hitWindowDuration;
+                    weapon.damageMultiplier            = step.damageMultiplier;
                 }
             };
         }

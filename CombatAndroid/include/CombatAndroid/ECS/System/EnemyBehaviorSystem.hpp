@@ -9,8 +9,7 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  EnemyBehaviorSystem
-    //! @brief  BehaviorTreeComponentを持つ敵の黒板を更新し、ビヘイビアツリーを進行させるシステム。
-    //!         対象はEnemySystem（従来の直進追跡のみ）とは排他（BehaviorTreeComponentの有無で分岐）
+    //! @brief  BehaviorTreeComponentを持つ敵（全敵）の黒板を更新し、ビヘイビアツリーを進行させるシステム
     //-------------------------------------------------------------
     class EnemyBehaviorSystem : public Tsukino::ECS::ISystem {
     public:

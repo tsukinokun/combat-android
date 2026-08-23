@@ -51,6 +51,15 @@ namespace CombatAndroid::ECS {
         //! @return このノードの結果
         //-------------------------------------------------------------
         virtual NodeStatus Tick(BehaviorContext<TBlackboard>& context) = 0;
+
+        //-------------------------------------------------------------
+        //! @brief  Running中の状態を強制的に破棄し、次のTickを先頭から評価させる。
+        //! @details
+        //! ノックバックや死亡のように「実行中の分岐を問答無用で打ち切りたい」場合に
+        //! 外部（EnemyBehaviorSystem等）から呼ぶ。状態を持たない葉ノード
+        //! （ConditionNode/ActionNode）は何もしなくてよいためデフォルト実装のまま
+        //-------------------------------------------------------------
+        virtual void Reset() {}
     };
 
     //-------------------------------------------------------------
@@ -72,6 +81,15 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void AddChild(std::shared_ptr<BehaviorNode<TBlackboard>> child) {
             m_children.push_back(std::move(child));
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  記憶（m_runningIndex）を先頭へ戻し、子にも再帰的に伝播する
+        //-------------------------------------------------------------
+        void Reset() override {
+            m_runningIndex = 0;
+            for(auto& child : m_children)
+                child->Reset();
         }
 
     protected:

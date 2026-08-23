@@ -13,9 +13,11 @@ namespace CombatAndroid::ECS {
     //! @brief  ビヘイビアツリー駆動の敵のアニメーションステート
     //-------------------------------------------------------------
     enum class EnemyAnimState {
-        Idle,      //!< 待機（Idleクリップが無いため、その場の足踏みで代用する）
-        Walk,      //!< 追跡移動
-        Attack,    //!< 攻撃
+        Idle,         //!< 待機（Idleクリップが無いため、その場の足踏みで代用する）
+        Walk,         //!< 追跡移動
+        Attack,       //!< 攻撃
+        Knockback,    //!< 被弾のけぞり（Zombie Reaction Hit）
+        Death,        //!< 死亡（Stunned）
     };
 
     //-------------------------------------------------------------
@@ -24,8 +26,10 @@ namespace CombatAndroid::ECS {
     //!         実際のアニメーションステートを橋渡しするコンポーネント
     //-------------------------------------------------------------
     struct EnemyAnimationSetComponent {
-        Tsukino::Asset::AssetHandle walkClip;      //!< Mutant Walking（Idleもin_place再生でこれを流用する）
-        Tsukino::Asset::AssetHandle attackClip;    //!< Mutant Swiping
+        Tsukino::Asset::AssetHandle walkClip;        //!< Mutant Walking / Unarmed Walk Forward（Idleもin_place再生でこれを流用する）
+        Tsukino::Asset::AssetHandle attackClip;      //!< Mutant Swiping / Zombie Attack
+        Tsukino::Asset::AssetHandle knockbackClip;    //!< Zombie Reaction Hit
+        Tsukino::Asset::AssetHandle deathClip;        //!< Stunned
         u32   animationIndex = 1;                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
 
         EnemyAnimState currentState = EnemyAnimState::Idle;    //!< 現在のステート（EnemyAnimationSystemが管理）
@@ -39,5 +43,14 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         float attackTimer          = 0.0f;    //!< Attackへ入ってからの経過時間
         float attackTimeoutSafety = 3.0f;    //!< attackTimerがこの秒数を超えたら強制的に攻撃ステートを抜ける保険値
+
+        //-------------------------------------------------------------
+        // ノックバック・死亡も攻撃と同じ考え方（is_finished優先＋タイムアウト保険）で終了判定する
+        //-------------------------------------------------------------
+        float knockbackTimer          = 0.0f;    //!< Knockbackへ入ってからの経過時間
+        float knockbackTimeoutSafety = 1.5f;    //!< knockbackTimerがこの秒数を超えたら強制的にKnockbackステートを抜ける保険値
+
+        float deathTimer          = 0.0f;    //!< Deathへ入ってからの経過時間
+        float deathTimeoutSafety = 3.0f;    //!< deathTimerがこの秒数を超えたらStunnedの再生完了を待たずにフェードへ進む保険値
     };
 }    // namespace CombatAndroid::ECS
