@@ -223,8 +223,10 @@ namespace CombatAndroid::ECS {
             if(distance > enemy.detectRange)
                 return NodeStatus::Failure;    // 見失った
 
-            if(distance <= enemy.attackRange)
+            if(distance <= enemy.attackRange) {
+                animSet.desiredState = EnemyAnimState::Idle;    // 攻撃分岐へ譲る間はIdleで待機させる（棒立ち防止）
                 return NodeStatus::Success;    // 射程内に到達。攻撃分岐へ譲る（このフレームは移動しない）
+            }
 
             if(distance > 0.001f) {
                 hlslpp::float3 moveDir = toPlayer / distance;
