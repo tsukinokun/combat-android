@@ -32,6 +32,7 @@
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
 #include <CombatAndroid/ECS/System/HealthBarSystem.hpp>
 #include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
+#include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -117,6 +118,11 @@ namespace CombatAndroid {
         // システムの生成と追加
         //--------------------------------------------------------------
         enum class SystemPriority : int {
+            EnemySpawn = -4,               // サバイバーの湧き潰し（フォグの外から比重抽選で敵を湧かせる）。
+                                          // 生成・破棄はStressTestと同じく全システムの先頭で済ませ、その回の
+                                          // フレームからTransform/Animation/Physicsが新しい敵を正しく扱えるように
+                                          // する。StressTestより手前に置くのは、F1で負荷試験が数を作り直す前に
+                                          // 本Systemの生存数の数え上げを終わらせておくため
             StressTest = -3,              // （負荷試験ビルドのみ）敵の大量スポーン。生成・破棄を
                                           // 全システムの先頭で済ませることで、その回のフレームから
                                           // Transform/Animation/Physicsが新しい敵を正しく扱える
@@ -167,6 +173,7 @@ namespace CombatAndroid {
         // 生成・移動したライトのworldMatrixが1フレーム遅れ、LightSystemが古い位置を読む
         // モーションブラー用の前フレーム退避は、TransformSystem/AnimationSystemが
         // 今フレームの値で上書きする前に読む必要があるので最初に登録する
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySpawnDirectorSystem>(), (int)SystemPriority::EnemySpawn);
 #ifdef TSUKINO_ENABLE_STRESS_TEST
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyStressTestSystem>(), (int)SystemPriority::StressTest);
 #endif
@@ -578,13 +585,14 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         // 敵エンティティ生成。全敵共通でビヘイビアツリー駆動（歩く→射程内で攻撃、被弾でノックバック、
         // 死亡でStunned→フェードアウト）にする。当たり判定は物理形状（Joltのカプセルセンサー）で行う。
-        // 将来的に湧き潰し（サバイバー化）で使い回せるよう、1体分の生成を1つの設定構造体＋ラムダに
-        // まとめてある
+        // 1体分の生成処理は CombatAndroid/src/ECS/Utility/EnemySpawner.cpp へ切り出してあり、
+        // パラメータはMakeSmallZombieConfig / MakeBigZombieConfig が持つ。
+        //
+        // 実行中の湧き潰し（サバイバー化）は EnemySpawnDirectorSystem が担当する。
+        // ここで置く4体はSpawnedEnemyComponentを持たないため同System の間引き対象外で、
+        // 起動直後に画面が空にならないための最低限の見た目と、武器の当たり・ノックバック
+        // 閾値を確認するための固定サンプルを兼ねる
         //--------------------------------------------------------------
-        // 1体分の生成処理は CombatAndroid/src/ECS/Utility/EnemySpawner.cpp へ切り出した。
-        // 以前はここのローカルラムダだったためシーン構築時にしか呼べず、負荷試験のように
-        // 実行時に湧かせることができなかった。パラメータもMakeSmallZombieConfig /
-        // MakeBigZombieConfig が持つので、シーンと負荷試験で二重管理にならない
         CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
                                                CombatAndroid::ECS::MakeSmallZombieConfig(*context, hlslpp::float3(200.0f, 20.0f, 200.0f)));
         CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
@@ -869,9 +877,11 @@ namespace CombatAndroid {
             Tsukino::ECS::Entity fogEntity = m_scene.CreateEntity();
             auto&                fog       = registry.AddComponent<Tsukino::BuiltIn::ECS::FogComponent>(fogEntity);
 
-            // 距離フォグ：戦闘範囲（〜500）は素通しで、そこから奥を徐々に霞ませる
+            // 距離フォグ：戦闘範囲（〜500）は素通しで、そこから奥を徐々に霞ませる。
+            // density / heightDensityはEnemySpawnDirectorSystemの湧き半径（900〜1300）が
+            // 確実に隠れるよう、既定値（0.00030 / 0.00050）から引き上げてある
             fog.color         = hlslpp::float3(0.55f, 0.60f, 0.65f);
-            fog.density       = 0.00030f;
+            fog.density       = 0.00060f;
             fog.startDistance = 500.0f;
             fog.maxOpacity    = 1.0f;
 
@@ -879,7 +889,7 @@ namespace CombatAndroid {
             fog.heightFogEnabled = true;
             fog.height           = 0.0f;
             fog.heightFalloff    = 0.004f;
-            fog.heightDensity    = 0.00050f;
+            fog.heightDensity    = 0.00070f;
 
             // 太陽方向の前方散乱
             fog.sunColor        = hlslpp::float3(1.0f, 0.85f, 0.65f);

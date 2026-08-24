@@ -54,6 +54,7 @@ namespace CombatAndroid::ECS {
         enemy.bodyRadius                          = config.bodyRadius;
         enemy.attackRange                         = config.attackRange;
         enemy.knockbackDamageThreshold            = config.knockbackDamageThreshold;
+        enemy.detectRange                         = config.detectRange;
 
         CombatAndroid::ECS::HealthComponent& enemyHealth = registry.AddComponent<CombatAndroid::ECS::HealthComponent>(enemyEntity);
         enemyHealth.maxHealth                            = config.maxHealth;

@@ -38,6 +38,12 @@ namespace CombatAndroid::ECS {
         float               attackRange;                 //!< BTが攻撃へ移る距離
         float               knockbackDamageThreshold;    //!< この値以上の単発ダメージでノックバックする
 
+        //! BTがプレイヤーを追跡し続ける距離。これを超えると ZombieBehavior の
+        //! MoveToPlayer / CanChase が Failure を返し、その場で待機したまま近づいてこなくなる。
+        //! 既定値は EnemyComponent のものと揃えてあるため、明示しない限り従来の挙動は変わらない。
+        //! フォグの外から湧かせる場合は、湧き半径より十分大きい値を湧かせる側が入れること
+        float detectRange = 600.0f;
+
         //! アニメーションの再生開始位置（秒）。
         //! 負荷試験で大量に湧かせるとき、全個体が同じ位置から再生されると
         //! AnimationSystemが毎フレーム完全に同じ分岐・同じキーフレームを辿ることになり、
