@@ -37,6 +37,7 @@ namespace CombatAndroid::ECS {
         float               bodyHalfHeight;              //!< 武器ヒット判定用カプセルの半高さ
         float               attackRange;                 //!< BTが攻撃へ移る距離
         float               knockbackDamageThreshold;    //!< この値以上の単発ダメージでノックバックする
+        float               expReward = 10.0f;           //!< 撃破時にプレイヤーへ与えるEXP量
 
         //! BTがプレイヤーを追跡し続ける距離。これを超えると ZombieBehavior の
         //! MoveToPlayer / CanChase が Failure を返し、その場で待機したまま近づいてこなくなる。

@@ -6,10 +6,13 @@
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Event/EnemyDiedEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
+
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 
 #include <hlsl++.h>
 #include <algorithm>
@@ -104,6 +107,15 @@ namespace CombatAndroid::ECS {
                 model->opacity = opacity;
 
             if(fadeProgress >= 1.0f) {
+                // 消滅の直前にEXP玉ドロップ等の副作用処理へ通知する。
+                // ここでregistry.CreateEntity()を直接呼ぶとBT反復中のView/Poolを
+                // 壊しかねないため、WeaponHitEventと同じくイベント経由にし、
+                // 実際のエンティティ生成はExpOrbSystem::Updateへ一本化する
+                if(auto* eventBus = context.registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                    const auto& deathTransform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
+                    eventBus->Publish(EnemyDiedEvent{deathTransform.position, static_cast<int>(enemy.expReward + 0.5f)});
+                }
+
                 // 本体・頭上HPバー（背景・残量）を破棄予約する。
                 // View反復中なので即時破棄はしない（CombatSystemの死亡処理と同じ作法）
                 context.registry.QueueDestroy(context.entity);

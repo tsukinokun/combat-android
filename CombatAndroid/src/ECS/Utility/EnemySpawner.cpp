@@ -55,6 +55,7 @@ namespace CombatAndroid::ECS {
         enemy.attackRange                         = config.attackRange;
         enemy.knockbackDamageThreshold            = config.knockbackDamageThreshold;
         enemy.detectRange                         = config.detectRange;
+        enemy.expReward                           = config.expReward;
 
         CombatAndroid::ECS::HealthComponent& enemyHealth = registry.AddComponent<CombatAndroid::ECS::HealthComponent>(enemyEntity);
         enemyHealth.maxHealth                            = config.maxHealth;
@@ -191,6 +192,7 @@ namespace CombatAndroid::ECS {
         config.bodyHalfHeight           = 70.0f;
         config.attackRange              = 120.0f;
         config.knockbackDamageThreshold = 40.0f;
+        config.expReward                = 10.0f;
         config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Unarmed Walk Forward.fbx"));
         config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx"));
         config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));
@@ -219,6 +221,7 @@ namespace CombatAndroid::ECS {
         // 別の判定が成立することのないようにする
         config.attackRange              = 150.0f;
         config.knockbackDamageThreshold = 60.0f;
+        config.expReward                = 30.0f;
         config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Walking.fbx"));
         config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx"));
         config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));

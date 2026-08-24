@@ -22,6 +22,8 @@ namespace CombatAndroid::ECS {
         float attackCooldown      = 1.5f;      //!< 攻撃を終えてから次の攻撃までの最短間隔（秒）
         float attackCooldownTimer = 0.0f;      //!< 残りクールタイム
 
+        float expReward = 10.0f;    //!< 撃破時にプレイヤーへ与えるEXP量（EnemySpawnConfig::expRewardから設定される）
+
         //-------------------------------------------------------------
         // ノックバック。CombatSystemが単発ダメージとknockbackDamageThresholdを比較して
         // pendingKnockbackを立て、BT（PlayKnockback）がそれを消費してisKnockedBackへ進む。

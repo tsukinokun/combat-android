@@ -20,6 +20,9 @@
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
+#include <CombatAndroid/ECS/Component/ExpOrbComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
@@ -32,6 +35,8 @@
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
 #include <CombatAndroid/ECS/System/HealthBarSystem.hpp>
 #include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
+#include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
+#include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -144,6 +149,11 @@ namespace CombatAndroid {
                               // またWorldAnchorSystemが座標を確定させ、TransformUIがworldMatrixへ焼き込む前に
                               // fixedWorldPosition/screenOffset/scaleを書き終えている必要がある
                               // （さもないとポップの拡大率が1フレーム古い値で描かれてガタつく）
+            ExpOrb,           // EXP玉のスロット割り当てと落下→ホーミング→吸収の状態更新。敵の死亡通知
+                              // （EnemyDiedEvent、Movementで動くBTから発火）の後、かつプレイヤーの今フレームの
+                              // 位置（Movementで確定済み）を吸い寄せ先に使うため、DamageNumberと同じ並びでよい
+            PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
+                              // （ExpOrbが確定）の両方より後に置く
             TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
                               // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                               // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分
@@ -203,6 +213,13 @@ namespace CombatAndroid {
             m_scene.AddSystem(damageNumberSystem, (int)SystemPriority::DamageNumber);
             damageNumberSystem->Initialize(eventBus);
         }
+        {
+            // EnemyDiedEventを購読してEXP玉のドロップ演出を行う
+            auto expOrbSystem = std::make_shared<CombatAndroid::ECS::ExpOrbSystem>();
+            m_scene.AddSystem(expOrbSystem, (int)SystemPriority::ExpOrb);
+            expOrbSystem->Initialize(eventBus);
+        }
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TpsCameraSystem>(), (int)SystemPriority::Camera3D);
 #ifdef _DEBUG
@@ -340,6 +357,9 @@ namespace CombatAndroid {
 
         // HPを持たせる（敵の攻撃当たり判定によるダメージ計算に使用）
         registry.AddComponent<CombatAndroid::ECS::HealthComponent>(playerEntity);
+
+        // EXP・レベルを持たせる（画面左上のEXPバー表示、ExpOrbSystemの吸収先に使用）
+        registry.AddComponent<CombatAndroid::ECS::PlayerExperienceComponent>(playerEntity);
 
         // ModelComponent の追加
         Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(playerEntity);
@@ -667,6 +687,83 @@ namespace CombatAndroid {
             // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われる
 
             registry.AddComponent<CombatAndroid::ECS::DamageNumberComponent>(damageNumberEntity);
+        }
+
+        //--------------------------------------------------------------
+        // EXP玉用エンティティのプール。ダメージ数値と同じく毎フレーム生成せず固定数を使い回す。
+        // EnemyDiedEventはビヘイビアツリーのアクション（View反復中）からPublishされるため、
+        // ExpOrbSystemはここで作ったスロットの空きを探して再利用する
+        //--------------------------------------------------------------
+        {
+            Tsukino::Asset::AssetHandle expOrbTextureHandle =
+                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/ExpOrb.png"));
+
+            for(int i = 0; i < CombatAndroid::ECS::kExpOrbPoolSize; ++i) {
+                Tsukino::ECS::Entity expOrbEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& expOrbTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(expOrbEntity);
+                expOrbTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
+                expOrbTransform.dirty = true;
+
+                // 3Dワールド上を落下・飛行する演出のため、WorldAnchorComponent（画面固定UI用）は使わず、
+                // SpriteComponent.space=Worldでpositionを直接3D座標として扱い、主カメラを向く
+                // ビルボードとして深度テストされる形で描画する（敵の後ろに回ったら正しく隠れる）
+                Tsukino::BuiltIn::ECS::SpriteComponent& expOrbSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(expOrbEntity);
+                expOrbSprite.textureHandle = expOrbTextureHandle;
+                expOrbSprite.blendMode     = Tsukino::BuiltIn::ECS::SpriteBlendMode::Additive;    // 発光して見えるよう加算合成にする
+                expOrbSprite.space         = Tsukino::BuiltIn::ECS::SpriteSpace::World;
+                expOrbSprite.sortOrder     = 15;    // 同じWorldパス内の他スプライトより手前に描く
+
+                registry.AddComponent<CombatAndroid::ECS::ExpOrbComponent>(expOrbEntity);
+            }
+        }
+
+        //--------------------------------------------------------------
+        // 画面左上のプレイヤーHP/EXPバー。WorldAnchorComponentは使わず固定ピクセル座標に置き、
+        // PlayerHudSystemが毎フレームHealthComponent/PlayerExperienceComponentの値へ合わせて更新する
+        //--------------------------------------------------------------
+        {
+            Tsukino::Asset::AssetHandle hudBarTextureHandle =
+                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+
+            auto makeBarSprite = [&](int sortOrder) {
+                Tsukino::ECS::Entity barEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& barTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(barEntity);
+                barTransform.dirty = true;    // 実際の位置・スケールはPlayerHudSystemが毎フレーム書く
+
+                Tsukino::BuiltIn::ECS::SpriteComponent& barSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(barEntity);
+                barSprite.textureHandle = hudBarTextureHandle;
+                barSprite.sortOrder     = sortOrder;
+
+                return barEntity;
+            };
+
+            auto makeHudText = [&]() {
+                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
+
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
+
+                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
+                font.text                                   = L"";
+                font.color                                  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+                font.outlineColor                           = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+                font.outlineWidth                           = 2.0f;
+                font.verticalAlign                          = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
+                font.sortOrder                              = 21;    // バーより手前に描く
+
+                return textEntity;
+            };
+
+            CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);
+            hud.hpBarBackgroundEntity                    = makeBarSprite(20);
+            hud.hpBarFillEntity                          = makeBarSprite(21);
+            hud.hpTextEntity                             = makeHudText();
+            hud.expBarBackgroundEntity                   = makeBarSprite(20);
+            hud.expBarFillEntity                         = makeBarSprite(21);
+            hud.expTextEntity                            = makeHudText();
         }
 
 #ifdef _DEBUG
