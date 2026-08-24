@@ -178,8 +178,12 @@ namespace CombatAndroid::ECS {
     EnemySpawnConfig MakeSmallZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
         Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
 
-        // 実寸未計測のため暫定スケール・カプセル寸法で置き、実機のコリジョンワイヤーフレーム
-        // （_DEBUG常時ON）を見ながら詰める前提の初期値。
+        // SmallZombie.fbxの実寸を計測したところ身長はY=約-1.7〜201（約203ユニット）で、
+        // プレイヤー（Y=0〜100の100ユニット）のほぼ2倍のスケールでモデリングされていた。
+        // 旧値（scale=2.0）はこれを踏まえずプレイヤーと同じ感覚でスケールを置いていたため、
+        // 実際の身長がプレイヤー（scale 2.1×100=210）の約2倍（406）になっていた。
+        // プレイヤーと同じ「身長210」を狙ってscale=210/203≒1.04に補正し、カプセルも
+        // プレイヤーと同じradius=35, halfHeight=70（合計210）に合わせる。
         // ノックバック・死亡クリップは両方ともMixamoの標準ヒューマノイドリグ（mixamorig:）で
         // 作られているため、専用クリップの無いBigZombie側にもそのまま流用している
         EnemySpawnConfig config{};
@@ -187,8 +191,8 @@ namespace CombatAndroid::ECS {
         config.moveSpeed                = 100.0f;
         config.maxHealth                = 40.0f;
         config.modelPath                = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx");
-        config.scale                    = hlslpp::float3(2.0f, 2.0f, 2.0f);
-        config.bodyRadius               = 40.0f;
+        config.scale                    = hlslpp::float3(1.04f, 1.04f, 1.04f);
+        config.bodyRadius               = 35.0f;
         config.bodyHalfHeight           = 70.0f;
         config.attackRange              = 120.0f;
         config.knockbackDamageThreshold = 40.0f;
@@ -207,17 +211,23 @@ namespace CombatAndroid::ECS {
     EnemySpawnConfig MakeBigZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
         Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
 
-        // カプセルサイズは見た目のスケール(2.2倍)に合わせて拡大している。
+        // BigZombie.fbxの実寸を計測したところ身長はY=約0〜204（約204ユニット）で、
+        // SmallZombie同様プレイヤーの約2倍のスケールでモデリングされていた。
+        // 旧値（scale=2.2）はこれを踏まえておらず、実際の身長がプレイヤー（210）の
+        // 約2倍（449）になっていた。「Bigゾンビ＝プレイヤーよりひとまわり大きい」という
+        // 意図（旧scale比 2.2/2.1）を保ったまま、scale=220/204≒1.08に補正して
+        // 身長220（プレイヤー比+約5%）に合わせる。カプセルもradius=37, halfHeight=73（合計220）
+        // に縮小し、見た目とコリジョンの整合を取る
         // Idle用クリップが無いため、待機はMutant Walkingをin_place再生（その場足踏み）にして流用する
         EnemySpawnConfig config{};
         config.spawnPosition  = spawnPosition;
         config.moveSpeed      = 70.0f;
         config.maxHealth      = 150.0f;
         config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/BigZombie.fbx");
-        config.scale          = hlslpp::float3(2.2f, 2.2f, 2.2f);
-        config.bodyRadius     = 70.0f;
-        config.bodyHalfHeight = 110.0f;
-        // 攻撃射程はbodyRadius(70)+playerRadiusより広く取り、振りかぶる前に手判定より先に
+        config.scale          = hlslpp::float3(1.08f, 1.08f, 1.08f);
+        config.bodyRadius     = 37.0f;
+        config.bodyHalfHeight = 73.0f;
+        // 攻撃射程はbodyRadius(37)+playerRadiusより広く取り、振りかぶる前に手判定より先に
         // 別の判定が成立することのないようにする
         config.attackRange              = 150.0f;
         config.knockbackDamageThreshold = 60.0f;
