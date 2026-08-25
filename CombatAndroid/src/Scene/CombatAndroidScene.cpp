@@ -27,6 +27,7 @@
 #include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
+#include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
@@ -183,12 +184,13 @@ namespace CombatAndroid {
             MotionBlur,          // ブラーパラメータをRendererへ転送し、MotionVectorComponentを自動アタッチする。
                                  // ModelSystem（Render）が描画コマンドを積む前である必要がある
             Render,
-            Font,    // 文字はSpriteRenderSystem（Render）より「後」に登録する必要がある。
-                     // RenderPass::OverlayはRenderer側で一切ソートされず、DrawCommandを積んだ順に
-                     // そのまま描かれる（Renderer.cpp: Overlayパスのループ）。FontRendererSystemを
-                     // Renderより前に置くと、全てのスクリーンSpriteが全ての文字を覆い隠してしまう。
-                     // FontComponent::sortOrderは文字同士の並びしか決めない点に注意。
-                     // worldMatrixを書くTransformUIより後である条件は引き続き満たしている
+            Font,    // 文字の描画コマンドを積む。SpriteRenderSystem（Render）との前後関係は
+                     // もう登録順では決まらない：RendererがOverlayパスを DrawCommand::sortOrder で
+                     // 並べ替えるため、スプライトと文字の重なりは
+                     // CombatAndroid/UI/UiSortOrder.hpp の層の値だけで決まる。
+                     // ここがRenderの後ろにあるのは同じ層同士の並びが積んだ順で決まる名残であり、
+                     // 正しさの条件ではない。一方でworldMatrixを書くTransformUIより後、という
+                     // 条件は引き続き必須（FontRendererSystemはworldMatrix[3]から描画位置を読む）
             Audio,
             Physics,    // コリジョンの更新は最後に行う
             Light,      // ディレクショナル/点光源/スポットをまとめてRendererへ渡す。
@@ -695,6 +697,7 @@ namespace CombatAndroid {
         promptFont.text                                   = L"";    // 空文字の間はFontRendererSystemが描画しない
         promptFont.color                                  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
         promptFont.origin                                 = hlslpp::float2(0.0f, 0.0f);
+        promptFont.sortOrder                              = CombatAndroid::UI::kPickupPrompt;    // 操作の案内なのでダメージ数値より手前に置く
         // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont、動的フォントアトラス経路）が使われるため
         // 日本語をそのまま渡してよい（旧Arial.spritefontはASCII専用でDirectXTKが例外を投げる）
 
@@ -721,7 +724,7 @@ namespace CombatAndroid {
             Tsukino::BuiltIn::ECS::FontComponent& damageNumberFont =
                 registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(damageNumberEntity);
             damageNumberFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
-            damageNumberFont.sortOrder = 10;     // HPバー等より手前に描く
+            damageNumberFont.sortOrder = CombatAndroid::UI::kDamageNumber;
             // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われる
 
             registry.AddComponent<CombatAndroid::ECS::DamageNumberComponent>(damageNumberEntity);
@@ -751,7 +754,7 @@ namespace CombatAndroid {
                 expOrbSprite.textureHandle = expOrbTextureHandle;
                 expOrbSprite.blendMode     = Tsukino::BuiltIn::ECS::SpriteBlendMode::Additive;    // 発光して見えるよう加算合成にする
                 expOrbSprite.space         = Tsukino::BuiltIn::ECS::SpriteSpace::World;
-                expOrbSprite.sortOrder     = 15;    // 同じWorldパス内の他スプライトより手前に描く
+                expOrbSprite.sortOrder     = CombatAndroid::UI::World::kExpOrb;    // 同じWorldパス内の他スプライトより手前に描く
 
                 registry.AddComponent<CombatAndroid::ECS::ExpOrbComponent>(expOrbEntity);
             }
@@ -790,17 +793,17 @@ namespace CombatAndroid {
                 font.outlineColor                           = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
                 font.outlineWidth                           = 2.0f;
                 font.verticalAlign                          = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder                              = 21;    // バーより手前に描く
+                font.sortOrder                              = CombatAndroid::UI::kHudText;    // バーより手前に描く
 
                 return textEntity;
             };
 
             CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);
-            hud.hpBarBackgroundEntity                    = makeBarSprite(20);
-            hud.hpBarFillEntity                          = makeBarSprite(21);
+            hud.hpBarBackgroundEntity                    = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
+            hud.hpBarFillEntity                          = makeBarSprite(CombatAndroid::UI::kHudBarFill);
             hud.hpTextEntity                             = makeHudText();
-            hud.expBarBackgroundEntity                   = makeBarSprite(20);
-            hud.expBarFillEntity                         = makeBarSprite(21);
+            hud.expBarBackgroundEntity                   = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
+            hud.expBarFillEntity                         = makeBarSprite(CombatAndroid::UI::kHudBarFill);
             hud.expTextEntity                            = makeHudText();
 
             //-------------------------------------------------------------
@@ -825,7 +828,7 @@ namespace CombatAndroid {
             survivalTimeFont.outlineWidth      = 2.0f;
             survivalTimeFont.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
             survivalTimeFont.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Top;
-            survivalTimeFont.sortOrder         = 21;
+            survivalTimeFont.sortOrder         = CombatAndroid::UI::kHudText;
 
             hud.survivalTimeTextEntity = survivalTimeEntity;
         }
@@ -848,7 +851,7 @@ namespace CombatAndroid {
             Tsukino::BuiltIn::ECS::SpriteComponent& flashSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(screenFlashEntity);
             flashSprite.textureHandle = whitePixelHandle;
             flashSprite.tintColor     = hlslpp::float4(0.9f, 0.05f, 0.05f, 0.0f);    // 初期状態は透明
-            flashSprite.sortOrder     = 25;    // HUDバー（20/21）より手前、GAME OVERテキストより奥
+            flashSprite.sortOrder     = CombatAndroid::UI::kScreenDamageFlash;    // HUDより手前、GAME OVERテキストより奥
 
             CombatAndroid::ECS::PlayerDamageEffectComponent& damageEffect =
                 registry.AddComponent<CombatAndroid::ECS::PlayerDamageEffectComponent>(playerEntity);
@@ -879,7 +882,7 @@ namespace CombatAndroid {
                 font.outlineWidth      = 3.0f;
                 font.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
                 font.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder         = 30;    // 画面フラッシュより手前に描く
+                font.sortOrder         = CombatAndroid::UI::kGameOverText;    // 画面フラッシュより手前に描く
 
                 return textEntity;
             };
@@ -896,7 +899,7 @@ namespace CombatAndroid {
             //
             // ここで位置を焼き込まないのは、選択肢がカンストで3枚に満たない回があり、
             // 枚数によって縦の並びが変わるため（レイアウトの計算はSystem側に集約している）。
-            // sortOrderは被弾フラッシュ(25)・GAME OVER(30)より手前の40番台を使う
+            // sortOrderは CombatAndroid/UI/UiSortOrder.hpp の kSkillSelect* 帯を使う
             //-------------------------------------------------------------
             auto makeSkillPanelSprite = [&](int sortOrder) {
                 Tsukino::ECS::Entity panelEntity = m_scene.CreateEntity();
@@ -929,19 +932,19 @@ namespace CombatAndroid {
                 font.outlineWidth    = outlineWidth;
                 font.horizontalAlign = horizontalAlign;
                 font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder       = 43;    // カード背景(42)より手前
+                font.sortOrder       = CombatAndroid::UI::kSkillSelectText;    // カード背景より手前
 
                 return textEntity;
             };
 
             CombatAndroid::ECS::SkillSelectComponent& skillSelect =
                 registry.AddComponent<CombatAndroid::ECS::SkillSelectComponent>(playerEntity);
-            skillSelect.backdropEntity  = makeSkillPanelSprite(40);    // 画面全体の暗転
-            skillSelect.highlightEntity = makeSkillPanelSprite(41);    // 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
+            skillSelect.backdropEntity  = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectBackdrop);     // 画面全体の暗転
+            skillSelect.highlightEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectHighlight);    // 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
             skillSelect.titleEntity     = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f);
 
             for(CombatAndroid::ECS::SkillSelectCardEntities& card : skillSelect.cards) {
-                card.panelEntity = makeSkillPanelSprite(42);
+                card.panelEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectCard);
                 card.nameEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 3.0f);
                 card.descEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 2.0f);
             }
@@ -962,9 +965,10 @@ namespace CombatAndroid {
 
         Tsukino::BuiltIn::ECS::FontComponent& gripHudFont =
             registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(weaponGripDebugHudEntity);
-        gripHudFont.text   = L"";    // 空文字の間はFontRendererSystemが描画しない
-        gripHudFont.color  = hlslpp::float4(1.0f, 1.0f, 0.3f, 1.0f);
-        gripHudFont.origin = hlslpp::float2(0.0f, 0.0f);
+        gripHudFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
+        gripHudFont.color     = hlslpp::float4(1.0f, 1.0f, 0.3f, 1.0f);
+        gripHudFont.origin    = hlslpp::float2(0.0f, 0.0f);
+        gripHudFont.sortOrder = CombatAndroid::UI::kDebugWeaponGripHud;    // 調査用HUDなので暗転板等より常に手前
 
         registry.AddComponent<CombatAndroid::ECS::WeaponGripDebugComponent>(weaponGripDebugHudEntity);
 #endif
@@ -988,7 +992,7 @@ namespace CombatAndroid {
             hudFont.text                                  = L"";    // 空文字の間はFontRendererSystemが描画しない
             hudFont.color                                 = hlslpp::float4(0.4f, 1.0f, 0.6f, 1.0f);
             hudFont.origin                                = hlslpp::float2(0.0f, 0.0f);
-            hudFont.sortOrder                             = 20;    // ダメージ数値等より手前に出す
+            hudFont.sortOrder                             = CombatAndroid::UI::kDebugStressTestHud;    // 調査用HUDなので暗転板等より常に手前
 
             registry.AddComponent<CombatAndroid::ECS::EnemyStressTestComponent>(stressTestHudEntity);
         }

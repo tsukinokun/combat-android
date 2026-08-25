@@ -182,7 +182,7 @@ namespace CombatAndroid::ECS {
 
             //-------------------------------------------------------------
             // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
-            // カードより奥（sortOrderが小さい）に敷いて縁のように見せている
+            // カードより奥（UiSortOrder::kSkillSelectHighlight < kSkillSelectCard）に敷いて縁のように見せている
             //-------------------------------------------------------------
             const int cursorIndex = std::clamp(select.cursorIndex, 0, std::max(select.candidateCount - 1, 0));
             StretchSprite(registry, context, select.highlightEntity, screenCenterX,

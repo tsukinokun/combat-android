@@ -19,6 +19,10 @@ namespace CombatAndroid::ECS {
     //!         Registry::AddComponent が参照を返せずコンパイルが通らない
     //-------------------------------------------------------------
     struct EnemyStressTestComponent {
-        bool visible = true;    //!< HUDを表示するか（F2でトグル）
+#ifdef _DEBUG
+        bool visible = true;     //!< HUDを表示するか（F2でトグル）。Debugでは起動直後から表示
+#else
+        bool visible = false;    //!< Releaseでは自動表示せず、F2キーを押した場合のみ表示（負荷試験自体は引き続き動作）
+#endif
     };
 }    // namespace CombatAndroid::ECS

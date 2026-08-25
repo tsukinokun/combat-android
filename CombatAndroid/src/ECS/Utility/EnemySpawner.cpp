@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/UI/UiSortOrder.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -102,7 +103,7 @@ namespace CombatAndroid::ECS {
             Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(hpBarBackgroundEntity);
             sprite.textureHandle                           = hpBarTextureHandle;
             sprite.tintColor                               = hlslpp::float4(0.15f, 0.15f, 0.15f, 0.9f);    // 暗いグレー
-            sprite.sortOrder                               = 0;                                           // 残量バーより先に描く
+            sprite.sortOrder                               = CombatAndroid::UI::kEnemyHpBarBackground;
         }
 
         Tsukino::ECS::Entity hpBarFillEntity = registry.CreateEntity();
@@ -117,7 +118,7 @@ namespace CombatAndroid::ECS {
             Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(hpBarFillEntity);
             sprite.textureHandle                           = hpBarTextureHandle;
             sprite.tintColor                               = hlslpp::float4(0.0f, 1.0f, 0.0f, 1.0f);    // 満タン時は緑
-            sprite.sortOrder                               = 1;                                        // 背景の上に描く
+            sprite.sortOrder                               = CombatAndroid::UI::kEnemyHpBarFill;
         }
 
         enemyHealth.hpBarBackgroundEntity = hpBarBackgroundEntity;
