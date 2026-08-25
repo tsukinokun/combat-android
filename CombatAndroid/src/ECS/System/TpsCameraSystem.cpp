@@ -4,6 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
+#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 
@@ -27,6 +28,20 @@ namespace CombatAndroid::ECS {
         Tsukino::EngineIntegration::EngineContext* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
             return;
+
+        //-------------------------------------------------------------
+        // スキル選択メニュー中はカメラの旋回を止める。
+        // 下のyaw/pitchの加算はdeltaTimeを掛けていないため、シーンがdeltaTime=0を
+        // 渡してきても回り続けてしまう（追従の補間だけが止まり、メニューを閉じた瞬間に
+        // 溜まった角度へ一気に振れる）。
+        // 併せてwasCapturedLastFrameを倒しておくと、復帰後の最初の1フレームぶんの
+        // マウス移動量は上の「キャプチャ復帰フレームは旋回に使わない」分岐が捨ててくれる
+        //-------------------------------------------------------------
+        if(IsSkillSelectActive(registry)) {
+            auto pausedView = registry.View<TpsCameraComponent>();
+            pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
+            return;
+        }
 
         Tsukino::Input::InputSystem* inputSystem = ctx->inputSystem;
 

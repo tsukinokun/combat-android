@@ -6,6 +6,9 @@
 #include <CombatAndroid/ECS/Component/ExpOrbComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
+#include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -27,6 +30,14 @@ namespace CombatAndroid::ECS {
         constexpr float kGravity                = 900.0f;    //!< 落下中の重力加速度
         constexpr float kFallSafetyDuration     = 1.2f;      //!< 万一着地判定に乗らなかった場合の保険（この秒数でHomingへ強制遷移）
         constexpr float kFallPopInDuration       = 0.12f;     //!< 出現直後、scaleが0から基準値まで膨らむ時間
+
+        //-------------------------------------------------------------
+        // レベルアップに必要なEXPの計算式（線形）。
+        // Lv1→2で100、以降レベルが1上がるごとに+50ずつ重くなる。
+        // PlayerExperienceComponentの初期値（requiredExp=100）と揃えておくこと
+        //-------------------------------------------------------------
+        constexpr int kBaseRequiredExp     = 100;
+        constexpr int kRequiredExpPerLevel = 50;
 
         // ホーミング（プレイヤーへの吸い寄せ）演出のチューニング値
         constexpr float kHomingSpeedStart    = 250.0f;    //!< 吸い寄せ開始時の速度
@@ -126,9 +137,16 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // プレイヤーを特定する（単一プレイヤー前提。PickupSystemと同じ流儀）
         //-------------------------------------------------------------
-        entt::entity                                playerEntity = entt::null;
-        hlslpp::float3                               playerPosition{0.0f, 0.0f, 0.0f};
-        PlayerExperienceComponent*                   playerExp    = nullptr;
+        entt::entity               playerEntity = entt::null;
+        hlslpp::float3             playerPosition{0.0f, 0.0f, 0.0f};
+        PlayerExperienceComponent* playerExp = nullptr;
+
+        // 吸収時の副作用（強欲のEXP倍率・暴食の回復・レベルアップの予約）で使う。
+        // Viewの条件へ足すとコンポーネントが1つでも欠けたプレイヤーが丸ごと対象外に
+        // なってしまうため、エンティティが決まってからtry_getで引く
+        PlayerSkillComponent* playerSkills      = nullptr;
+        HealthComponent*      playerHealth      = nullptr;
+        SkillSelectComponent* playerSkillSelect = nullptr;
 
         auto playerView = registry.View<PlayerComponent, PlayerExperienceComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
         for(auto entity : playerView) {
@@ -136,6 +154,12 @@ namespace CombatAndroid::ECS {
             playerExp      = &playerView.get<PlayerExperienceComponent>(entity);
             playerPosition = playerView.get<Tsukino::BuiltIn::ECS::TransformComponent>(entity).position;
             break;
+        }
+
+        if(playerEntity != entt::null) {
+            playerSkills      = registry.try_get<PlayerSkillComponent>(playerEntity);
+            playerHealth      = registry.try_get<HealthComponent>(playerEntity);
+            playerSkillSelect = registry.try_get<SkillSelectComponent>(playerEntity);
         }
 
         //-------------------------------------------------------------
@@ -184,10 +208,36 @@ namespace CombatAndroid::ECS {
             }
 
             if(orb.state == ExpOrbState::Absorbed) {
-                if(playerExp)
-                    playerExp->currentExp = std::min(playerExp->currentExp + orb.expValue, playerExp->requiredExp);
-                // 【将来のレベルアップ実装用フック】ここでcurrentExp >= requiredExpを判定し、
-                // レベルを進めてスキル選択へ入る形になる予定（今回はキャップするだけで頭打ち）
+                if(playerExp) {
+                    //-------------------------------------------------------------
+                    // 強欲：獲得EXPに倍率を掛ける
+                    //-------------------------------------------------------------
+                    float gainedExp = static_cast<float>(orb.expValue) * (playerSkills ? playerSkills->expGainMultiplier : 1.0f);
+                    playerExp->currentExp += static_cast<int>(gainedExp + 0.5f);
+
+                    //-------------------------------------------------------------
+                    // 暴食：ソウル1個につきHPを回復する（最大HPは超えない）
+                    //-------------------------------------------------------------
+                    if(playerSkills && playerHealth && playerSkills->healPerSoul > 0.0f && !playerHealth->isDead) {
+                        playerHealth->currentHealth =
+                            std::min(playerHealth->currentHealth + playerSkills->healPerSoul, playerHealth->maxHealth);
+                    }
+
+                    //-------------------------------------------------------------
+                    // レベルアップ。必要EXPを超えた分は次のレベルへ繰り越す。
+                    // 1個の玉で複数レベル上がることもあるので、上がった回数だけ
+                    // スキル選択を予約する（SkillSelectSystemが1回ずつ消化する）。
+                    // requiredExpが0以下になっていたら無限ループになるため保険で抜ける
+                    //-------------------------------------------------------------
+                    while(playerExp->currentExp >= playerExp->requiredExp && playerExp->requiredExp > 0) {
+                        playerExp->currentExp -= playerExp->requiredExp;
+                        ++playerExp->level;
+                        playerExp->requiredExp = kBaseRequiredExp + (playerExp->level - 1) * kRequiredExpPerLevel;
+
+                        if(playerSkillSelect)
+                            ++playerSkillSelect->pendingLevelUps;
+                    }
+                }
 
                 orb.active      = false;
                 transform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);

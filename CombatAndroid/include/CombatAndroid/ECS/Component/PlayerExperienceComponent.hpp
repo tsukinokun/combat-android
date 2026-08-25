@@ -9,13 +9,16 @@ namespace CombatAndroid::ECS {
     //! @struct PlayerExperienceComponent
     //! @brief  プレイヤーの経験値・レベルを持つコンポーネント。PlayerHudSystemが
     //!         画面左上のEXPバー表示に、ExpOrbSystemが吸収時の加算に使う
-    //! @note   levelとrequiredExpは将来のレベルアップ機能（MAXでレベルアップ→
-    //!         スキル選択）のために用意してあるが、今回はcurrentExpをrequiredExpで
-    //!         頭打ちにするだけで、レベルアップ処理そのものは実装しない
+    //! @note   currentExpがrequiredExpに達するとExpOrbSystemがレベルを進め、
+    //!         超過分を繰り越したうえでSkillSelectComponent::pendingLevelUpsを積む
+    //!         （スキル選択メニューはSkillSelectSystemが出す）
     //-------------------------------------------------------------
     struct PlayerExperienceComponent {
-        int level       = 1;      //!< 現在レベル（将来のレベルアップ機能用。今回は表示のみ）
-        int currentExp  = 0;      //!< 現在のEXP
-        int requiredExp = 100;    //!< 次のレベルに必要なEXP（今回はこの値で頭打ちにする）
+        int level      = 1;    //!< 現在レベル
+        int currentExp = 0;    //!< 現在のEXP（レベルアップ時にrequiredExpを引いて繰り越す）
+
+        //! 次のレベルに必要なEXP。計算式（100 + (level-1) * 50）はExpOrbSystem側に置いてあり、
+        //! ここの初期値はその式にlevel=1を入れた値と一致させておくこと
+        int requiredExp = 100;
     };
 }    // namespace CombatAndroid::ECS

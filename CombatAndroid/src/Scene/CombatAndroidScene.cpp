@@ -25,6 +25,8 @@
 #include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
 #include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
@@ -41,6 +43,7 @@
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameOverSystem.hpp>
+#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -141,6 +144,12 @@ namespace CombatAndroid {
                                           // ダブルバッファなしに前フレームの値を取り出している。ここより後ろへ動かすと
                                           // 速度が常にゼロになりブラーが効かなくなる
             Transform = 0,    // 一番最初に計算する
+            SkillSelect,      // レベルアップ時のスキル選択メニュー。PlayerSystem（Movement）が
+                              // 同じフレームのスペース（回避）・ホイール（武器切替）・左クリック（攻撃）を
+                              // 消費する前に割り込んで入力を横取りする必要があるため、Movementより前に置く。
+                              // 併せてメニュー表示中はCharacterControllerComponent::moveInputを毎フレーム潰す：
+                              // PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップするため、
+                              // シーン側でdeltaTime=0にするだけではキャラクタが滑り続けてしまう
             Movement,         // プレイヤー入力・敵AIの移動をTransformの後、Physicsの前に反映する
             Gameplay,         // ダメージ処理・アニメーション更新は移動確定後に行う
             WeaponGripDebug,  // （デバッグビルドのみ）握り位置調整はisAttackingを上書きするため、
@@ -169,12 +178,17 @@ namespace CombatAndroid {
                               // ワールド→スクリーン座標変換は今フレームのカメラ行列を使うためCameraの後に置く
             TransformUI,      // WorldAnchorSystemが書いたUI要素のposition（画面ピクセル座標）をworldMatrixへ反映する。
                               // FontRendererSystemはworldMatrix[3]を読むため、これが無いと1フレーム遅れて表示がスウィムする
-            Font,
             AttackMotionBlur,    // 攻撃の進行度（CombatSystemが更新するattackBlend）をブラー強度へ反映する。
                                  // WeaponAttachより後、MotionBlurより前
             MotionBlur,          // ブラーパラメータをRendererへ転送し、MotionVectorComponentを自動アタッチする。
                                  // ModelSystem（Render）が描画コマンドを積む前である必要がある
             Render,
+            Font,    // 文字はSpriteRenderSystem（Render）より「後」に登録する必要がある。
+                     // RenderPass::OverlayはRenderer側で一切ソートされず、DrawCommandを積んだ順に
+                     // そのまま描かれる（Renderer.cpp: Overlayパスのループ）。FontRendererSystemを
+                     // Renderより前に置くと、全てのスクリーンSpriteが全ての文字を覆い隠してしまう。
+                     // FontComponent::sortOrderは文字同士の並びしか決めない点に注意。
+                     // worldMatrixを書くTransformUIより後である条件は引き続き満たしている
             Audio,
             Physics,    // コリジョンの更新は最後に行う
             Light,      // ディレクショナル/点光源/スポットをまとめてRendererへ渡す。
@@ -194,6 +208,8 @@ namespace CombatAndroid {
 #endif
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::MotionVectorSnapshotSystem>(), (int)SystemPriority::MotionVectorSnapshot);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::Transform);
+        // レベルアップ時のスキル選択。PlayerSystemが同じフレームの入力を消費する前に割り込む
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillSelectSystem>(), (int)SystemPriority::SkillSelect);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSystem>(), (int)SystemPriority::Movement);
         // 敵は全てBehaviorTreeComponentを持つBT駆動（歩いて近づき、射程内で攻撃・被弾でノックバック・死亡演出）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyBehaviorSystem>(), (int)SystemPriority::Movement);
@@ -378,6 +394,9 @@ namespace CombatAndroid {
 
         // EXP・レベルを持たせる（画面左上のEXPバー表示、ExpOrbSystemの吸収先に使用）
         registry.AddComponent<CombatAndroid::ECS::PlayerExperienceComponent>(playerEntity);
+
+        // 取得済みスキルを持たせる（レベルアップ時のスキル選択で伸ばし、ExpOrbSystem/CombatSystemが効果を読む）
+        registry.AddComponent<CombatAndroid::ECS::PlayerSkillComponent>(playerEntity);
 
         // ModelComponent の追加
         Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(playerEntity);
@@ -868,6 +887,64 @@ namespace CombatAndroid {
             CombatAndroid::ECS::GameOverComponent& gameOver = registry.AddComponent<CombatAndroid::ECS::GameOverComponent>(playerEntity);
             gameOver.titleTextEntity = makeCenteredOverlayText(screenHeight * 0.42f, 2.4f);
             gameOver.retryTextEntity = makeCenteredOverlayText(screenHeight * 0.55f, 1.1f);
+
+            //-------------------------------------------------------------
+            // レベルアップ時のスキル選択メニュー。
+            // 「暗転板 + カード3枚（背景パネル・スキル名・説明文）+ 選択中の強調枠 + タイトル」を
+            // 全て非表示（スケール0／空文字）で作っておき、SkillSelectSystemが表示のたびに
+            // 位置・大きさ・色・文言を書き込む。
+            //
+            // ここで位置を焼き込まないのは、選択肢がカンストで3枚に満たない回があり、
+            // 枚数によって縦の並びが変わるため（レイアウトの計算はSystem側に集約している）。
+            // sortOrderは被弾フラッシュ(25)・GAME OVER(30)より手前の40番台を使う
+            //-------------------------------------------------------------
+            auto makeSkillPanelSprite = [&](int sortOrder) {
+                Tsukino::ECS::Entity panelEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& panelTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(panelEntity);
+                panelTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // スケール0の間はSpriteRenderSystemが描画しない
+                panelTransform.dirty = true;
+
+                Tsukino::BuiltIn::ECS::SpriteComponent& panelSprite =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(panelEntity);
+                // カードの背景はSkillSelectSystemがスキルテーブルのパスから差し替える。
+                // ここではハンドル未設定のまま描画されないよう、暫定でWhitePixelを入れておく
+                panelSprite.textureHandle = whitePixelHandle;
+                panelSprite.sortOrder     = sortOrder;
+
+                return panelEntity;
+            };
+
+            auto makeSkillText = [&](Tsukino::BuiltIn::ECS::HorizontalAlign horizontalAlign, float outlineWidth) {
+                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& textTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
+                textTransform.dirty = true;    // 実際の位置・フォントサイズはSkillSelectSystemが書く
+
+                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
+                font.text            = L"";    // 空文字の間はFontRendererSystemが描画しない
+                font.outlineColor    = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+                font.outlineWidth    = outlineWidth;
+                font.horizontalAlign = horizontalAlign;
+                font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
+                font.sortOrder       = 43;    // カード背景(42)より手前
+
+                return textEntity;
+            };
+
+            CombatAndroid::ECS::SkillSelectComponent& skillSelect =
+                registry.AddComponent<CombatAndroid::ECS::SkillSelectComponent>(playerEntity);
+            skillSelect.backdropEntity  = makeSkillPanelSprite(40);    // 画面全体の暗転
+            skillSelect.highlightEntity = makeSkillPanelSprite(41);    // 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
+            skillSelect.titleEntity     = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f);
+
+            for(CombatAndroid::ECS::SkillSelectCardEntities& card : skillSelect.cards) {
+                card.panelEntity = makeSkillPanelSprite(42);
+                card.nameEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 3.0f);
+                card.descEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 2.0f);
+            }
         }
 
 #ifdef _DEBUG
@@ -1122,6 +1199,18 @@ namespace CombatAndroid {
             if(ctx->hitStopTimer < 0.0f)
                 ctx->hitStopTimer = 0.0f;
         }
+
+        //--------------------------------------------------------------
+        // スキル選択メニュー表示中は時間を完全に止める。ヒットストップと同じくSceneへ渡す
+        // deltaTimeそのものを0にすることで、敵AI・アニメーション・湧きディレクター・EXP玉・
+        // 生存時間まで一律に停止する。ヒットストップより後に見ているのは、こちらが優先だから。
+        //
+        // ただしPhysicsSystemだけはdeltaTimeが0以下でも1/60秒ぶんステップしてしまうため、
+        // これだけではCharacterVirtualが滑り続ける。移動入力の打ち消しと、
+        // プレイヤー入力の遮断はSkillSelectSystem側で行っている
+        //--------------------------------------------------------------
+        if(CombatAndroid::ECS::IsSkillSelectActive(m_scene.GetRegistry()))
+            scaledDeltaTime = 0.0f;
 
         m_scene.Update(scaledDeltaTime);
     }

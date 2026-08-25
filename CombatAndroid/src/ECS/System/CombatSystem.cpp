@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerDamagedEvent.hpp>
 
@@ -423,6 +424,17 @@ namespace CombatAndroid::ECS {
                 // Jolt物理へオーバーラップ問い合わせする（PhysicsSystem::OverlapCapsule）。
                 // 1回のアタックで同じ敵に何度も当たらないよう、既にヒットした敵はhitEnemiesThisAttackに記録してスキップする
                 if(ctx && ctx->physicsSystem) {
+                    //-------------------------------------------------------------
+                    // 憤怒（スキル）の攻撃力倍率。持ち主から引く。
+                    // ヒットごとではなく1回のオーバーラップ判定につき1回だけ引けばよいので、
+                    // 下のヒットループの外で求めておく
+                    //-------------------------------------------------------------
+                    float skillAttackMultiplier = 1.0f;
+                    if(weapon.owner != entt::null) {
+                        if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner))
+                            skillAttackMultiplier = ownerSkills->attackMultiplier;
+                    }
+
                     hlslpp::float3 bladeDir      = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), transform.rotation);
                     float          halfLen       = weapon.range * 0.5f;
                     hlslpp::float3 capsuleCenter = transform.position + bladeDir * halfLen;
@@ -444,7 +456,8 @@ namespace CombatAndroid::ECS {
                             continue;
 
                         // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
-                        float dealtDamage = weapon.damage * weapon.damageMultiplier;
+                        //             ×スキル「憤怒」の攻撃力倍率
+                        float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
 
                         enemyHealth.currentHealth -= dealtDamage;
                         if(enemyHealth.currentHealth <= 0.0f) {
