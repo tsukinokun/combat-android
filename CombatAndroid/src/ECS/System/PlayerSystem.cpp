@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
+#include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -50,11 +51,21 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         auto view = registry.View<Tsukino::BuiltIn::ECS::TransformComponent,
                                   PlayerComponent,
-                                  Tsukino::BuiltIn::ECS::CharacterControllerComponent>();
+                                  Tsukino::BuiltIn::ECS::CharacterControllerComponent,
+                                  HealthComponent>();
         view.each([&](entt::entity                                    entity,
                       Tsukino::BuiltIn::ECS::TransformComponent&      transform,
                       PlayerComponent&                                player,
-                      Tsukino::BuiltIn::ECS::CharacterControllerComponent& cc) {
+                      Tsukino::BuiltIn::ECS::CharacterControllerComponent& cc,
+                      HealthComponent&                                health) {
+            //-------------------------------------------------------------
+            // 死亡中は入力を一切読み取らない（PlayerAnimationSystemがDeathへ強制遷移させる）
+            //-------------------------------------------------------------
+            if(health.isDead) {
+                cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                return;
+            }
+
             //-------------------------------------------------------------
             // 攻撃中か（前フレームにPlayerAnimationSystemが確定した値）を取得。
             // 攻撃モーション中は移動方向への向き直しを止める

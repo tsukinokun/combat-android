@@ -16,7 +16,8 @@ namespace CombatAndroid::ECS {
     //! @brief  敵の攻撃モーションに合わせてプレイヤーへダメージを与える当たり判定。
     //!         WeaponComponentの手ボーン追従と同じ規約（handBoneName/handBoneNodeIndex/
     //!         resolvedAgainstModel）で手ボーンの位置を解決し、そこを中心とした球で
-    //!         Jolt物理のオーバーラップ判定（PhysicsSystem::OverlapCapsule）を行う。
+    //!         プレイヤーのカプセル（CharacterControllerComponent）との幾何判定を行う
+    //!         （CombatSystem::Update参照。Jolt物理のクエリには依存しない）。
     //!         判定はEnemyAnimationSetComponent::currentStateがAttackの間、
     //!         attackTimerがhitStartTime〜hitStartTime+hitDurationの範囲でのみ有効になる
     //-------------------------------------------------------------
@@ -33,5 +34,14 @@ namespace CombatAndroid::ECS {
         float hitDuration   = 0.20f;    //!< 判定の有効時間（秒）
 
         bool hasLandedThisAttack = false;    //!< この攻撃で既に当てたか（Attackへの遷移時にクリアする）
+
+        //-------------------------------------------------------------
+        // 手ボーンの前フレーム位置。速い振り・フレーム落ちで判定をすり抜けないよう、
+        // 判定窓の間はprevHandPosition→今フレームの手位置の線分でスイープ判定する
+        // （CombatSystem::Update参照）。Attackへの遷移時にhasPrevHandPositionをfalseへ戻し、
+        // 判定窓に入った最初のフレームだけは点判定（スイープ無し）にフォールバックする
+        //-------------------------------------------------------------
+        hlslpp::float3 prevHandPosition{0.0f, 0.0f, 0.0f};    //!< 前フレームの手ボーンのワールド位置
+        bool           hasPrevHandPosition = false;             //!< prevHandPositionが有効か
     };
 }    // namespace CombatAndroid::ECS

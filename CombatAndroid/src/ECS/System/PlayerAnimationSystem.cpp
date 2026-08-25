@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -164,6 +165,8 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(PlayerAnimState::Attack1, MakeAttackStepEnterCallback(0));
         m_stateMachine.RegisterState(PlayerAnimState::Attack2, MakeAttackStepEnterCallback(1));
         m_stateMachine.RegisterState(PlayerAnimState::Attack3, MakeAttackStepEnterCallback(2));
+        // 死亡モーションは単発再生・ルート前進を殺す（in_place）。倒れた後も画面内に留まらせるため
+        m_stateMachine.RegisterState(PlayerAnimState::Death, MakeClipEnterCallback(&PlayerAnimationSetComponent::deathClip, 1, false, 0.10f, true));
     }
 
     //-------------------------------------------------------------
@@ -174,13 +177,33 @@ namespace CombatAndroid::ECS {
                                   Tsukino::BuiltIn::ECS::CharacterControllerComponent,
                                   PlayerAnimationSetComponent,
                                   Tsukino::BuiltIn::ECS::AnimationPlayerComponent,
-                                  Tsukino::BuiltIn::ECS::TransformComponent>();
+                                  Tsukino::BuiltIn::ECS::TransformComponent,
+                                  HealthComponent>();
         view.each([&](entt::entity                                          entity,
                      PlayerComponent&                                      player,
                      Tsukino::BuiltIn::ECS::CharacterControllerComponent& cc,
                      PlayerAnimationSetComponent&                          animSet,
                      Tsukino::BuiltIn::ECS::AnimationPlayerComponent&     animPlayer,
-                     Tsukino::BuiltIn::ECS::TransformComponent&            transform) {
+                     Tsukino::BuiltIn::ECS::TransformComponent&            transform,
+                     HealthComponent&                                     health) {
+            //-------------------------------------------------------------
+            // 死亡時は他の全判定より最優先でDeathへ遷移し、操作を止める。
+            // 以後の攻撃・回避・移動の判定は一切評価しない
+            //-------------------------------------------------------------
+            if(health.isDead) {
+                cc.moveInput               = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                player.attackInputPressed = false;
+                player.dodgeInputPressed  = false;
+                player.isDodging           = false;
+                player.isInvincible        = false;
+
+                if(player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity))
+                    registry.GetComponent<WeaponComponent>(player.weaponEntity).isAttacking = false;
+
+                m_stateMachine.TransitionTo(animSet.currentState, PlayerAnimState::Death, registry, entity);
+                return;
+            }
+
             bool isAttacking = IsAttackState(animSet.currentState);
             bool isDodging   = animSet.currentState == PlayerAnimState::Dodge;
 

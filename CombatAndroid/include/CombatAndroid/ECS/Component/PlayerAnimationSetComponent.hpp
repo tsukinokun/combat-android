@@ -21,6 +21,7 @@ namespace CombatAndroid::ECS {
         Attack1,    //!< 連撃1段目
         Attack2,    //!< 連撃2段目
         Attack3,    //!< 連撃3段目
+        Death,      //!< 死亡（HealthComponent::isDeadが立つと最優先で遷移する。他の全ステートより優先）
     };
 
     //-------------------------------------------------------------
@@ -63,6 +64,7 @@ namespace CombatAndroid::ECS {
         Tsukino::Asset::AssetHandle runClip;         //!< 通常移動
         Tsukino::Asset::AssetHandle fastRunClip;    //!< スプリント移動
         Tsukino::Asset::AssetHandle dodgeClip;       //!< 回避（前転）
+        Tsukino::Asset::AssetHandle deathClip;       //!< 死亡（Falling Back Death）
 
         static constexpr u32 kAttackComboCount = 3;    //!< 連撃の段数
         AttackStep            attackSteps[kAttackComboCount];    //!< 各段の再生範囲

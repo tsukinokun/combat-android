@@ -201,6 +201,10 @@ namespace CombatAndroid::ECS {
         config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx"));
         config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));
         config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx"));
+        // 判定窓は既定値（0.40〜0.60秒）のままだと振り下ろしの実タイミングとずれて当たらないことがあったため、
+        // 広めに取って実機で見ながら詰める（EnemyAttackHitboxComponentのコメント参照）
+        config.hitStartTime             = 0.25f;
+        config.hitDuration              = 0.60f;
 
         return config;
     }
@@ -238,6 +242,9 @@ namespace CombatAndroid::ECS {
         config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx"));
         config.hitboxRadius             = 60.0f;
         config.hitboxDamage             = 15.0f;
+        // SmallZombieと同じ理由で判定窓を広めに取る（EnemyAttackHitboxComponentのコメント参照）
+        config.hitStartTime             = 0.30f;
+        config.hitDuration              = 0.60f;
 
         return config;
     }

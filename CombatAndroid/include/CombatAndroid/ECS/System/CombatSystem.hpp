@@ -10,9 +10,11 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  CombatSystem
     //! @brief  武器の当たり判定の有効化・追従、ダメージ処理、死亡判定を行うシステム。
-    //!         当たり判定はJolt物理を使わず、Transform間の距離判定で簡易的に行う
-    //!         （プレイヤーはCharacterVirtualで駆動されており、Jolt標準の
-    //!           ContactListenerがCharacterVirtualの接触をイベント化しないため）
+    //!         武器→敵の判定はPhysicsSystem::OverlapCapsule（Jolt物理へのクエリ）で行うが、
+    //!         敵→プレイヤーの判定はJolt物理を経由せず、プレイヤーのCharacterControllerComponent
+    //!         （実際に動いている当たり判定そのもの）から直接カプセルを組み立てて幾何判定する
+    //!         （プレイヤーはCharacterVirtualで駆動されておりJoltのBodyを持たないため、
+    //!           物理クエリに依存すると1フレーム遅延やボディ未生成で判定が抜けやすい）
     //-------------------------------------------------------------
     class CombatSystem : public Tsukino::ECS::ISystem {
     public:

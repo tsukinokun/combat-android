@@ -11,11 +11,13 @@
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
+#include <CombatAndroid/ECS/Event/PlayerDamagedEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldPoseComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldMatrixComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
@@ -26,6 +28,7 @@
 #ifdef _DEBUG
 #include <Tsukino/Renderer/Renderer.hpp>
 #include <Tsukino/GraphicsCommon/Vertex/DebugVertex.hpp>
+#include <fstream>
 #endif
 
 #include <hlsl++.h>
@@ -40,6 +43,11 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         constexpr float kHitStopDuration = 0.12f;    //!< ヒット時にかかる減速の持続時間（実時間・秒）
         constexpr float kHitStopScale    = 0.02f;    //!< 持続時間中のdeltaTimeへのスケール値（小さいほど強い停止）
+
+        // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき（上の2定数）より弱めにする。
+        // プレイヤー操作が止まる時間を短くし、被弾直後にすぐ回避・反撃できるようにするため
+        constexpr float kPlayerHitStopDuration = 0.08f;
+        constexpr float kPlayerHitStopScale    = 0.15f;
 
         constexpr float kHpBarVisibleDuration = 3.0f;    //!< 被弾時に頭上HPバーを表示し続ける時間（秒）。HealthBarSystemが減算する
 
@@ -76,6 +84,91 @@ namespace CombatAndroid::ECS {
                 }
             }
             resolvedAgainstModel = model.modelHandle;    // アセットが読めた時点で確定（見つからなければUINT32_MAXのまま）
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  点と線分の間の最短距離の2乗を求める
+        //! @param  point [in] 対象の点
+        //! @param  segA  [in] 線分の始点
+        //! @param  segB  [in] 線分の終点
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float DistanceSqPointToSegment(const hlslpp::float3& point, const hlslpp::float3& segA, const hlslpp::float3& segB) {
+            hlslpp::float3 ab      = segB - segA;
+            float          abLenSq = hlslpp::dot(ab, ab);
+            float          abDot   = hlslpp::dot(point - segA, ab);
+
+            float t = (abLenSq > 1e-8f) ? std::clamp(abDot / abLenSq, 0.0f, 1.0f) : 0.0f;
+
+            hlslpp::float3 closest = segA + ab * t;
+            hlslpp::float3 diff     = point - closest;
+            return hlslpp::dot(diff, diff);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  2つの線分の間の最短距離の2乗を求める
+        //!         （Ericson "Real-Time Collision Detection" のClosestPtSegmentSegmentを移植したもの）
+        //! @param  p1 [in] 線分1の始点
+        //! @param  q1 [in] 線分1の終点
+        //! @param  p2 [in] 線分2の始点
+        //! @param  q2 [in] 線分2の終点
+        //! @note   敵の手ボーンの移動軌跡（前フレーム位置→今フレーム位置）とプレイヤーのカプセル芯線との
+        //!         判定に使う。速い振りやフレーム落ちで点判定をすり抜けるのを防ぐためのスイープ判定
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float DistanceSqBetweenSegments(const hlslpp::float3& p1, const hlslpp::float3& q1, const hlslpp::float3& p2, const hlslpp::float3& q2) {
+            constexpr float kEpsilon = 1e-8f;
+
+            hlslpp::float3 d1 = q1 - p1;    // 線分1の方向ベクトル
+            hlslpp::float3 d2 = q2 - p2;    // 線分2の方向ベクトル
+            hlslpp::float3 r  = p1 - p2;
+
+            float a = hlslpp::dot(d1, d1);    // 線分1の長さの2乗
+            float e = hlslpp::dot(d2, d2);    // 線分2の長さの2乗
+            float f = hlslpp::dot(d2, r);
+
+            float s = 0.0f;
+            float t = 0.0f;
+
+            if(a <= kEpsilon && e <= kEpsilon) {
+                // 両方とも点に退化している
+                s = 0.0f;
+                t = 0.0f;
+            } else if(a <= kEpsilon) {
+                // 線分1が点に退化している
+                s = 0.0f;
+                t = std::clamp(f / e, 0.0f, 1.0f);
+            } else {
+                float c = hlslpp::dot(d1, r);
+                if(e <= kEpsilon) {
+                    // 線分2が点に退化している
+                    t = 0.0f;
+                    s = std::clamp(-c / a, 0.0f, 1.0f);
+                } else {
+                    float b     = hlslpp::dot(d1, d2);
+                    float denom = a * e - b * b;
+
+                    if(denom > kEpsilon)
+                        s = std::clamp((b * f - c * e) / denom, 0.0f, 1.0f);
+                    else
+                        s = 0.0f;    // 2直線がほぼ平行
+
+                    t = (b * s + f) / e;
+
+                    if(t < 0.0f) {
+                        t = 0.0f;
+                        s = std::clamp(-c / a, 0.0f, 1.0f);
+                    } else if(t > 1.0f) {
+                        t = 1.0f;
+                        s = std::clamp((b - c) / a, 0.0f, 1.0f);
+                    }
+                }
+            }
+
+            hlslpp::float3 c1   = p1 + d1 * s;
+            hlslpp::float3 c2   = p2 + d2 * t;
+            hlslpp::float3 diff = c1 - c2;
+            return hlslpp::dot(diff, diff);
         }
 
 #ifdef _DEBUG
@@ -394,27 +487,43 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         entt::entity playerEntity = entt::null;
         auto         playerView =
-            registry.View<PlayerComponent, Tsukino::BuiltIn::ECS::TransformComponent, HealthComponent>();
+            registry.View<PlayerComponent, Tsukino::BuiltIn::ECS::TransformComponent, HealthComponent,
+                          Tsukino::BuiltIn::ECS::CharacterControllerComponent>();
         for(auto entity : playerView) {
             playerEntity = entity;
             break;
         }
 
-        HealthComponent* playerHealth = nullptr;
+        HealthComponent*                                        playerHealth     = nullptr;
+        Tsukino::BuiltIn::ECS::TransformComponent*             playerTransform  = nullptr;
+        Tsukino::BuiltIn::ECS::CharacterControllerComponent* playerController = nullptr;
         // 回避の無敵時間中か。本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、
         // ここで読めるのは今フレームの確定値になる
         bool             playerInvincible = false;
         if(playerEntity != entt::null) {
             playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
+            playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
+            playerController = &registry.GetComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity);
             playerInvincible = registry.GetComponent<PlayerComponent>(playerEntity).isInvincible;
         }
 
         //-------------------------------------------------------------
-        // 敵の攻撃当たり判定：距離だけで成立していた旧・接触ダメージを廃止し、
-        // 攻撃モーション（Attackステート）のhitStartTime〜hitStartTime+hitDurationの間だけ、
-        // 手ボーンに判定球を出してプレイヤーへダメージを与える。振りかぶっただけでは当たらない。
-        // プレイヤー側はKinematic+isSensorのCollisionComponent（CombatAndroidScene::OnInitialize）を
-        // 持つため、敵の武器と同じOverlapCapsuleで検出できる
+        // 敵の攻撃当たり判定：攻撃モーション（Attackステート）のhitStartTime〜hitStartTime+hitDurationの
+        // 間だけ、手ボーンに判定球を出してプレイヤーへダメージを与える。振りかぶっただけでは当たらない。
+        //
+        // プレイヤーはJoltのBodyを持たないCharacterVirtualで動いているため、以前はプレイヤー専用の
+        // Kinematic+isSensorセンサーカプセル（CombatAndroidScene::OnInitialize）を別途持たせ、
+        // PhysicsSystem::OverlapCapsuleで検出していた。しかしこの経路は
+        //   ・PhysicsSystemがシステム優先度の最後（Render/Audioの後）にあり、CombatSystemが読む
+        //     センサーのボディ位置は常に1フレーム古い
+        //   ・ボディの生成→毎フレーム同期→クエリという3段構成のどこか1つが欠けても例外を出さず
+        //     判定ゼロになる
+        // という理由で壊れやすく、実際にダメージが入らない不具合の原因になっていた。
+        // そのためプレイヤーとの判定はJolt物理を経由せず、CharacterControllerComponent
+        // （radius/halfHeight/centerOffset。実際に動いている当たり判定そのもの）から
+        // 直接カプセルの芯線を組み立てて幾何判定する。併せて、前フレームの手位置→今フレームの
+        // 手位置の線分でスイープ判定し、速い振りやフレーム落ちで判定をすり抜けるのも防ぐ
+        // （EnemyAttackHitboxComponent::prevHandPosition）
         //-------------------------------------------------------------
         auto enemyAttackView = registry.View<EnemyComponent, EnemyAnimationSetComponent, EnemyAttackHitboxComponent,
                                              Tsukino::BuiltIn::ECS::TransformComponent>();
@@ -432,10 +541,10 @@ namespace CombatAndroid::ECS {
             if(animSet.attackTimer < hitbox.hitStartTime || animSet.attackTimer > hitbox.hitStartTime + hitbox.hitDuration)
                 return;    // まだ判定区間に入っていない、または過ぎた
 
-            if(playerEntity == entt::null || !playerHealth || playerHealth->isDead)
+            if(playerEntity == entt::null || !playerHealth || !playerTransform || !playerController || playerHealth->isDead)
                 return;    // 当てる相手がいない
 
-            if(!ctx || !ctx->physicsSystem)
+            if(!ctx)
                 return;
 
             ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.handBoneName, hitbox.resolvedAgainstModel, hitbox.handBoneNodeIndex);
@@ -460,24 +569,60 @@ namespace CombatAndroid::ECS {
 
             hlslpp::float3 hitCenter = boneWorldPos + hlslpp::mul(hitbox.boneLocalOffset, boneWorldRot);
 
-            std::vector<entt::entity> overlapping = ctx->physicsSystem->OverlapCapsule(hitCenter, boneWorldRot, hitbox.radius, 1.0f);
+            //-------------------------------------------------------------
+            // プレイヤーのカプセル芯線。centerOffsetはPhysicsSystemが他のKinematicボディへ適用するのと
+            // 同じ規約（transform.rotationで回してtransform.positionへ足す）で組み立てる。
+            // プレイヤーはyawのみ回転するため、芯線は常に鉛直のまま
+            //-------------------------------------------------------------
+            hlslpp::float3 playerCapsuleCenter =
+                playerTransform->position + hlslpp::mul(playerController->centerOffset, playerTransform->rotation);
+            hlslpp::float3 playerCapsuleTop    = playerCapsuleCenter + hlslpp::float3(0.0f, playerController->halfHeight, 0.0f);
+            hlslpp::float3 playerCapsuleBottom = playerCapsuleCenter - hlslpp::float3(0.0f, playerController->halfHeight, 0.0f);
 
-            for(entt::entity hitEntity : overlapping) {
-                if(!registry.HasComponent<PlayerComponent>(hitEntity))
-                    continue;
+            float combinedRadius = hitbox.radius + playerController->radius;
+            float distanceSq;
+            if(hitbox.hasPrevHandPosition) {
+                // 前フレーム位置→今フレーム位置の線分でスイープ判定する
+                distanceSq = DistanceSqBetweenSegments(hitbox.prevHandPosition, hitCenter, playerCapsuleBottom, playerCapsuleTop);
+            } else {
+                // 判定窓に入った最初のフレームは前フレーム位置が無いため、点判定にフォールバックする
+                distanceSq = DistanceSqPointToSegment(hitCenter, playerCapsuleBottom, playerCapsuleTop);
+            }
 
-                // 回避の無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
-                // 同じ判定区間内であれば改めて当たり得る
-                if(playerInvincible)
-                    continue;
+            bool isHit = distanceSq <= combinedRadius * combinedRadius;
 
+#ifdef _DEBUG
+            // 判定が当たらない不具合の切り分け用ログ。原因が特定でき次第このブロックごと削除する
+            {
+                std::ofstream diagFile("diag_enemyhit.txt", std::ios::app);
+                if(diagFile) {
+                    diagFile << "enemy=" << static_cast<u32>(enemyEntity) << " attackTimer=" << animSet.attackTimer
+                             << " distance=" << std::sqrt(distanceSq) << " threshold=" << combinedRadius << " hit=" << (isHit ? 1 : 0)
+                             << " invincible=" << (playerInvincible ? 1 : 0) << "\n";
+                }
+            }
+#endif
+
+            hitbox.prevHandPosition    = hitCenter;
+            hitbox.hasPrevHandPosition = true;
+
+            // 無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
+            // 同じ判定区間内であれば改めて当たり得る
+            if(isHit && !playerInvincible) {
                 playerHealth->currentHealth -= hitbox.damage;
                 if(playerHealth->currentHealth <= 0.0f) {
                     playerHealth->currentHealth = 0.0f;
                     playerHealth->isDead         = true;
                 }
                 hitbox.hasLandedThisAttack = true;
-                break;
+
+                // 被弾演出（点滅・画面フラッシュ。PlayerDamageEffectSystem）用の通知。
+                // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする
+                if(eventBus) {
+                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, hitbox.damage, hitCenter});
+                }
+                ctx->hitStopTimer = kPlayerHitStopDuration;
+                ctx->hitStopScale = kPlayerHitStopScale;
             }
 
 #ifdef _DEBUG

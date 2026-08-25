@@ -23,6 +23,8 @@
 #include <CombatAndroid/ECS/Component/ExpOrbComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
+#include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
@@ -37,6 +39,8 @@
 #include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
+#include <CombatAndroid/ECS/System/GameOverSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -53,6 +57,7 @@
 
 #include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Core/Log.hpp>
+#include <Tsukino/Core/Window.hpp>
 
 // 必要なシステムとコンポーネントのインクルード
 #include <Tsukino/EngineIntegration/ECS/System/TransformSystem.hpp>
@@ -220,6 +225,15 @@ namespace CombatAndroid {
             expOrbSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
+        {
+            // PlayerDamagedEventを購読して被弾演出（点滅・画面フラッシュ）を進行させる。
+            // HP確定（WeaponAttachでCombatSystemがPublish）の後であればよいので、PlayerHudと同じ並びでよい
+            auto playerDamageEffectSystem = std::make_shared<CombatAndroid::ECS::PlayerDamageEffectSystem>();
+            m_scene.AddSystem(playerDamageEffectSystem, (int)SystemPriority::PlayerHud);
+            playerDamageEffectSystem->Initialize(eventBus);
+        }
+        // 死亡演出からGAME OVER表示・リトライまでの進行。HP確定（isDead）の後であればよい
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GameOverSystem>(), (int)SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TpsCameraSystem>(), (int)SystemPriority::Camera3D);
 #ifdef _DEBUG
@@ -261,18 +275,22 @@ namespace CombatAndroid {
         Tsukino::Asset::AssetHandle modelHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Player.fbx"));
 
-        // プレイヤーのアニメーションステートマシン（PlayerAnimationSystem）が使うクリップ
-        Tsukino::Asset::AssetHandle idleAnimHandle = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Idle.fbx"));
-        Tsukino::Asset::AssetHandle runAnimHandle  = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Run.fbx"));
+        // プレイヤーのアニメーションステートマシン（PlayerAnimationSystem）が使うクリップ。
+        // 他キャラ（BigZombie/SmallZombie）と同じくAssets/Anims/Player/以下にまとめてある
+        Tsukino::Asset::AssetHandle idleAnimHandle = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Idle.fbx"));
+        Tsukino::Asset::AssetHandle runAnimHandle  = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Run.fbx"));
         Tsukino::Asset::AssetHandle fastRunAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Fast Run.fbx"));
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Fast Run.fbx"));
         // 回避（前転）。クリップのルート前進はin_placeで殺し、移動はCharacterControllerが担当する
         Tsukino::Asset::AssetHandle dodgeAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Sprinting Forward Roll.fbx"));
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Sprinting Forward Roll.fbx"));
         // Weapon Attack.fbx は3回斬るモーションが1クリップに入っており、連撃の各段は
         // 同じハンドルを時間レンジだけ変えて3回参照する（下のattackSteps初期化を参照）
         Tsukino::Asset::AssetHandle attackAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Weapon Attack.fbx"));
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Weapon Attack.fbx"));
+        // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。GameOverSystem参照）
+        Tsukino::Asset::AssetHandle deathAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
 
         // 敵（BigZombie / SmallZombie）が使うクリップのロードは
         // MakeBigZombieConfig / MakeSmallZombieConfig 側へ移した（EnemySpawner.cpp）。
@@ -388,6 +406,7 @@ namespace CombatAndroid {
         animSet.runClip                                       = runAnimHandle;
         animSet.fastRunClip                                   = fastRunAnimHandle;
         animSet.dodgeClip                                     = dodgeAnimHandle;
+        animSet.deathClip                                     = deathAnimHandle;
         animSet.currentState                                  = CombatAndroid::ECS::PlayerAnimState::Idle;
 
         //-------------------------------------------------------------
@@ -764,6 +783,65 @@ namespace CombatAndroid {
             hud.expBarBackgroundEntity                   = makeBarSprite(20);
             hud.expBarFillEntity                         = makeBarSprite(21);
             hud.expTextEntity                            = makeHudText();
+        }
+
+        //--------------------------------------------------------------
+        // 被弾演出（点滅・画面フラッシュ）とGAME OVER表示。
+        // 画面フラッシュは画面全体を覆う単色スプライトで、位置・サイズはPlayerDamageEffectSystemが
+        // 毎フレーム画面サイズに合わせて書く（HUDバーと同じくWhitePixel.pngを使い回す）
+        //--------------------------------------------------------------
+        {
+            Tsukino::Asset::AssetHandle whitePixelHandle =
+                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+
+            Tsukino::ECS::Entity screenFlashEntity = m_scene.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& flashTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(screenFlashEntity);
+            flashTransform.dirty = true;    // 実際の位置・スケールはPlayerDamageEffectSystemが毎フレーム書く
+
+            Tsukino::BuiltIn::ECS::SpriteComponent& flashSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(screenFlashEntity);
+            flashSprite.textureHandle = whitePixelHandle;
+            flashSprite.tintColor     = hlslpp::float4(0.9f, 0.05f, 0.05f, 0.0f);    // 初期状態は透明
+            flashSprite.sortOrder     = 25;    // HUDバー（20/21）より手前、GAME OVERテキストより奥
+
+            CombatAndroid::ECS::PlayerDamageEffectComponent& damageEffect =
+                registry.AddComponent<CombatAndroid::ECS::PlayerDamageEffectComponent>(playerEntity);
+            damageEffect.screenFlashEntity = screenFlashEntity;
+
+            //-------------------------------------------------------------
+            // GAME OVER / リトライ案内テキスト。「Fキーで拾う」ラベルと同じく空文字で非表示にしておき、
+            // GameOverSystemがHealthComponent::isDeadを検知した時点でtextを書き込む。
+            // 位置は画面中央基準の固定ピクセル座標（開始時点のウィンドウサイズで決める。
+            // リサイズには追従しない＝他の画面固定UIと同じ割り切り）
+            //-------------------------------------------------------------
+            float screenCenterX = context->window ? static_cast<float>(context->window->GetWidth()) * 0.5f : 850.0f;
+            float screenHeight   = context->window ? static_cast<float>(context->window->GetHeight()) : 1000.0f;
+
+            auto makeCenteredOverlayText = [&](float screenY, float fontScale) {
+                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& textTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
+                textTransform.position = hlslpp::float3(screenCenterX, screenY, 0.0f);
+                textTransform.scale     = hlslpp::float3(fontScale, fontScale, 1.0f);
+                textTransform.dirty     = true;
+
+                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
+                font.text              = L"";    // 空文字の間はFontRendererSystemが描画しない
+                font.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+                font.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+                font.outlineWidth      = 3.0f;
+                font.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
+                font.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
+                font.sortOrder         = 30;    // 画面フラッシュより手前に描く
+
+                return textEntity;
+            };
+
+            CombatAndroid::ECS::GameOverComponent& gameOver = registry.AddComponent<CombatAndroid::ECS::GameOverComponent>(playerEntity);
+            gameOver.titleTextEntity = makeCenteredOverlayText(screenHeight * 0.42f, 2.4f);
+            gameOver.retryTextEntity = makeCenteredOverlayText(screenHeight * 0.55f, 1.1f);
         }
 
 #ifdef _DEBUG

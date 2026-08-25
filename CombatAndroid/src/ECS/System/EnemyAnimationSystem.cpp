@@ -71,8 +71,12 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(EnemyAnimState::Attack, [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             attackClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
-            if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity))
+            if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
                 hitbox->hasLandedThisAttack = false;
+                // 前フレームの手位置も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
+                // スイープしてしまうと、離れた場所にいるプレイヤーへ誤って当たることがあるため
+                hitbox->hasPrevHandPosition = false;
+            }
         });
 
         // Knockbackへ入るときはknockbackTimer（ZombieBehavior::PlayKnockbackの終了判定ウォッチドッグ）をリセットする
