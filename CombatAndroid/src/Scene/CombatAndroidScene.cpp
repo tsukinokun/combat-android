@@ -783,6 +783,32 @@ namespace CombatAndroid {
             hud.expBarBackgroundEntity                   = makeBarSprite(20);
             hud.expBarFillEntity                         = makeBarSprite(21);
             hud.expTextEntity                            = makeHudText();
+
+            //-------------------------------------------------------------
+            // 画面上部中央の生存時間テキスト。HPバーと同じくWorldAnchorComponentは使わず
+            // 固定ピクセル座標に置き、PlayerHudSystemが毎フレームtextだけ書き換える
+            // （位置は開始時点のウィンドウ幅基準。GAME OVERテキストと同じ割り切り）
+            //-------------------------------------------------------------
+            float survivalTimeScreenCenterX = context->window ? static_cast<float>(context->window->GetWidth()) * 0.5f : 850.0f;
+
+            Tsukino::ECS::Entity survivalTimeEntity = m_scene.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& survivalTimeTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(survivalTimeEntity);
+            survivalTimeTransform.position = hlslpp::float3(survivalTimeScreenCenterX, 24.0f, 0.0f);
+            survivalTimeTransform.dirty     = true;
+
+            Tsukino::BuiltIn::ECS::FontComponent& survivalTimeFont =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(survivalTimeEntity);
+            survivalTimeFont.text              = L"";
+            survivalTimeFont.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            survivalTimeFont.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+            survivalTimeFont.outlineWidth      = 2.0f;
+            survivalTimeFont.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
+            survivalTimeFont.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Top;
+            survivalTimeFont.sortOrder         = 21;
+
+            hud.survivalTimeTextEntity = survivalTimeEntity;
         }
 
         //--------------------------------------------------------------

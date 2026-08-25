@@ -22,5 +22,8 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::Entity expBarBackgroundEntity = entt::null;
         Tsukino::ECS::Entity expBarFillEntity       = entt::null;
         Tsukino::ECS::Entity expTextEntity          = entt::null;
+
+        Tsukino::ECS::Entity survivalTimeTextEntity = entt::null;    //!< 画面上部中央の生存時間テキスト
+        float                survivalTime           = 0.0f;         //!< 生存時間（秒）。死亡すると加算を止める
     };
 }    // namespace CombatAndroid::ECS

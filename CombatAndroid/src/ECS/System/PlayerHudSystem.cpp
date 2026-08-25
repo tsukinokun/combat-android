@@ -89,13 +89,11 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PlayerHudSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
-        (void)deltaTime;
-
         auto view = registry.View<PlayerComponent, HealthComponent, PlayerExperienceComponent, PlayerHudComponent>();
         for(entt::entity entity : view) {
             const auto& health = view.get<HealthComponent>(entity);
             const auto& exp     = view.get<PlayerExperienceComponent>(entity);
-            const auto& hud     = view.get<PlayerHudComponent>(entity);
+            auto&       hud     = view.get<PlayerHudComponent>(entity);
 
             //-------------------------------------------------------------
             // HPバー：残量に応じて緑→赤へ補間する（HealthBarSystemと同じ考え方）
@@ -136,6 +134,27 @@ namespace CombatAndroid::ECS {
                     expTextTransform->position =
                         hlslpp::float3(kExpBarLeftX + kExpBarWidth + kTextGapX, kExpBarTopY + kExpBarHeight * 0.5f, 0.0f);
                     expTextTransform->dirty = true;
+                }
+            }
+
+            //-------------------------------------------------------------
+            // 生存時間：死亡していない間だけ加算し、mm:ss形式で画面上部中央に表示する
+            //-------------------------------------------------------------
+            if(!health.isDead)
+                hud.survivalTime += deltaTime;
+
+            if(hud.survivalTimeTextEntity != entt::null) {
+                if(auto* survivalTimeFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(hud.survivalTimeTextEntity)) {
+                    int totalSeconds = static_cast<int>(hud.survivalTime);
+                    int minutes       = totalSeconds / 60;
+                    int seconds       = totalSeconds % 60;
+
+                    std::wstring minutesText = std::to_wstring(minutes);
+                    std::wstring secondsText = std::to_wstring(seconds);
+                    if(secondsText.size() < 2)
+                        secondsText.insert(0, L"0");
+
+                    survivalTimeFont->text = minutesText + L":" + secondsText;
                 }
             }
         }
