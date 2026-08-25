@@ -103,6 +103,9 @@ namespace CombatAndroid::ECS {
                     weapon.cooldownTimer   = 0.0f;
                     weapon.nextActiveDurationOverride = step.hitWindowDuration;
                     weapon.damageMultiplier            = step.damageMultiplier;
+                    // AoE(範囲攻撃)要求。実際に発動するかはCombatSystem側でweapon.areaAttackRadius>0を見て判定する
+                    weapon.pendingAreaAttack      = step.areaAttack;
+                    weapon.pendingAreaAttackDelay = step.areaAttackDelay;
                 }
             };
         }

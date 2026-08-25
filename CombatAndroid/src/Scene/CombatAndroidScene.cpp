@@ -310,6 +310,10 @@ namespace CombatAndroid {
         Tsukino::Asset::AssetHandle deathAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
 
+        // ウォーハンマー3段目（フィニッシュ）のAoE(範囲攻撃)発動時に再生するEffekseerエフェクト
+        Tsukino::Core::Path warhammerCombo3EffectPath("CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc");
+        Tsukino::Asset::AssetHandle warhammerCombo3EffectHandle = context->assetManager->Load(warhammerCombo3EffectPath);
+
         // 敵（BigZombie / SmallZombie）が使うクリップのロードは
         // MakeBigZombieConfig / MakeSmallZombieConfig 側へ移した（EnemySpawner.cpp）。
         // AssetManager がパスでキャッシュするため、何体生成しても実際のロードは1回で済む
@@ -477,6 +481,10 @@ namespace CombatAndroid {
         // 3段目（フィニッシュ）だけ重い一撃としてダメージを2倍にする。
         // 敵のknockbackDamageThresholdと組み合わせて「重い武器の3段目だけノックバックする」を実現する
         animSet.attackSteps[2].damageMultiplier   = 2.0f;
+        // 3段目はAoE(範囲攻撃)を要求する段として扱う。実際に発動するのは装備武器が
+        // WeaponComponent::areaAttackRadius>0を持つ場合のみ（下でwarhammerにのみ設定）
+        animSet.attackSteps[2].areaAttack      = true;
+        animSet.attackSteps[2].areaAttackDelay = 0.35f;    // 実機でF10/F11 + AoEデバッグ円（マゼンタ）を見ながら調整する
 
         Tsukino::BuiltIn::ECS::SpringBoneComponent& springBone = registry.AddComponent<Tsukino::BuiltIn::ECS::SpringBoneComponent>(playerEntity);
 
@@ -575,6 +583,11 @@ namespace CombatAndroid {
             auto& warhammerWeapon    = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
             warhammerWeapon.floatSelected = true;
             warhammerWeapon.damage         = 38.0f;    // 重量武器。3段目（damageMultiplier 2.0）で76となり、SmallZombie/BigZombie両方を怯ませる
+            // 3段目フィニッシュのAoE(範囲攻撃)。attackSteps[2].areaAttackと組み合わさって発動する
+            warhammerWeapon.areaAttackRadius      = 160.0f;
+            warhammerWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
+            warhammerWeapon.areaAttackEffectPath  = warhammerCombo3EffectPath;
+            warhammerWeapon.areaAttackEffectScale = 100.0f;    // 1ユニット≒1cm規約への単位合わせ。実機で見ながら調整する
         }
 
         //--------------------------------------------------------------
@@ -640,7 +653,15 @@ namespace CombatAndroid {
                              hlslpp::float3(0.0f, 0.0f, 10.0f),
                              hlslpp::float3(0.0f, 0.0f, 0.0f),
                              hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-        registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerWorldEntity).damage = 38.0f;
+        {
+            auto& warhammerWorldWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerWorldEntity);
+            warhammerWorldWeapon.damage = 38.0f;
+            // 拾って装備した場合も3段目フィニッシュのAoEが機能するよう、初期装備の個体と同じ値を設定する
+            warhammerWorldWeapon.areaAttackRadius      = 160.0f;
+            warhammerWorldWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
+            warhammerWorldWeapon.areaAttackEffectPath  = warhammerCombo3EffectPath;
+            warhammerWorldWeapon.areaAttackEffectScale = 100.0f;
+        }
 
         //--------------------------------------------------------------
         // 敵エンティティ生成。全敵共通でビヘイビアツリー駆動（歩く→射程内で攻撃、被弾でノックバック、
@@ -1218,6 +1239,7 @@ namespace CombatAndroid {
 
         m_scene.Update(scaledDeltaTime);
     }
+
 
     //-------------------------------------------------------------
     //! @brief  シーンの終了処理

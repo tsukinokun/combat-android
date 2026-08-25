@@ -6,6 +6,7 @@
 #pragma once
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 #include <Tsukino/Core/typedef.hpp>
+#include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Engine/Asset/AssetHandle.hpp>
 
 #include <hlsl++.h>
@@ -131,5 +132,22 @@ namespace CombatAndroid::ECS {
         float attackSnapAngleDeg      = 12.0f;    //!< スナップ開始の姿勢しきい値（目標との角度差）。位置だけでなく姿勢も十分近い時のみスナップさせ、回転がポップして見えないようにする
         float attackApproachLerpSpeed = 45.0f;    //!< スナップ前、attackBlendにより通常のattach*LerpSpeedから連続的にここへ遷移する接近速度（速いほど素早くスナップ圏内に入る）
         bool  isSnapped                = false;    //!< 現在ビタ置き中か。isAttackingがfalseに戻ると解除され、通常の指数減衰補間へ戻る（CombatSystemが管理）
+
+        //-------------------------------------------------------------
+        // 範囲攻撃(AoE)。半径0で無効（既定）。特定の武器・特定の連撃段でのみ使う
+        // 追加ダメージ演出。武器種別を判定するenumは持たず、既存のdamage等と同じ
+        // 流儀でインスタンスごとに値を設定する（warhammerのスポーン箇所のみ設定）
+        //-------------------------------------------------------------
+        float areaAttackRadius = 0.0f;    //!< AoE判定半径。0ならこの武器はAoE非対応
+        Tsukino::Asset::AssetHandle areaAttackEffectAsset;    //!< AoE発動時に再生するEffekseerエフェクト（未設定なら再生しない）
+        Tsukino::Core::Path         areaAttackEffectPath;      //!< 上記エフェクトのファイルパス（EffectSystem::PlayEffectのテクスチャ解決に使う）
+        float areaAttackEffectScale = 1.0f;    //!< 上記エフェクトの再生スケール。本作は1ユニット≒1cm規約だがEffekseer側は
+                                                 //!< メートル単位で作られるため、単位合わせに100前後の値が要る（実機で見ながら調整する）
+
+        bool  pendingAreaAttack      = false;    //!< 次にattackRequestedが消費される際、AoEを要求するか。PlayerAnimationSystemがAttackStep::areaAttackから設定する
+        float pendingAreaAttackDelay = 0.35f;    //!< 上と同様。AoE発動までの遅延（秒）。AttackStep::areaAttackDelayから設定される
+
+        bool  areaAttackArmed = false;    //!< 今回の攻撃でAoE発動待ちか（CombatSystemが管理。発動または攻撃終了で消費）
+        float areaAttackTimer = 0.0f;      //!< AoE発動までの残り時間（秒）
     };
 }    // namespace CombatAndroid::ECS

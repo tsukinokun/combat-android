@@ -52,6 +52,9 @@ namespace CombatAndroid::ECS {
         float fadeTime         = 0.05f;  //!< 段へ入るときのクロスフェード時間（素早く反応させるため短め）
         float playbackSpeed    = 1.0f;   //!< この段の再生速度倍率（1.0が等速。大きいほど振りが速くなり、次段への移行も早まる）
         bool  inPlace          = true;   //!< 攻撃モーションのルート前進を殺す（移動はCharacterControllerが担当するため）
+
+        bool  areaAttack      = false;   //!< この段の突入時にAoE(範囲攻撃)を要求するか。対応武器かはWeaponComponent::areaAttackRadius>0で判定する
+        float areaAttackDelay = 0.35f;   //!< 攻撃開始（この段への突入）からAoE発動までの遅延（秒）
     };
 
     //-------------------------------------------------------------

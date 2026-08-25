@@ -22,6 +22,7 @@
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/EffectSystem.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 #include <Tsukino/Engine/Asset/Model/ModelAsset.hpp>
 #include <Tsukino/GraphicsCommon/Model/ModelData.hpp>
@@ -193,6 +194,60 @@ namespace CombatAndroid::ECS {
             }
         }
 #endif
+
+        //-------------------------------------------------------------
+        //! @brief  1体の敵への「武器ヒット」を確定させる共通処理。
+        //!         直線カプセル判定・AoE(範囲攻撃)判定の両方から呼ばれる（多重ヒット防止・ダメージ・
+        //!         ノックバック判定・WeaponHitEvent発火・ヒットストップ要求を一本化する）
+        //! @param  hitPositionFallback [in] 対象にTransformComponentが無い場合に使う位置
+        //-------------------------------------------------------------
+        void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext* ctx,
+                                    Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity, WeaponComponent& weapon,
+                                    entt::entity hitEntity, const hlslpp::float3& hitPositionFallback, float skillAttackMultiplier) {
+            if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
+                return;
+
+            auto& enemy       = registry.GetComponent<EnemyComponent>(hitEntity);
+            auto& enemyHealth = registry.GetComponent<HealthComponent>(hitEntity);
+            if(enemyHealth.isDead)
+                return;
+
+            if(std::find(weapon.hitEnemiesThisAttack.begin(), weapon.hitEnemiesThisAttack.end(), hitEntity)
+               != weapon.hitEnemiesThisAttack.end())
+                return;
+
+            // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
+            //             ×スキル「憤怒」の攻撃力倍率
+            float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
+
+            enemyHealth.currentHealth -= dealtDamage;
+            if(enemyHealth.currentHealth <= 0.0f) {
+                enemyHealth.currentHealth = 0.0f;
+                enemyHealth.isDead         = true;
+            }
+            enemyHealth.hpBarVisibleTimer = kHpBarVisibleDuration;    // 被弾した瞬間だけ頭上HPバーを表示する
+            weapon.hitEnemiesThisAttack.push_back(hitEntity);
+
+            // 一定以上の単発ダメージでノックバックを要求する（BTのPlayKnockbackが消費する）。
+            // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
+            if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
+                enemy.pendingKnockback = true;
+
+            hlslpp::float3 hitPosition = hitPositionFallback;
+            if(registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
+                hitPosition = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity).position;
+
+            // ヒット通知（エフェクト・SE等の副作用処理用）を発火する
+            if(eventBus) {
+                eventBus->Publish(WeaponHitEvent{weapon.owner, weaponEntity, hitEntity, hitPosition, dealtDamage});
+            }
+
+            // ヒットストップを要求する（同一フレームで複数ヒットしても同じ値で上書きされるだけで問題ない）
+            if(ctx) {
+                ctx->hitStopTimer = kHitStopDuration;
+                ctx->hitStopScale = kHitStopScale;
+            }
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -398,6 +453,14 @@ namespace CombatAndroid::ECS {
                         weapon.isActive ? hlslpp::float4(1.0f, 0.2f, 0.0f, 1.0f) : hlslpp::float4(0.0f, 1.0f, 1.0f, 1.0f);
                     DrawWireCircleXZ(ctx->renderer, transform.position, weapon.hitCapsuleRadius, color);
                     DrawWireCircleXZ(ctx->renderer, tipPos, weapon.hitCapsuleRadius, color);
+
+                    // AoE(範囲攻撃)半径の可視化。発動待ちカウントダウン中はマゼンタ、それ以外は薄紫で常時表示する
+                    if(weapon.areaAttackRadius > 0.0f) {
+                        hlslpp::float4 aoeColor = weapon.areaAttackArmed
+                            ? hlslpp::float4(1.0f, 0.0f, 1.0f, 1.0f)
+                            : hlslpp::float4(0.5f, 0.0f, 0.5f, 0.5f);
+                        DrawWireCircleXZ(ctx->renderer, transform.position, weapon.areaAttackRadius, aoeColor);
+                    }
                 }
 #endif
             }
@@ -416,6 +479,26 @@ namespace CombatAndroid::ECS {
                 // 新しいアタックの開始。ヒット済み記録はここでのみクリアする
                 // （毎フレームの判定側でクリアすると同じ敵に何度もヒットしてしまう）
                 weapon.hitEnemiesThisAttack.clear();
+
+                // AoE(範囲攻撃)の武装。この段がAoEを要求していて、かつ装備武器がAoE対応
+                // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む
+                if(weapon.pendingAreaAttack && weapon.areaAttackRadius > 0.0f) {
+                    weapon.areaAttackArmed = true;
+                    weapon.areaAttackTimer = std::max(weapon.pendingAreaAttackDelay, 0.0f);
+                } else {
+                    weapon.areaAttackArmed = false;
+                }
+                weapon.pendingAreaAttack = false;    // 一度きりの要求として消費する（nextActiveDurationOverrideと同じ作法）
+            }
+
+            //-------------------------------------------------------------
+            // 憤怒（スキル）の攻撃力倍率。持ち主から引く。直線カプセル判定・AoE判定の
+            // 両方で使うため、どちらのブロックに入る前に1回だけ求めておく
+            //-------------------------------------------------------------
+            float skillAttackMultiplier = 1.0f;
+            if(weapon.owner != entt::null) {
+                if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner))
+                    skillAttackMultiplier = ownerSkills->attackMultiplier;
             }
 
             if(weapon.isActive) {
@@ -424,17 +507,6 @@ namespace CombatAndroid::ECS {
                 // Jolt物理へオーバーラップ問い合わせする（PhysicsSystem::OverlapCapsule）。
                 // 1回のアタックで同じ敵に何度も当たらないよう、既にヒットした敵はhitEnemiesThisAttackに記録してスキップする
                 if(ctx && ctx->physicsSystem) {
-                    //-------------------------------------------------------------
-                    // 憤怒（スキル）の攻撃力倍率。持ち主から引く。
-                    // ヒットごとではなく1回のオーバーラップ判定につき1回だけ引けばよいので、
-                    // 下のヒットループの外で求めておく
-                    //-------------------------------------------------------------
-                    float skillAttackMultiplier = 1.0f;
-                    if(weapon.owner != entt::null) {
-                        if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner))
-                            skillAttackMultiplier = ownerSkills->attackMultiplier;
-                    }
-
                     hlslpp::float3 bladeDir      = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), transform.rotation);
                     float          halfLen       = weapon.range * 0.5f;
                     hlslpp::float3 capsuleCenter = transform.position + bladeDir * halfLen;
@@ -443,47 +515,7 @@ namespace CombatAndroid::ECS {
                         ctx->physicsSystem->OverlapCapsule(capsuleCenter, transform.rotation, weapon.hitCapsuleRadius, halfLen);
 
                     for(entt::entity hitEntity : overlapping) {
-                        if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
-                            continue;
-
-                        auto& enemy       = registry.GetComponent<EnemyComponent>(hitEntity);
-                        auto& enemyHealth = registry.GetComponent<HealthComponent>(hitEntity);
-                        if(enemyHealth.isDead)
-                            continue;
-
-                        if(std::find(weapon.hitEnemiesThisAttack.begin(), weapon.hitEnemiesThisAttack.end(), hitEntity)
-                           != weapon.hitEnemiesThisAttack.end())
-                            continue;
-
-                        // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
-                        //             ×スキル「憤怒」の攻撃力倍率
-                        float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
-
-                        enemyHealth.currentHealth -= dealtDamage;
-                        if(enemyHealth.currentHealth <= 0.0f) {
-                            enemyHealth.currentHealth = 0.0f;
-                            enemyHealth.isDead         = true;
-                        }
-                        enemyHealth.hpBarVisibleTimer = kHpBarVisibleDuration;    // 被弾した瞬間だけ頭上HPバーを表示する
-                        weapon.hitEnemiesThisAttack.push_back(hitEntity);
-
-                        // 一定以上の単発ダメージでノックバックを要求する（BTのPlayKnockbackが消費する）。
-                        // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
-                        if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
-                            enemy.pendingKnockback = true;
-
-                        hlslpp::float3 hitPosition = capsuleCenter;
-                        if(registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
-                            hitPosition = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity).position;
-
-                        // ヒット通知（エフェクト・SE等の副作用処理用）を発火する
-                        if(eventBus) {
-                            eventBus->Publish(WeaponHitEvent{weapon.owner, entity, hitEntity, hitPosition, dealtDamage});
-                        }
-
-                        // ヒットストップを要求する（同一フレームで複数ヒットしても同じ値で上書きされるだけで問題ない）
-                        ctx->hitStopTimer = kHitStopDuration;
-                        ctx->hitStopScale = kHitStopScale;
+                        ApplyWeaponHitToEntity(registry, ctx, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier);
                     }
                 }
 
@@ -491,6 +523,38 @@ namespace CombatAndroid::ECS {
                 if(weapon.activeTimer <= 0.0f) {
                     weapon.activeTimer = 0.0f;
                     weapon.isActive    = false;
+                }
+            }
+
+            //-------------------------------------------------------------
+            // AoE（範囲攻撃）。振り下ろし開始（attackRequestedの消費）から一定時間後に1回だけ発動する。
+            // isActive/hitWindowDurationとは独立したタイマーで管理し、直線カプセル判定の
+            // ヒット窓が先に閉じても予定通り発動できるようにする
+            //-------------------------------------------------------------
+            if(weapon.areaAttackArmed) {
+                weapon.areaAttackTimer -= deltaTime;
+                if(weapon.areaAttackTimer <= 0.0f) {
+                    weapon.areaAttackArmed = false;
+
+                    if(ctx && ctx->physicsSystem) {
+                        // JPH::CapsuleShapeはhalfHeight>0を要求する（0は不可、JPH_ASSERT落ちする）ため、
+                        // 半径に対して無視できるほど薄いカプセルにして疑似球判定として使う
+                        constexpr float kAreaAttackCapsuleHalfHeight = 2.0f;
+                        hlslpp::quaternion sphereRotation(0.0f, 0.0f, 0.0f, 1.0f);    // 疑似球なので向きは意味を持たない。恒等回転にしておく
+
+                        std::vector<entt::entity> areaHits = ctx->physicsSystem->OverlapCapsule(
+                            transform.position, sphereRotation, weapon.areaAttackRadius, kAreaAttackCapsuleHalfHeight);
+
+                        for(entt::entity hitEntity : areaHits) {
+                            ApplyWeaponHitToEntity(registry, ctx, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier);
+                        }
+
+                        if(ctx->effectSystem && weapon.areaAttackEffectAsset.IsValid()) {
+                            float pos[3] = {transform.position.x, transform.position.y, transform.position.z};
+                            ctx->effectSystem->PlayEffect(registry, weapon.areaAttackEffectAsset, weapon.areaAttackEffectPath, pos, false,
+                                                          weapon.areaAttackEffectScale);
+                        }
+                    }
                 }
             }
         });
