@@ -18,7 +18,11 @@ namespace CombatAndroid::ECS {
         float detectRange = 600.0f;    //!< プレイヤーを追跡し始める距離
         float bodyRadius  = 40.0f;     //!< 簡易的な当たり判定半径（武器ヒット判定用カプセルの寸法決めに使用）
 
-        float attackRange         = 110.0f;    //!< ビヘイビアツリーが攻撃へ移る距離
+        // attackRangeはBTが攻撃へ移る距離であると同時に、MoveToPlayerが足を止める距離でもある
+        // （ZombieBehavior参照）。遠すぎると手ボーンの判定球（EnemyAttackHitboxComponent::radius）が
+        // プレイヤーのカプセルへ届かず、攻撃モーションが空振りし続けるため、
+        // 接触距離（bodyRadius+プレイヤー半径）のすぐ外に置くこと
+        float attackRange         = 85.0f;
         float attackCooldown      = 1.5f;      //!< 攻撃を終えてから次の攻撃までの最短間隔（秒）
         float attackCooldownTimer = 0.0f;      //!< 残りクールタイム
 

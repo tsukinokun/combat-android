@@ -57,8 +57,13 @@ namespace CombatAndroid::ECS {
         Tsukino::Asset::AssetHandle deathClip;
 
         // 敵の攻撃当たり判定（EnemyAttackHitboxComponent）
-        std::string    handBoneName = "mixamorig:RightHand";
+        std::string    boneName = "mixamorig:RightHand";
         hlslpp::float3 hitboxLocalOffset{0.0f, 0.0f, 0.0f};
+        // endBoneNameが空なら従来通りboneName位置を中心とした球で判定する。
+        // 設定すると、boneName→endBoneNameを芯線とするカプセルで判定する
+        // （腕の振り抜きのように1点の球では部位を表現しきれない敵向け。EnemyAttackHitboxComponent参照）
+        std::string    endBoneName = "";
+        hlslpp::float3 endBoneLocalOffset{0.0f, 0.0f, 0.0f};
         float          hitboxRadius = 45.0f;
         float          hitboxDamage = 15.0f;
         float          hitStartTime = 0.40f;    //!< Attackへ入ってからの経過秒。ここから判定が有効になる

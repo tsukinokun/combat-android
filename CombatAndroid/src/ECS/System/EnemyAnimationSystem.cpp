@@ -73,9 +73,9 @@ namespace CombatAndroid::ECS {
             registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
             if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
                 hitbox->hasLandedThisAttack = false;
-                // 前フレームの手位置も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
+                // 前フレームの判定点も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
                 // スイープしてしまうと、離れた場所にいるプレイヤーへ誤って当たることがあるため
-                hitbox->hasPrevHandPosition = false;
+                hitbox->hasPrevSweepPoint = false;
             }
         });
 

@@ -598,9 +598,12 @@ namespace CombatAndroid::ECS {
         // という理由で壊れやすく、実際にダメージが入らない不具合の原因になっていた。
         // そのためプレイヤーとの判定はJolt物理を経由せず、CharacterControllerComponent
         // （radius/halfHeight/centerOffset。実際に動いている当たり判定そのもの）から
-        // 直接カプセルの芯線を組み立てて幾何判定する。併せて、前フレームの手位置→今フレームの
-        // 手位置の線分でスイープ判定し、速い振りやフレーム落ちで判定をすり抜けるのも防ぐ
-        // （EnemyAttackHitboxComponent::prevHandPosition）
+        // 直接カプセルの芯線を組み立てて幾何判定する。併せて、前フレームの判定点→今フレームの
+        // 判定点の線分でスイープ判定し、速い振りやフレーム落ちで判定をすり抜けるのも防ぐ
+        // （EnemyAttackHitboxComponent::prevSweepPoint）。
+        // 判定形状はendBoneNameの有無で2通り。空なら「boneName位置を中心とした球」
+        // （頭部などの部位向け）、設定されていれば「boneName→endBoneNameを芯線とするカプセル」
+        // （腕の振り抜きのように1点の球では部位を表現しきれない場合向け）
         //-------------------------------------------------------------
         auto enemyAttackView = registry.View<EnemyComponent, EnemyAnimationSetComponent, EnemyAttackHitboxComponent,
                                              Tsukino::BuiltIn::ECS::TransformComponent>();
@@ -624,13 +627,13 @@ namespace CombatAndroid::ECS {
             if(!ctx)
                 return;
 
-            ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.handBoneName, hitbox.resolvedAgainstModel, hitbox.handBoneNodeIndex);
-            if(hitbox.handBoneNodeIndex == UINT32_MAX
+            ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.boneName, hitbox.resolvedAgainstModel, hitbox.boneNodeIndex);
+            if(hitbox.boneNodeIndex == UINT32_MAX
                || !registry.HasComponent<Tsukino::BuiltIn::ECS::NodeWorldMatrixComponent>(enemyEntity))
                 return;
 
             auto& enemyMatrices = registry.GetComponent<Tsukino::BuiltIn::ECS::NodeWorldMatrixComponent>(enemyEntity);
-            if(hitbox.handBoneNodeIndex >= enemyMatrices.matrices.size())
+            if(hitbox.boneNodeIndex >= enemyMatrices.matrices.size())
                 return;
 
             // モデルローカルのボーン姿勢 → ワールド空間。WeaponComponentの手ボーン追従と同じ規約
@@ -638,13 +641,37 @@ namespace CombatAndroid::ECS {
             //   CombatSystem冒頭の武器アタッチ処理のコメント参照）
             hlslpp::float3     boneLocalPos;
             hlslpp::quaternion boneLocalRot;
-            Tsukino::Core::Math::matrix::decomposePositionRotation(enemyMatrices.matrices[hitbox.handBoneNodeIndex], boneLocalPos, boneLocalRot);
+            Tsukino::Core::Math::matrix::decomposePositionRotation(enemyMatrices.matrices[hitbox.boneNodeIndex], boneLocalPos, boneLocalRot);
 
             hlslpp::float3     boneWorldPos =
                 enemyTransform.position + hlslpp::mul(boneLocalPos * enemyTransform.scale, enemyTransform.rotation);
             hlslpp::quaternion boneWorldRot = hlslpp::mul(enemyTransform.rotation, boneLocalRot);
 
-            hlslpp::float3 hitCenter = boneWorldPos + hlslpp::mul(hitbox.boneLocalOffset, boneWorldRot);
+            hlslpp::float3 hitStart = boneWorldPos + hlslpp::mul(hitbox.boneLocalOffset, boneWorldRot);
+
+            // カプセルモード（endBoneNameが設定されている＝腕の振り抜きなど）なら終点ボーンも
+            // 同じ手順で解決する。終点が解決できない場合は設定ミスとして今フレームは判定を出さない
+            bool           isCapsuleMode = !hitbox.endBoneName.empty();
+            hlslpp::float3 hitEnd        = hitStart;
+            if(isCapsuleMode) {
+                ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.endBoneName, hitbox.resolvedAgainstModelEnd, hitbox.endBoneNodeIndex);
+                if(hitbox.endBoneNodeIndex == UINT32_MAX || hitbox.endBoneNodeIndex >= enemyMatrices.matrices.size())
+                    return;
+
+                hlslpp::float3     endBoneLocalPos;
+                hlslpp::quaternion endBoneLocalRot;
+                Tsukino::Core::Math::matrix::decomposePositionRotation(enemyMatrices.matrices[hitbox.endBoneNodeIndex], endBoneLocalPos, endBoneLocalRot);
+
+                hlslpp::float3     endBoneWorldPos =
+                    enemyTransform.position + hlslpp::mul(endBoneLocalPos * enemyTransform.scale, enemyTransform.rotation);
+                hlslpp::quaternion endBoneWorldRot = hlslpp::mul(enemyTransform.rotation, endBoneLocalRot);
+
+                hitEnd = endBoneWorldPos + hlslpp::mul(hitbox.endBoneLocalOffset, endBoneWorldRot);
+            }
+
+            // スイープ用に前フレームと比較する判定点。球モードは中心（hitStart）、
+            // カプセルモードは芯線の遠位端（hitEnd）を使う
+            hlslpp::float3 sweepPoint = isCapsuleMode ? hitEnd : hitStart;
 
             //-------------------------------------------------------------
             // プレイヤーのカプセル芯線。centerOffsetはPhysicsSystemが他のKinematicボディへ適用するのと
@@ -658,12 +685,20 @@ namespace CombatAndroid::ECS {
 
             float combinedRadius = hitbox.radius + playerController->radius;
             float distanceSq;
-            if(hitbox.hasPrevHandPosition) {
+            if(isCapsuleMode) {
+                // 芯線（hitStart→hitEnd）とプレイヤーカプセルの最短距離
+                distanceSq = DistanceSqBetweenSegments(hitStart, hitEnd, playerCapsuleBottom, playerCapsuleTop);
+                if(hitbox.hasPrevSweepPoint) {
+                    // 遠位端の前フレーム位置→今フレーム位置もスイープし、速い振り抜きのすり抜けを防ぐ
+                    float sweepDistanceSq = DistanceSqBetweenSegments(hitbox.prevSweepPoint, hitEnd, playerCapsuleBottom, playerCapsuleTop);
+                    distanceSq             = std::min(distanceSq, sweepDistanceSq);
+                }
+            } else if(hitbox.hasPrevSweepPoint) {
                 // 前フレーム位置→今フレーム位置の線分でスイープ判定する
-                distanceSq = DistanceSqBetweenSegments(hitbox.prevHandPosition, hitCenter, playerCapsuleBottom, playerCapsuleTop);
+                distanceSq = DistanceSqBetweenSegments(hitbox.prevSweepPoint, hitStart, playerCapsuleBottom, playerCapsuleTop);
             } else {
                 // 判定窓に入った最初のフレームは前フレーム位置が無いため、点判定にフォールバックする
-                distanceSq = DistanceSqPointToSegment(hitCenter, playerCapsuleBottom, playerCapsuleTop);
+                distanceSq = DistanceSqPointToSegment(hitStart, playerCapsuleBottom, playerCapsuleTop);
             }
 
             bool isHit = distanceSq <= combinedRadius * combinedRadius;
@@ -680,8 +715,8 @@ namespace CombatAndroid::ECS {
             }
 #endif
 
-            hitbox.prevHandPosition    = hitCenter;
-            hitbox.hasPrevHandPosition = true;
+            hitbox.prevSweepPoint    = sweepPoint;
+            hitbox.hasPrevSweepPoint = true;
 
             // 無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
             // 同じ判定区間内であれば改めて当たり得る
@@ -696,7 +731,7 @@ namespace CombatAndroid::ECS {
                 // 被弾演出（点滅・画面フラッシュ。PlayerDamageEffectSystem）用の通知。
                 // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする
                 if(eventBus) {
-                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, hitbox.damage, hitCenter});
+                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, hitbox.damage, sweepPoint});
                 }
                 ctx->hitStopTimer = kPlayerHitStopDuration;
                 ctx->hitStopScale = kPlayerHitStopScale;
@@ -705,7 +740,10 @@ namespace CombatAndroid::ECS {
 #ifdef _DEBUG
             if(ctx->renderer) {
                 hlslpp::float4 color = hitbox.hasLandedThisAttack ? hlslpp::float4(1.0f, 0.2f, 0.8f, 1.0f) : hlslpp::float4(0.3f, 0.6f, 1.0f, 1.0f);
-                DrawWireCircleXZ(ctx->renderer, hitCenter, hitbox.radius, color);
+                DrawWireCircleXZ(ctx->renderer, hitStart, hitbox.radius, color);
+                if(isCapsuleMode) {
+                    DrawWireCircleXZ(ctx->renderer, hitEnd, hitbox.radius, color);
+                }
             }
 #endif
         });
