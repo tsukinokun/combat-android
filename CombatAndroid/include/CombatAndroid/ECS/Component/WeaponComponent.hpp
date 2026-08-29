@@ -4,6 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #pragma once
+#include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Path.hpp>
@@ -149,5 +150,16 @@ namespace CombatAndroid::ECS {
 
         bool  areaAttackArmed = false;    //!< 今回の攻撃でAoE発動待ちか（CombatSystemが管理。発動または攻撃終了で消費）
         float areaAttackTimer = 0.0f;      //!< AoE発動までの残り時間（秒）
+
+        //-------------------------------------------------------------
+        // 攻撃モーションの武器差し替え。未設定（!attackClip.IsValid()）ならプレイヤー既定の
+        // PlayerAnimationSetComponent::attackSteps（Hammer Attack.fbx）をそのまま使う。
+        // 武器種別を判定するenumは持たず、areaAttack等と同じ流儀でインスタンスごとに
+        // 設定する（great swordのスポーン箇所のみ設定）
+        //-------------------------------------------------------------
+        Tsukino::Asset::AssetHandle attackClip;    //!< 未設定ならこの武器は既定クリップ（Hammer Attack）を使う
+        u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
+        float attackStepStartTime[PlayerAnimationSetComponent::kAttackComboCount] = {};    //!< 各段の再生開始時刻（秒）
+        float attackStepEndTime[PlayerAnimationSetComponent::kAttackComboCount]   = {};    //!< 各段の再生終了時刻（秒）
     };
 }    // namespace CombatAndroid::ECS

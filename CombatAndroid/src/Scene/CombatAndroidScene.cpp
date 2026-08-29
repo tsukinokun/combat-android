@@ -302,10 +302,15 @@ namespace CombatAndroid {
         // 回避（前転）。クリップのルート前進はin_placeで殺し、移動はCharacterControllerが担当する
         Tsukino::Asset::AssetHandle dodgeAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Sprinting Forward Roll.fbx"));
-        // Weapon Attack.fbx は3回斬るモーションが1クリップに入っており、連撃の各段は
-        // 同じハンドルを時間レンジだけ変えて3回参照する（下のattackSteps初期化を参照）
-        Tsukino::Asset::AssetHandle attackAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Weapon Attack.fbx"));
+        // Hammer Attack.fbx（プレイヤー既定の攻撃クリップ）は3回斬るモーションが1クリップに
+        // 入っており、連撃の各段は同じハンドルを時間レンジだけ変えて3回参照する
+        // （下のattackSteps初期化を参照）
+        Tsukino::Asset::AssetHandle hammerAttackAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx"));
+        // グレートソード専用の攻撃クリップ。武器種別を判定するenumは持たず、areaAttack等と同じ
+        // 流儀でgreatswordのスポーン箇所のみWeaponComponent::attackClipへ設定する（下記参照）
+        Tsukino::Asset::AssetHandle greatSwordAttackAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx"));
         // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。GameOverSystem参照）
         Tsukino::Asset::AssetHandle deathAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
@@ -444,7 +449,7 @@ namespace CombatAndroid {
         player.dodgeInvincibleDuration = 0.3f;      // 実時間。dodgePlaybackSpeedを変えたら合わせて見直す
         player.dodgeCooldown           = 0.3f;
 
-        // Weapon Attack.fbx は3回斬るモーションが1クリップ（30fps / 106フレーム = 3.5333秒）に
+        // Hammer Attack.fbx は3回斬るモーションが1クリップ（30fps / 106フレーム = 3.5333秒）に
         // 入っている。各段のstartTime/endTime/playbackSpeedは実機で見ながら個別に微調整する前提の
         // 初期値（_DEBUGビルドのPlayerAnimationSystemが出すATTACKログとWeaponGripDebugSystemの
         // F10/F11コマ送りで追い込む）。ループではなく段ごとに書き下すことで、1段ずつ独立して
@@ -453,7 +458,7 @@ namespace CombatAndroid {
         constexpr float kAttackStepLength   = kAttackClipDuration / 3.0f;    // 約1.178秒 ≒ 35.3フレーム
         constexpr float kAttackPlaybackSpeed = 1.5f;    // 攻撃全体を等速より少し速く（1.0で従来通りの速さ）
 
-        animSet.attackSteps[0].clip           = attackAnimHandle;
+        animSet.attackSteps[0].clip           = hammerAttackAnimHandle;
         animSet.attackSteps[0].animationIndex = 1;
         animSet.attackSteps[0].startTime      = kAttackStepLength * 0.0f;
         animSet.attackSteps[0].endTime        = kAttackStepLength * 1.0f;
@@ -461,14 +466,14 @@ namespace CombatAndroid {
         // 攻撃モーションのルート前進を殺す（コリジョンから離れる/戻る瞬間に吸い寄せられる問題への対処）
         animSet.attackSteps[0].inPlace        = true;
 
-        animSet.attackSteps[1].clip           = attackAnimHandle;
+        animSet.attackSteps[1].clip           = hammerAttackAnimHandle;
         animSet.attackSteps[1].animationIndex = 1;
         animSet.attackSteps[1].startTime      = kAttackStepLength * 1.0f;
         animSet.attackSteps[1].endTime        = kAttackStepLength * 1.3f;
         animSet.attackSteps[1].playbackSpeed  = kAttackPlaybackSpeed;
         animSet.attackSteps[1].inPlace        = true;
 
-        animSet.attackSteps[2].clip           = attackAnimHandle;
+        animSet.attackSteps[2].clip           = hammerAttackAnimHandle;
         animSet.attackSteps[2].animationIndex = 1;
         animSet.attackSteps[2].startTime      = kAttackStepLength * 1.3f;
         animSet.attackSteps[2].endTime        = kAttackClipDuration;
@@ -643,8 +648,33 @@ namespace CombatAndroid {
                              hlslpp::float3(0.0f, 0.0f, 10.0f),
                              hlslpp::float3(0.0f, 0.0f, 0.0f),
                              hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-        // 軽量武器。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
-        registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity).damage = 22.0f;
+        {
+            auto& greatswordWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity);
+            // 軽量武器。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
+            greatswordWeapon.damage = 22.0f;
+
+            //-------------------------------------------------------------
+            // グレートソード専用の攻撃モーション（Great Sword Slash.fbx）。Hammer Attack.fbxと同じ
+            // 「1クリップに3段入り」構成・分割比率（0 / 1x / 1.3x / 終端）を暫定的に踏襲しているが、
+            // Great Sword Slash.fbx自体の実尺・フレーム構成はソースからは確認できないため、
+            // 下のkGreatSwordClipDurationを含め実機でWeaponGripDebugSystemのF10/F11コマ送りを
+            // 見ながら個別に調整する前提の暫定値
+            //-------------------------------------------------------------
+            constexpr float kGreatSwordClipDuration = kAttackClipDuration;    // 暫定：Hammer Attack.fbxと同尺と仮定
+            constexpr float kGreatSwordStepLength    = kGreatSwordClipDuration / 3.0f;
+
+            greatswordWeapon.attackClip           = greatSwordAttackAnimHandle;
+            greatswordWeapon.attackAnimationIndex = 1;
+
+            greatswordWeapon.attackStepStartTime[0] = kGreatSwordStepLength * 0.0f;
+            greatswordWeapon.attackStepEndTime[0]   = kGreatSwordStepLength * 1.0f;
+
+            greatswordWeapon.attackStepStartTime[1] = kGreatSwordStepLength * 1.0f;
+            greatswordWeapon.attackStepEndTime[1]   = kGreatSwordStepLength * 1.3f;
+
+            greatswordWeapon.attackStepStartTime[2] = kGreatSwordStepLength * 1.3f;
+            greatswordWeapon.attackStepEndTime[2]   = kGreatSwordClipDuration;
+        }
 
         // warhammerは最初から装備している個体（spawnFloatingWeapon）と同じモデルのため、同じ調整済み値を使う
         Tsukino::ECS::Entity warhammerWorldEntity =

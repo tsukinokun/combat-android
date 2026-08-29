@@ -69,18 +69,42 @@ namespace CombatAndroid::ECS {
             return [stepIndex](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 auto&       animSet = registry.GetComponent<PlayerAnimationSetComponent>(entity);
                 const auto& step    = animSet.attackSteps[stepIndex];
-                if(!step.clip.IsValid())
+
+                //-------------------------------------------------------------
+                // 再生するクリップは既定でプレイヤー側のstep（Hammer Attack.fbx）を使う。
+                // 装備武器がWeaponComponent::attackClipを持つ場合のみ、その武器専用の
+                // クリップ・時間レンジへ差し替える（武器種別を判定するenumは持たず、
+                // areaAttack等と同じくWeaponComponent側のオプトインフィールドで判定する）
+                //-------------------------------------------------------------
+                Tsukino::Asset::AssetHandle clip           = step.clip;
+                u32                          animationIndex = step.animationIndex;
+                float                        startTime      = step.startTime;
+                float                        endTime        = step.endTime;
+
+                auto& player = registry.GetComponent<PlayerComponent>(entity);
+                WeaponComponent* weapon = nullptr;
+                if(player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity))
+                    weapon = &registry.GetComponent<WeaponComponent>(player.weaponEntity);
+
+                if(weapon != nullptr && weapon->attackClip.IsValid()) {
+                    clip           = weapon->attackClip;
+                    animationIndex = weapon->attackAnimationIndex;
+                    startTime      = weapon->attackStepStartTime[stepIndex];
+                    endTime        = weapon->attackStepEndTime[stepIndex];
+                }
+
+                if(!clip.IsValid())
                     return;
 
                 auto& animController = registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity);
 
-                animController.next.clip            = step.clip;
-                animController.next.animation_index = step.animationIndex;
+                animController.next.clip            = clip;
+                animController.next.animation_index = animationIndex;
                 animController.next.fade_time       = step.fadeTime;
                 animController.next.immediate       = false;    // クロスフェードで切り替える
                 animController.next.is_looping      = false;    // 各段は単発再生（コンボ窓を過ぎたら次段かIdle等へ抜ける）
-                animController.next.clip_start_time = step.startTime;
-                animController.next.clip_end_time   = step.endTime;
+                animController.next.clip_start_time = startTime;
+                animController.next.clip_end_time   = endTime;
                 animController.next.in_place        = step.inPlace;
 
                 // この段の再生速度倍率を適用する（攻撃モーションの速さの微調整用）。
@@ -96,16 +120,14 @@ namespace CombatAndroid::ECS {
                 // コンボ窓キャンセルのタイミングでまだ残っている可能性があるため、段の突入時に
                 // 明示的に0へ落として次段のヒット判定をブロックしないようにする
                 //-------------------------------------------------------------
-                auto& player = registry.GetComponent<PlayerComponent>(entity);
-                if(player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity)) {
-                    auto& weapon            = registry.GetComponent<WeaponComponent>(player.weaponEntity);
-                    weapon.attackRequested = true;
-                    weapon.cooldownTimer   = 0.0f;
-                    weapon.nextActiveDurationOverride = step.hitWindowDuration;
-                    weapon.damageMultiplier            = step.damageMultiplier;
+                if(weapon != nullptr) {
+                    weapon->attackRequested = true;
+                    weapon->cooldownTimer   = 0.0f;
+                    weapon->nextActiveDurationOverride = step.hitWindowDuration;
+                    weapon->damageMultiplier            = step.damageMultiplier;
                     // AoE(範囲攻撃)要求。実際に発動するかはCombatSystem側でweapon.areaAttackRadius>0を見て判定する
-                    weapon.pendingAreaAttack      = step.areaAttack;
-                    weapon.pendingAreaAttackDelay = step.areaAttackDelay;
+                    weapon->pendingAreaAttack      = step.areaAttack;
+                    weapon->pendingAreaAttackDelay = step.areaAttackDelay;
                 }
             };
         }
@@ -165,7 +187,8 @@ namespace CombatAndroid::ECS {
         // 回避（前転）は緊急動作なので入りのクロスフェードは短く。前進はCharacterControllerが
         // 担当する（Update側でmoveInputを上書きする）ため、クリップ側のルート移動はin_placeで殺す
         m_stateMachine.RegisterState(PlayerAnimState::Dodge, MakeClipEnterCallback(&PlayerAnimationSetComponent::dodgeClip, 1, false, 0.08f, true));
-        // 連撃の各段は、Weapon Attack.fbx 1本を時間レンジで3分割して参照する（PlayerAnimationSetComponent::attackSteps）
+        // 連撃の各段は、Hammer Attack.fbx 1本を時間レンジで3分割して参照する（PlayerAnimationSetComponent::attackSteps）。
+        // 装備武器がWeaponComponent::attackClipを持つ場合はそちらへ差し替わる（Great Sword等。MakeAttackStepEnterCallback参照）
         m_stateMachine.RegisterState(PlayerAnimState::Attack1, MakeAttackStepEnterCallback(0));
         m_stateMachine.RegisterState(PlayerAnimState::Attack2, MakeAttackStepEnterCallback(1));
         m_stateMachine.RegisterState(PlayerAnimState::Attack3, MakeAttackStepEnterCallback(2));

@@ -38,8 +38,9 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct AttackStep
     //! @brief  1本のFBXクリップから切り出した「連撃1段分」の定義。
-    //!         Weapon Attack.fbxは3回斬るモーションが1クリップに入っているため、
-    //!         同じクリップハンドルを時間レンジだけ変えて3回参照する
+    //!         Hammer Attack.fbx（既定クリップ）は3回斬るモーションが1クリップに入っているため、
+    //!         同じクリップハンドルを時間レンジだけ変えて3回参照する。装備武器がWeaponComponent::
+    //!         attackClipを持つ場合はそちらのクリップ・時間レンジへ差し替わる（WeaponComponent.hpp参照）
     //-------------------------------------------------------------
     struct AttackStep {
         Tsukino::Asset::AssetHandle clip;
