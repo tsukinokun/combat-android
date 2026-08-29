@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/PickupPromptComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponAbsorbComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -21,8 +22,10 @@
 #include <Tsukino/Core/Input/InputSystem.hpp>
 
 #include <hlsl++.h>
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <vector>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
@@ -39,6 +42,34 @@ namespace CombatAndroid::ECS {
         constexpr float kFloatSpacing = 70.0f;     //!< 浮遊武器を横に並べる間隔（隣同士のx距離）
         constexpr float kFloatHeight  = 170.0f;    //!< 浮遊武器の高さ（既存の初期配置に合わせる）
         constexpr float kFloatDepth   = -20.0f;    //!< 浮遊武器の前後オフセット（既存の初期配置に合わせる）
+
+        // レベルアップの糧になった武器が装備中の同種武器へ吸い寄せられる演出のチューニング値
+        // （ExpOrbSystemのホーミング演出と同じ考え方：開始はゆっくり、時間経過で加速する。
+        // 「磁石にゆっくり吸い込まれる」感を出すため、開始速度・終端速度とも控えめにしてある）
+        constexpr float kAbsorbSpeedStart      = 50.0f;      //!< 吸い寄せ開始時の速度
+        constexpr float kAbsorbSpeedEnd        = 400.0f;     //!< 吸い寄せが十分進んだ時点の速度
+        constexpr float kAbsorbAccelDuration   = 0.6f;       //!< 開始速度→終端速度まで加速しきるまでの時間
+        constexpr float kAbsorbReachDistance   = 25.0f;      //!< 装備武器とこの距離未満まで近づいたら「重なった」と見なす
+        constexpr float kAbsorbMaxDuration     = 2.0f;       //!< 万一追いつけない場合の保険（この秒数で強制的に到達扱いにする）
+        constexpr float kAbsorbRotationLerpSpeed = 8.0f;     //!< 装備武器の姿勢へ回転補間で近づく速さ（WeaponComponent::attachRotationLerpSpeedと同じ指数減衰の考え方）
+
+        // レベルアップ完了の瞬間に装備武器へ焼くリムライト発光のチューニング値。
+        // 拾える武器のシアン系ハイライトと見分けられるよう暖色系（ゴールド）にしている
+        constexpr float kLevelUpFlashDuration   = 0.45f;    //!< 発光が続く時間（秒）。この時間でrimIntensity/glowが0まで減衰する
+        constexpr float kLevelUpRimColorR       = 1.0f;
+        constexpr float kLevelUpRimColorG       = 0.85f;
+        constexpr float kLevelUpRimColorB       = 0.35f;
+        constexpr float kLevelUpRimIntensityMax = 6.0f;    //!< 発光開始直後のリム強度
+        constexpr float kLevelUpGlowMax         = 0.6f;    //!< 発光開始直後の白発光量
+
+        //-------------------------------------------------------------
+        //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float SmoothStep01(float t) {
+            t = std::clamp(t, 0.0f, 1.0f);
+            return t * t * (3.0f - 2.0f * t);
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -71,6 +102,97 @@ namespace CombatAndroid::ECS {
 
         if(playerEntity == entt::null || !player)
             return;
+
+        //-------------------------------------------------------------
+        // レベルアップの糧として吸い寄せられている武器を進める。
+        // 装備中の同種武器（target）へ加速しながら直線移動し、重なったら消えて
+        // targetのレベルを上げ、リムライト発光を焼く（ExpOrbSystemのHoming演出と同じ考え方）
+        //-------------------------------------------------------------
+        {
+            std::vector<entt::entity> finishedAbsorptions;
+
+            auto absorbView = registry.View<WeaponAbsorbComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+            absorbView.each([&](entt::entity entity, WeaponAbsorbComponent& absorb,
+                                Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+                absorb.stateTimer += deltaTime;
+
+                if(!registry.IsValid(absorb.target) || !registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(absorb.target)) {
+                    finishedAbsorptions.push_back(entity);    // 吸い寄せ先が消えている等の想定外。安全側でその場で終える
+                    return;
+                }
+
+                const auto&        targetTransform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(absorb.target);
+                hlslpp::float3     targetPosition  = targetTransform.position;
+                hlslpp::quaternion targetRotation  = targetTransform.rotation;
+
+                hlslpp::float3 toTarget = targetPosition - transform.position;
+                float          distance = hlslpp::length(toTarget);
+
+                // 開始はゆっくり、時間が経つほど吸い込まれる速度が増していく（加速イージング）
+                float speedT = SmoothStep01(absorb.stateTimer / kAbsorbAccelDuration);
+                float speed  = kAbsorbSpeedStart + (kAbsorbSpeedEnd - kAbsorbSpeedStart) * speedT;
+
+                if(distance > 0.001f) {
+                    hlslpp::float3 direction = toTarget / distance;
+                    float          moveDist  = std::min(distance, speed * deltaTime);
+                    transform.position += direction * moveDist;
+                }
+
+                // 姿勢も装備武器の向きへ指数減衰で滑らかに近づける（CombatSystemの武器アタッチと同じ考え方）
+                float rotationLerpT = 1.0f - std::exp(-kAbsorbRotationLerpSpeed * deltaTime);
+                transform.rotation  = hlslpp::slerp(transform.rotation, targetRotation, rotationLerpT);
+                transform.dirty     = true;
+
+                bool reached  = distance <= kAbsorbReachDistance;
+                bool timedOut = absorb.stateTimer >= kAbsorbMaxDuration;
+                if(reached || timedOut)
+                    finishedAbsorptions.push_back(entity);
+            });
+
+            for(entt::entity entity : finishedAbsorptions) {
+                if(auto* model = registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(entity)) {
+                    model->visible = false;
+                }
+
+                entt::entity target = registry.GetComponent<WeaponAbsorbComponent>(entity).target;
+                if(registry.IsValid(target) && registry.HasComponent<WeaponComponent>(target)) {
+                    WeaponComponent& targetWeapon = registry.GetComponent<WeaponComponent>(target);
+                    if(targetWeapon.level < kMaxWeaponLevel) {
+                        ++targetWeapon.level;
+                        RecalculateWeaponStats(targetWeapon);
+                    }
+                    targetWeapon.levelUpFlashTimer = kLevelUpFlashDuration;
+                }
+
+                registry.RemoveComponent<WeaponAbsorbComponent>(entity);
+            }
+        }
+
+        //-------------------------------------------------------------
+        // レベルアップ発光の減衰。levelUpFlashTimerが立っている武器だけを対象に、
+        // イーズアウトさせながらHighlightComponentへ発光値を書き込む
+        //-------------------------------------------------------------
+        {
+            auto flashView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::HighlightComponent>();
+            flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::HighlightComponent& highlight) {
+                if(weapon.levelUpFlashTimer <= 0.0f)
+                    return;
+
+                weapon.levelUpFlashTimer -= deltaTime;
+                if(weapon.levelUpFlashTimer <= 0.0f) {
+                    weapon.levelUpFlashTimer = 0.0f;
+                    highlight.active           = false;
+                    return;
+                }
+
+                float ease = SmoothStep01(weapon.levelUpFlashTimer / kLevelUpFlashDuration);
+                highlight.active       = true;
+                highlight.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
+                highlight.rimIntensity = kLevelUpRimIntensityMax * ease;
+                highlight.rimPower     = kRimPower;
+                highlight.glow         = kLevelUpGlowMax * ease;
+            });
+        }
 
         //-------------------------------------------------------------
         // 浮遊武器同士が同じ位置に重ならないよう、インベントリ内の並び順(index)と
@@ -163,8 +285,6 @@ namespace CombatAndroid::ECS {
         // 上の絞り込み・演出更新が終わった後にここでまとめて行う
         //-------------------------------------------------------------
         if(nearest != entt::null && inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F)) {
-            bool consumedByLevelUp = false;
-
             if(registry.HasComponent<WeaponComponent>(nearest)) {
                 WeaponComponent& pickedWeapon = registry.GetComponent<WeaponComponent>(nearest);
 
@@ -180,30 +300,19 @@ namespace CombatAndroid::ECS {
                 }
 
                 if(existingWeaponEntity != entt::null) {
-                    // 2本目以降は新規枠を増やさず、既存の個体をレベルアップさせる
-                    WeaponComponent& existingWeapon = registry.GetComponent<WeaponComponent>(existingWeaponEntity);
-                    if(existingWeapon.level < kMaxWeaponLevel) {
-                        ++existingWeapon.level;
-                        RecalculateWeaponStats(existingWeapon);
-                    }
-                    consumedByLevelUp = true;
+                    // 2本目以降は新規枠を増やさず、装備中の個体へ吸い寄せてレベルアップさせる。
+                    // レベル加算・リムライト発光は吸い寄せが完了した瞬間（Update冒頭の吸収処理）で行う。
+                    // Scene::DestroyEntity()を経由しないSystemからの直接破棄は前例が無く、
+                    // EffectSystem/PhysicsSystem側にScene経由の破棄を前提にした注意書きがあるため、
+                    // 吸収完了時も非表示化のみ行い、以後owner=entt::nullのまま放置する
+                    // （weaponInventoryに入らないためCombatSystem/PlayerSystemからは触られない）
+                    registry.AddComponent<WeaponAbsorbComponent>(nearest).target = existingWeaponEntity;
                 } else {
                     // 拾った武器は「所有者つきの浮遊武器」へ昇格させる
                     pickedWeapon.owner        = playerEntity;
                     pickedWeapon.floatEnabled = true;
 
                     player->weaponInventory.push_back(nearest);
-                }
-            }
-
-            if(consumedByLevelUp) {
-                // レベルアップの糧になった個体はワールドから見えなくするだけに留める。
-                // Scene::DestroyEntity()を経由しないSystemからの直接破棄は前例が無く、
-                // EffectSystem/PhysicsSystem側にScene経由の破棄を前提にした注意書きがあるため、
-                // ここでは非表示化のみ行い、以後owner=entt::nullのまま放置する
-                // （weaponInventoryに入らないためCombatSystem/PlayerSystemからは触られない）
-                if(auto* model = registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(nearest)) {
-                    model->visible = false;
                 }
             }
 

@@ -581,6 +581,10 @@ namespace CombatAndroid {
             weapon.attackLocalOffset        = attackLocalOffset;
             weapon.floatEnabled             = true;
 
+            // レベルアップ時のリムライト発光演出（PickupSystem）の土台。
+            // active既定falseのため通常時の見た目には影響しない
+            registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(weaponEntity);
+
             return weaponEntity;
         };
 

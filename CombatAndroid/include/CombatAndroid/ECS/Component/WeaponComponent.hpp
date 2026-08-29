@@ -35,6 +35,13 @@ namespace CombatAndroid::ECS {
         WeaponId weaponId = WeaponId::Warhammer;    //!< 武器種別の識別子。スポーン箇所ごとに明示的に設定する
         int      level    = 1;                       //!< 現在のレベル（初期取得時は1、上限はkMaxWeaponLevel）
 
+        //-------------------------------------------------------------
+        // レベルアップ演出。同種武器を拾って吸い寄せられてきた個体がこの武器に重なった瞬間、
+        // PickupSystemがこの値をkLevelUpFlashDurationにセットする。0より大きい間だけ
+        // PickupSystemがHighlightComponentへリムライト発光値を書き込み、0秒に向けて減衰させる
+        //-------------------------------------------------------------
+        float levelUpFlashTimer = 0.0f;    //!< レベルアップ発光演出の残り時間（秒）。0以下で非発光
+
         std::string handBoneName      = "mixamorig:RightHand";    //!< アタッチ対象ボーン名
         u32          handBoneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
 
