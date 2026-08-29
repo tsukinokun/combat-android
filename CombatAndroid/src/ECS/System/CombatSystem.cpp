@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerDamagedEvent.hpp>
 
@@ -19,6 +20,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldPoseComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldMatrixComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
@@ -43,15 +45,44 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // ヒットストップの調整用定数（実機で見た目を確認しながら調整する）
         //-------------------------------------------------------------
-        constexpr float kHitStopDuration = 0.12f;    //!< ヒット時にかかる減速の持続時間（実時間・秒）
+        constexpr float kHitStopDuration = 0.08f;    //!< ヒット時にかかる減速の持続時間（実時間・秒）
         constexpr float kHitStopScale    = 0.02f;    //!< 持続時間中のdeltaTimeへのスケール値（小さいほど強い停止）
 
         // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき（上の2定数）より弱めにする。
         // プレイヤー操作が止まる時間を短くし、被弾直後にすぐ回避・反撃できるようにするため
-        constexpr float kPlayerHitStopDuration = 0.08f;
+        constexpr float kPlayerHitStopDuration = 0.2f;
         constexpr float kPlayerHitStopScale    = 0.15f;
 
         constexpr float kHpBarVisibleDuration = 3.0f;    //!< 被弾時に頭上HPバーを表示し続ける時間（秒）。HealthBarSystemが減算する
+
+        //-------------------------------------------------------------
+        //! @brief  1体のエンティティへヒットストップを要求/更新する。
+        //!         画面全体ではなく対象エンティティだけをHitStopSystemが減速させる
+        //! @param  entity   [in] 対象エンティティ（プレイヤーまたは敵）。entt::nullなら何もしない
+        //! @param  duration [in] 持続時間（実時間・秒）
+        //! @param  scale    [in] 持続時間中、対象エンティティのアニメーション/移動へ掛けるスケール値
+        //-------------------------------------------------------------
+        void ApplyHitStop(Tsukino::ECS::Registry& registry, entt::entity entity, float duration, float scale) {
+            if(entity == entt::null)
+                return;
+
+            bool  alreadyActive = registry.HasComponent<HitStopComponent>(entity);
+            auto& hitStop       = alreadyActive ? registry.GetComponent<HitStopComponent>(entity) : registry.AddComponent<HitStopComponent>(entity);
+
+            // 新規発動時のみ、その時点のplayback_speedを基準値として保存する。
+            // 既に発動中（同一攻撃の多段ヒット等）なら、HitStopSystemが既に減速させた後の
+            // 値を基準に取り直してしまわないよう、最初に保存した基準値を保ち続ける
+            if(!alreadyActive) {
+                if(auto* animPlayer = registry.try_get<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity))
+                    hitStop.baseAnimSpeed = animPlayer->playback_speed;
+                else
+                    hitStop.baseAnimSpeed = 1.0f;
+            }
+
+            // 同一フレームで複数回要求されても同じ値で上書きされるだけで問題ない
+            hitStop.remainingTime = duration;
+            hitStop.scale         = scale;
+        }
 
         //-------------------------------------------------------------
         //! @brief  エンティティのModelComponentが指すモデルに対し、名前でボーンのnodeIndexを解決する。
@@ -201,9 +232,9 @@ namespace CombatAndroid::ECS {
         //!         ノックバック判定・WeaponHitEvent発火・ヒットストップ要求を一本化する）
         //! @param  hitPositionFallback [in] 対象にTransformComponentが無い場合に使う位置
         //-------------------------------------------------------------
-        void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext* ctx,
-                                    Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity, WeaponComponent& weapon,
-                                    entt::entity hitEntity, const hlslpp::float3& hitPositionFallback, float skillAttackMultiplier) {
+        void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity,
+                                    WeaponComponent& weapon, entt::entity hitEntity, const hlslpp::float3& hitPositionFallback,
+                                    float skillAttackMultiplier) {
             if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
                 return;
 
@@ -242,11 +273,10 @@ namespace CombatAndroid::ECS {
                 eventBus->Publish(WeaponHitEvent{weapon.owner, weaponEntity, hitEntity, hitPosition, dealtDamage});
             }
 
-            // ヒットストップを要求する（同一フレームで複数ヒットしても同じ値で上書きされるだけで問題ない）
-            if(ctx) {
-                ctx->hitStopTimer = kHitStopDuration;
-                ctx->hitStopScale = kHitStopScale;
-            }
+            // ヒットストップを要求する。画面全体ではなく、被弾した敵とプレイヤー（攻撃者）
+            // だけを止める
+            ApplyHitStop(registry, hitEntity, kHitStopDuration, kHitStopScale);
+            ApplyHitStop(registry, weapon.owner, kHitStopDuration, kHitStopScale);
         }
     }    // namespace
 
@@ -515,7 +545,7 @@ namespace CombatAndroid::ECS {
                         ctx->physicsSystem->OverlapCapsule(capsuleCenter, transform.rotation, weapon.hitCapsuleRadius, halfLen);
 
                     for(entt::entity hitEntity : overlapping) {
-                        ApplyWeaponHitToEntity(registry, ctx, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier);
+                        ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier);
                     }
                 }
 
@@ -546,7 +576,7 @@ namespace CombatAndroid::ECS {
                             transform.position, sphereRotation, weapon.areaAttackRadius, kAreaAttackCapsuleHalfHeight);
 
                         for(entt::entity hitEntity : areaHits) {
-                            ApplyWeaponHitToEntity(registry, ctx, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier);
+                            ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier);
                         }
 
                         if(ctx->effectSystem && weapon.areaAttackEffectAsset.IsValid()) {
@@ -729,12 +759,13 @@ namespace CombatAndroid::ECS {
                 hitbox.hasLandedThisAttack = true;
 
                 // 被弾演出（点滅・画面フラッシュ。PlayerDamageEffectSystem）用の通知。
-                // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする
+                // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする。
+                // 画面全体ではなく、プレイヤーと攻撃した敵だけを止める
                 if(eventBus) {
                     eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, hitbox.damage, sweepPoint});
                 }
-                ctx->hitStopTimer = kPlayerHitStopDuration;
-                ctx->hitStopScale = kPlayerHitStopScale;
+                ApplyHitStop(registry, playerEntity, kPlayerHitStopDuration, kPlayerHitStopScale);
+                ApplyHitStop(registry, enemyEntity, kPlayerHitStopDuration, kPlayerHitStopScale);
             }
 
 #ifdef _DEBUG

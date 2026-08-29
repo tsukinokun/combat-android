@@ -35,6 +35,7 @@
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
+#include <CombatAndroid/ECS/System/HitStopSystem.hpp>
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
@@ -219,6 +220,10 @@ namespace CombatAndroid {
         // EnemyAnimationSystemが書いたAnimationControllerComponent::nextを同フレームでAnimationSystemが
         // 消費するため、PlayerAnimationSystemと同じくAnimationSystemより前に登録する
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAnimationSystem>(), (int)SystemPriority::Gameplay);
+        // ヒットストップ（プレイヤー/被弾した敵だけを止める）。Player/EnemyAnimationSystemが
+        // 今フレームのplayback_speedを確定させた後、AnimationSystemがそれを消費する前に
+        // 対象エンティティだけ掛け算で減速させる
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::HitStopSystem>(), (int)SystemPriority::Gameplay);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AnimationSystem>(), (int)SystemPriority::Gameplay);
         // カメラ行列を必要としなくなった（座標変換はWorldAnchorSystemが行う）ため、他のゲームプレイ系と同じ並びで良い
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PickupSystem>(), (int)SystemPriority::Gameplay);
@@ -1241,24 +1246,15 @@ namespace CombatAndroid {
     //! @brief  シーンの更新
     //-------------------------------------------------------------
     void CombatAndroidScene::OnUpdate(Tsukino::EngineIntegration::EngineAPI& api, float deltaTime) {
-        auto* ctx = m_scene.GetRegistry().GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        // ヒットストップはHitStopComponent/HitStopSystemによりエンティティ単位（プレイヤーと
+        // ヒットに関与した敵だけ）で処理されるため、ここでシーン全体のdeltaTimeを縮小することはしない
 
-        // ヒットストップ：ctx->hitStopTimerが残っている間、Sceneへ渡すdeltaTimeそのものを
-        // 縮小する（アニメーション・物理・カメラ追従まで一律にスローになる、意図的なグローバル停止）。
-        // hitStopTimer自体は実時間（縮小前のdeltaTime）で減算しないと、
-        // 停止時間そのものが引き伸ばされてしまう
         float scaledDeltaTime = deltaTime;
-        if(ctx && ctx->hitStopTimer > 0.0f) {
-            scaledDeltaTime = deltaTime * ctx->hitStopScale;
-            ctx->hitStopTimer -= deltaTime;
-            if(ctx->hitStopTimer < 0.0f)
-                ctx->hitStopTimer = 0.0f;
-        }
 
         //--------------------------------------------------------------
-        // スキル選択メニュー表示中は時間を完全に止める。ヒットストップと同じくSceneへ渡す
-        // deltaTimeそのものを0にすることで、敵AI・アニメーション・湧きディレクター・EXP玉・
-        // 生存時間まで一律に停止する。ヒットストップより後に見ているのは、こちらが優先だから。
+        // スキル選択メニュー表示中は時間を完全に止める。Sceneへ渡すdeltaTimeそのものを0にする
+        // ことで、敵AI・アニメーション・湧きディレクター・EXP玉・生存時間まで一律に停止する
+        // （ヒットストップと異なり、こちらは意図的な画面全体の停止）。
         //
         // ただしPhysicsSystemだけはdeltaTimeが0以下でも1/60秒ぶんステップしてしまうため、
         // これだけではCharacterVirtualが滑り続ける。移動入力の打ち消しと、

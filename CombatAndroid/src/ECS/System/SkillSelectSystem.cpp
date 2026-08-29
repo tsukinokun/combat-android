@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -26,6 +27,7 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
@@ -273,6 +275,22 @@ namespace CombatAndroid::ECS {
                 characterController.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
             });
         }
+
+        //-------------------------------------------------------------
+        //! @brief  進行中のヒットストップ（HitStopComponent）を全エンティティから取り除く。
+        //!         メニュー表示中はSceneへ渡すdeltaTimeが0になりHitStopSystemの減算処理が
+        //!         止まってしまうため、放っておくとメニューを閉じた後にスローモーションが
+        //!         残ってしまう
+        //-------------------------------------------------------------
+        void ClearAllHitStop(Tsukino::ECS::Registry& registry) {
+            std::vector<entt::entity> entities;
+            auto                      view = registry.View<HitStopComponent>();
+            for(entt::entity entity : view)
+                entities.push_back(entity);
+
+            for(entt::entity entity : entities)
+                registry.RemoveComponent<HitStopComponent>(entity);
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -341,10 +359,10 @@ namespace CombatAndroid::ECS {
 
                 //-------------------------------------------------------------
                 // 進行中のヒットストップを打ち切る。CombatAndroidScene::OnUpdateは
-                // メニュー中はdeltaTimeを0で上書きするためhitStopTimerを減らす分岐を
+                // メニュー中はdeltaTimeを0で上書きするためHitStopSystemの減算処理を
                 // 通らず、放っておくとメニューを閉じた後にスローモーションが残ってしまう
                 //-------------------------------------------------------------
-                ctx->hitStopTimer = 0.0f;
+                ClearAllHitStop(registry);
 
                 RefreshUi(registry, *ctx, select, skills);
                 continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
