@@ -510,6 +510,9 @@ namespace CombatAndroid::ECS {
                 // （毎フレームの判定側でクリアすると同じ敵に何度もヒットしてしまう）
                 weapon.hitEnemiesThisAttack.clear();
 
+                // 新しいアタックの初回フレームは前アタックの姿勢からサブステップ補間しないようにする
+                weapon.hasPrevAttackPose = false;
+
                 // AoE(範囲攻撃)の武装。この段がAoEを要求していて、かつ装備武器がAoE対応
                 // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む
                 if(weapon.pendingAreaAttack && weapon.areaAttackRadius > 0.0f) {
@@ -535,18 +538,57 @@ namespace CombatAndroid::ECS {
                 // 当たり判定が有効な間、毎フレーム武器の「今の」姿勢（スイング追従済みのtransform）を基準に
                 // グリップ(transform.position)から刃の向き（ローカルY軸）へrangeだけ伸びるカプセルを構築し、
                 // Jolt物理へオーバーラップ問い合わせする（PhysicsSystem::OverlapCapsule）。
+                //
+                // 剣の振りはグリップの移動量よりも「回転」が支配的（柄はほぼ同じ位置に留まり、刃先が
+                // 弧を描いて大きく動く）。現フレームの姿勢1回だけの判定だと、速い振りやフレーム落ちで
+                // 刃先が敵を「跨いで」通過し、すり抜けることがある。Joltのカプセル同士のスイープ判定
+                // （CastShape）は平行移動のみしか表現できず回転を考慮できないため、この用途には使えない。
+                // そこで前フレーム→今フレームの姿勢を位置(lerp)・回転(slerp)で補間したサブステップに
+                // 分割し、各サブステップでOverlapCapsuleを呼んで弧全体をカバーする。
                 // 1回のアタックで同じ敵に何度も当たらないよう、既にヒットした敵はhitEnemiesThisAttackに記録してスキップする
                 if(ctx && ctx->physicsSystem) {
                     hlslpp::float3 bladeDir      = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), transform.rotation);
                     float          halfLen       = weapon.range * 0.5f;
                     hlslpp::float3 capsuleCenter = transform.position + bladeDir * halfLen;
 
-                    std::vector<entt::entity> overlapping =
-                        ctx->physicsSystem->OverlapCapsule(capsuleCenter, transform.rotation, weapon.hitCapsuleRadius, halfLen);
+                    std::vector<entt::entity> overlapping;
+
+                    if(weapon.hasPrevAttackPose) {
+                        // 刃先（グリップからrange分先）の前フレーム→今フレームの移動距離から、
+                        // 判定漏れが出ないサブステップ数を決める（半径分進むごとに1ステップ）
+                        hlslpp::float3 prevBladeDir = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), weapon.prevAttackRotation);
+                        hlslpp::float3 prevTipPos   = weapon.prevAttackPosition + prevBladeDir * weapon.range;
+                        hlslpp::float3 currTipPos   = transform.position + bladeDir * weapon.range;
+                        float          tipMoveDist  = hlslpp::length(currTipPos - prevTipPos);
+
+                        constexpr int kMaxSubsteps = 8;
+                        int substeps = static_cast<int>(std::ceil(tipMoveDist / std::max(weapon.hitCapsuleRadius, 1.0f)));
+                        substeps     = std::clamp(substeps, 1, kMaxSubsteps);
+
+                        for(int step = 1; step <= substeps; ++step) {
+                            float              t          = static_cast<float>(step) / static_cast<float>(substeps);
+                            hlslpp::float3     stepPos     = hlslpp::lerp(weapon.prevAttackPosition, transform.position, t);
+                            hlslpp::quaternion stepRot     = hlslpp::normalize(hlslpp::slerp(weapon.prevAttackRotation, transform.rotation, t));
+                            hlslpp::float3     stepBladeDir = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), stepRot);
+                            hlslpp::float3     stepCenter   = stepPos + stepBladeDir * halfLen;
+
+                            std::vector<entt::entity> stepHits =
+                                ctx->physicsSystem->OverlapCapsule(stepCenter, stepRot, weapon.hitCapsuleRadius, halfLen);
+                            overlapping.insert(overlapping.end(), stepHits.begin(), stepHits.end());
+                        }
+                    } else {
+                        // アタック開始直後の初回フレームは前フレーム姿勢が無いため、現フレームのみ判定する
+                        overlapping =
+                            ctx->physicsSystem->OverlapCapsule(capsuleCenter, transform.rotation, weapon.hitCapsuleRadius, halfLen);
+                    }
 
                     for(entt::entity hitEntity : overlapping) {
                         ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier);
                     }
+
+                    weapon.prevAttackPosition = transform.position;
+                    weapon.prevAttackRotation = transform.rotation;
+                    weapon.hasPrevAttackPose  = true;
                 }
 
                 weapon.activeTimer -= deltaTime;

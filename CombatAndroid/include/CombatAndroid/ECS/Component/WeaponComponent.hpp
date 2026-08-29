@@ -79,6 +79,18 @@ namespace CombatAndroid::ECS {
         // カプセルを毎フレーム構築してCombatSystemがOverlapCapsuleへ渡す
         float range            = 90.0f;    //!< 当たり判定カプセルの長さ（グリップから刃先までの到達距離）
         float hitCapsuleRadius = 18.0f;    //!< 当たり判定カプセルの半径（刃の太さ相当）
+
+        //-------------------------------------------------------------
+        // 剣の振りはグリップの移動より回転が支配的（柄はほぼ同じ位置に留まり刃先が弧を描く）ため、
+        // 現フレームのカプセル姿勢だけでは速い振りやフレーム落ちで敵をすり抜けてしまう
+        // （トンネリング）ことがある。前フレームの武器姿勢（位置・回転）を保持しておき、
+        // CombatSystemが今フレームの姿勢までを位置lerp・回転slerpで補間したサブステップに分割して
+        // 判定することで、平行移動しか表現できないJoltのスイープ判定では捉えられない回転分の弧も補う
+        //-------------------------------------------------------------
+        hlslpp::float3     prevAttackPosition = hlslpp::float3(0.0f, 0.0f, 0.0f);          //!< 前フレームの武器グリップ位置（transform.position）
+        hlslpp::quaternion prevAttackRotation = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f); //!< 前フレームの武器姿勢（transform.rotation）
+        bool                hasPrevAttackPose  = false;                                      //!< 上記2つが有効か（アタック開始直後のフレームはfalse）
+
         float activeDuration = 0.25f;    //!< 攻撃入力後、当たり判定が有効な時間（秒）
         float cooldown       = 0.4f;     //!< 攻撃後、再攻撃可能になるまでのクールダウン（秒）
 
