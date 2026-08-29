@@ -45,8 +45,9 @@ namespace CombatAndroid::UI {
 
     //! デバッグHUD。調査用なので常に全ての演出より手前に出す
     //! （既定値0のままだと暗転板やフラッシュの下へ沈む）
-    constexpr int kDebugWeaponGripHud = 900;    //!< 武器の握り位置調整HUD（F6）
-    constexpr int kDebugStressTestHud = 901;    //!< 負荷試験HUD（F1）
+    constexpr int kDebugWeaponGripHud  = 900;    //!< 武器の握り位置調整HUD（F6）
+    constexpr int kDebugStressTestHud  = 901;    //!< 負荷試験HUD（F1）
+    constexpr int kDebugWeaponLevelHud = 902;    //!< 所持武器のレベル表示HUD（常時表示。_DEBUGビルドのみ）
 
     //-------------------------------------------------------------
     // ここから下は RenderPass::World（上とは別の軸）。

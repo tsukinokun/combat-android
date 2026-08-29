@@ -50,6 +50,8 @@
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
+#include <CombatAndroid/ECS/System/WeaponLevelDebugSystem.hpp>
+#include <CombatAndroid/ECS/Component/WeaponLevelDebugComponent.hpp>
 #endif
 #ifdef TSUKINO_ENABLE_STRESS_TEST
 #include <CombatAndroid/ECS/System/EnemyStressTestSystem.hpp>
@@ -231,6 +233,10 @@ namespace CombatAndroid {
         // 武器の握り位置・角度を実機で調整するためのデバッグ操作（F6で有効化）。
         // 詳細はWeaponGripDebugSystem.cppを参照
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::WeaponGripDebugSystem>(), (int)SystemPriority::WeaponGripDebug);
+
+        // 所持武器のレベルを表示する常時表示デバッグHUD。PickupSystem（Gameplay）が
+        // その回のフレームのレベルアップを確定させた後に読めればよいので、同じ並びでよい
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::WeaponLevelDebugSystem>(), (int)SystemPriority::WeaponGripDebug);
 #endif
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CombatSystem>(), (int)SystemPriority::WeaponAttach);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::HealthBarSystem>(), (int)SystemPriority::HealthBar);
@@ -528,7 +534,8 @@ namespace CombatAndroid {
         // 複数の武器を同時に浮遊させられるよう、1本分の生成処理を共通化する。
         // 位置・回転はCombatSystemが毎フレーム所有者（プレイヤー）を基準に計算する
         //--------------------------------------------------------------
-        auto spawnFloatingWeapon = [&](const Tsukino::Core::Path& modelPath, const hlslpp::float3& localOffset,
+        auto spawnFloatingWeapon = [&](const Tsukino::Core::Path& modelPath, CombatAndroid::ECS::WeaponId weaponId,
+                                       const hlslpp::float3& localOffset,
                                        const hlslpp::float3& gripPointLocal, const hlslpp::float3& attackLocalOffset,
                                        const hlslpp::quaternion& attackGripRotationOffset) -> Tsukino::ECS::Entity {
             Tsukino::ECS::Entity weaponEntity = m_scene.CreateEntity();
@@ -547,6 +554,8 @@ namespace CombatAndroid {
 
             CombatAndroid::ECS::WeaponComponent& weapon = registry.AddComponent<CombatAndroid::ECS::WeaponComponent>(weaponEntity);
             weapon.owner                             = playerEntity;
+            weapon.weaponId                          = weaponId;
+            weapon.level                             = 1;
             // 非攻撃時：右手ボーンへのアタッチは、Idle.fbx（アニメーションクリップ）側のボーン姿勢データが
             // 実際の見た目のポーズと一致しない（別アセットのため、ボーン名は一致してもリグの前提が食い違っている）
             // ため使わない。handTrackingWeight=0で所有者のルートTransformからの固定オフセットにのみ追従させ、
@@ -578,7 +587,7 @@ namespace CombatAndroid {
         // warhammer：プレイヤーの右肩斜め上で浮遊させる（最初から装備している唯一の武器）。
         // 握りパラメータはWeaponGripDebugSystemで実機調整済みの値
         Tsukino::ECS::Entity warhammerEntity = spawnFloatingWeapon(
-            Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"),
+            Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"), CombatAndroid::ECS::WeaponId::Warhammer,
             hlslpp::float3(35.0f, 170.0f, -20.0f),
             hlslpp::float3(0.0f, 0.0f, 10.0f),
             hlslpp::float3(0.0f, 0.0f, 0.0f),
@@ -592,7 +601,7 @@ namespace CombatAndroid {
         {
             auto& warhammerWeapon    = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
             warhammerWeapon.floatSelected = true;
-            warhammerWeapon.damage         = 38.0f;    // 重量武器。3段目（damageMultiplier 2.0）で76となり、SmallZombie/BigZombie両方を怯ませる
+            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWeapon);    // 重量武器。Lv1=38。3段目（damageMultiplier 2.0）で76となり、SmallZombie/BigZombie両方を怯ませる
             // 3段目フィニッシュのAoE(範囲攻撃)。attackSteps[2].areaAttackと組み合わさって発動する
             warhammerWeapon.areaAttackRadius      = 160.0f;
             warhammerWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
@@ -607,6 +616,7 @@ namespace CombatAndroid {
         // WeaponComponent::ownerをプレイヤーへ設定して浮遊武器へ昇格させる
         //--------------------------------------------------------------
         auto spawnWorldWeapon = [&](const Tsukino::Core::Path& modelPath,
+                                    CombatAndroid::ECS::WeaponId weaponId,
                                     const hlslpp::float3&      worldPosition,
                                     const std::wstring&        displayName,
                                     const hlslpp::float3&      gripPointLocal,
@@ -627,6 +637,8 @@ namespace CombatAndroid {
 
             CombatAndroid::ECS::WeaponComponent& weapon = registry.AddComponent<CombatAndroid::ECS::WeaponComponent>(weaponEntity);
             weapon.owner                              = entt::null;    // 未所有＝ワールドに落ちている状態
+            weapon.weaponId                           = weaponId;
+            weapon.level                              = 1;
             weapon.localOffset                        = hlslpp::float3(35.0f, 170.0f, -20.0f);
             weapon.gripRotationOffset                 = hlslpp::quaternion::rotation_x(1.5708f);
             // 握りパラメータは呼び出し側で武器ごとに指定する（WeaponGripDebugSystemで実機調整した値）
@@ -648,15 +660,15 @@ namespace CombatAndroid {
         // greatswordはwarhammerと同じ調整済み値を暫定適用（メッシュが違うため厳密には別値が必要になりうる。
         // ずれる場合はWeaponGripDebugSystemのF6調整モードで別途詰める）
         Tsukino::ECS::Entity greatswordEntity =
-            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/greatsword.fbx"),
+            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/greatsword.fbx"), CombatAndroid::ECS::WeaponId::Greatsword,
                              hlslpp::float3(250.0f, 10.0f, 0.0f), L"グレートソード",
                              hlslpp::float3(0.0f, 0.0f, 10.0f),
                              hlslpp::float3(0.0f, 0.0f, 0.0f),
                              hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
         {
             auto& greatswordWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity);
-            // 軽量武器。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
-            greatswordWeapon.damage = 22.0f;
+            // 軽量武器。Lv1=22。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
+            CombatAndroid::ECS::RecalculateWeaponStats(greatswordWeapon);
 
             //-------------------------------------------------------------
             // グレートソード専用の攻撃モーション（Great Sword Slash.fbx）。Hammer Attack.fbxと同じ
@@ -683,14 +695,14 @@ namespace CombatAndroid {
 
         // warhammerは最初から装備している個体（spawnFloatingWeapon）と同じモデルのため、同じ調整済み値を使う
         Tsukino::ECS::Entity warhammerWorldEntity =
-            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"),
+            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"), CombatAndroid::ECS::WeaponId::Warhammer,
                              hlslpp::float3(340.0f, 10.0f, 0.0f), L"ウォーハンマー",
                              hlslpp::float3(0.0f, 0.0f, 10.0f),
                              hlslpp::float3(0.0f, 0.0f, 0.0f),
                              hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
         {
             auto& warhammerWorldWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerWorldEntity);
-            warhammerWorldWeapon.damage = 38.0f;
+            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWorldWeapon);
             // 拾って装備した場合も3段目フィニッシュのAoEが機能するよう、初期装備の個体と同じ値を設定する
             warhammerWorldWeapon.areaAttackRadius      = 160.0f;
             warhammerWorldWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
@@ -1027,6 +1039,30 @@ namespace CombatAndroid {
         gripHudFont.sortOrder = CombatAndroid::UI::kDebugWeaponGripHud;    // 調査用HUDなので暗転板等より常に手前
 
         registry.AddComponent<CombatAndroid::ECS::WeaponGripDebugComponent>(weaponGripDebugHudEntity);
+
+        //--------------------------------------------------------------
+        // 所持武器のレベルを表示するデバッグHUD用エンティティ。トグルキーは持たず、
+        // 存在する間は常に表示する（上の握り調整HUDと重ならないよう少し下から始める）。
+        // WeaponLevelDebugSystemがtextを毎フレーム書き換える
+        //--------------------------------------------------------------
+        {
+            Tsukino::ECS::Entity weaponLevelDebugHudEntity = m_scene.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& levelHudTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponLevelDebugHudEntity);
+            levelHudTransform.position = hlslpp::float3(10.0f, 230.0f, 0.0f);    // 画面左上（生スクリーンピクセル座標）
+            levelHudTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
+            levelHudTransform.dirty    = true;
+
+            Tsukino::BuiltIn::ECS::FontComponent& levelHudFont =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(weaponLevelDebugHudEntity);
+            levelHudFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
+            levelHudFont.color     = hlslpp::float4(1.0f, 0.8f, 0.3f, 1.0f);
+            levelHudFont.origin    = hlslpp::float2(0.0f, 0.0f);
+            levelHudFont.sortOrder = CombatAndroid::UI::kDebugWeaponLevelHud;    // 調査用HUDなので暗転板等より常に手前
+
+            registry.AddComponent<CombatAndroid::ECS::WeaponLevelDebugComponent>(weaponLevelDebugHudEntity);
+        }
 #endif
 
 #ifdef TSUKINO_ENABLE_STRESS_TEST

@@ -8,10 +8,12 @@
 #include <CombatAndroid/ECS/Component/PickupPromptComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -161,13 +163,48 @@ namespace CombatAndroid::ECS {
         // 上の絞り込み・演出更新が終わった後にここでまとめて行う
         //-------------------------------------------------------------
         if(nearest != entt::null && inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F)) {
-            if(registry.HasComponent<WeaponComponent>(nearest)) {
-                // 拾った武器は「所有者つきの浮遊武器」へ昇格させる
-                WeaponComponent& weapon = registry.GetComponent<WeaponComponent>(nearest);
-                weapon.owner            = playerEntity;
-                weapon.floatEnabled     = true;
+            bool consumedByLevelUp = false;
 
-                player->weaponInventory.push_back(nearest);
+            if(registry.HasComponent<WeaponComponent>(nearest)) {
+                WeaponComponent& pickedWeapon = registry.GetComponent<WeaponComponent>(nearest);
+
+                // 既に同じ種類の武器を持っていないか、インベントリ内を探す
+                entt::entity existingWeaponEntity = entt::null;
+                for(entt::entity ownedEntity : player->weaponInventory) {
+                    if(!registry.HasComponent<WeaponComponent>(ownedEntity))
+                        continue;
+                    if(registry.GetComponent<WeaponComponent>(ownedEntity).weaponId == pickedWeapon.weaponId) {
+                        existingWeaponEntity = ownedEntity;
+                        break;
+                    }
+                }
+
+                if(existingWeaponEntity != entt::null) {
+                    // 2本目以降は新規枠を増やさず、既存の個体をレベルアップさせる
+                    WeaponComponent& existingWeapon = registry.GetComponent<WeaponComponent>(existingWeaponEntity);
+                    if(existingWeapon.level < kMaxWeaponLevel) {
+                        ++existingWeapon.level;
+                        RecalculateWeaponStats(existingWeapon);
+                    }
+                    consumedByLevelUp = true;
+                } else {
+                    // 拾った武器は「所有者つきの浮遊武器」へ昇格させる
+                    pickedWeapon.owner        = playerEntity;
+                    pickedWeapon.floatEnabled = true;
+
+                    player->weaponInventory.push_back(nearest);
+                }
+            }
+
+            if(consumedByLevelUp) {
+                // レベルアップの糧になった個体はワールドから見えなくするだけに留める。
+                // Scene::DestroyEntity()を経由しないSystemからの直接破棄は前例が無く、
+                // EffectSystem/PhysicsSystem側にScene経由の破棄を前提にした注意書きがあるため、
+                // ここでは非表示化のみ行い、以後owner=entt::nullのまま放置する
+                // （weaponInventoryに入らないためCombatSystem/PlayerSystemからは触られない）
+                if(auto* model = registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(nearest)) {
+                    model->visible = false;
+                }
             }
 
             // 演出とワールド判定を止める（PickupComponentを外すのでこれ以降候補に上がらない）

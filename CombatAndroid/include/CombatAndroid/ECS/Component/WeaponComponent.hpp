@@ -5,6 +5,7 @@
 //-------------------------------------------------------------
 #pragma once
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Path.hpp>
@@ -25,6 +26,14 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     struct WeaponComponent {
         Tsukino::ECS::Entity owner = entt::null;    //!< 武器を所持しているエンティティ
+
+        //-------------------------------------------------------------
+        // 武器種別・レベル。同じweaponIdの武器を重複して拾うと、新規枠を増やす代わりに
+        // 既存の個体のlevelを上げてWeaponTableからdamageを引き直す（PickupSystemが行う）。
+        // 初期値のWarhammer/1はいずれも各スポーン箇所で明示的に上書きする前提の暫定値
+        //-------------------------------------------------------------
+        WeaponId weaponId = WeaponId::Warhammer;    //!< 武器種別の識別子。スポーン箇所ごとに明示的に設定する
+        int      level    = 1;                       //!< 現在のレベル（初期取得時は1、上限はkMaxWeaponLevel）
 
         std::string handBoneName      = "mixamorig:RightHand";    //!< アタッチ対象ボーン名
         u32          handBoneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
@@ -148,7 +157,7 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         // 範囲攻撃(AoE)。半径0で無効（既定）。特定の武器・特定の連撃段でのみ使う
-        // 追加ダメージ演出。武器種別を判定するenumは持たず、既存のdamage等と同じ
+        // 追加ダメージ演出。weaponId/WeaponTable経由では持たず、既存のdamage等と同じ
         // 流儀でインスタンスごとに値を設定する（warhammerのスポーン箇所のみ設定）
         //-------------------------------------------------------------
         float areaAttackRadius = 0.0f;    //!< AoE判定半径。0ならこの武器はAoE非対応
@@ -166,7 +175,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // 攻撃モーションの武器差し替え。未設定（!attackClip.IsValid()）ならプレイヤー既定の
         // PlayerAnimationSetComponent::attackSteps（Hammer Attack.fbx）をそのまま使う。
-        // 武器種別を判定するenumは持たず、areaAttack等と同じ流儀でインスタンスごとに
+        // weaponId/WeaponTable経由では持たず、areaAttack等と同じ流儀でインスタンスごとに
         // 設定する（great swordのスポーン箇所のみ設定）
         //-------------------------------------------------------------
         Tsukino::Asset::AssetHandle attackClip;    //!< 未設定ならこの武器は既定クリップ（Hammer Attack）を使う
