@@ -208,7 +208,10 @@ namespace CombatAndroid::ECS {
             }
 
             if(orb.state == ExpOrbState::Absorbed) {
-                if(playerExp) {
+                // プレイヤーが死亡済みなら経験値の加算・レベルアップ予約を行わない
+                // （死亡直後に浮遊中の玉が吸収されると、ゲームオーバー演出中に
+                // レベルアップ画面が割り込んでしまうため）
+                if(playerExp && (!playerHealth || !playerHealth->isDead)) {
                     //-------------------------------------------------------------
                     // 強欲：獲得EXPに倍率を掛ける
                     //-------------------------------------------------------------
@@ -218,7 +221,7 @@ namespace CombatAndroid::ECS {
                     //-------------------------------------------------------------
                     // 暴食：ソウル1個につきHPを回復する（最大HPは超えない）
                     //-------------------------------------------------------------
-                    if(playerSkills && playerHealth && playerSkills->healPerSoul > 0.0f && !playerHealth->isDead) {
+                    if(playerSkills && playerHealth && playerSkills->healPerSoul > 0.0f) {
                         playerHealth->currentHealth =
                             std::min(playerHealth->currentHealth + playerSkills->healPerSoul, playerHealth->maxHealth);
                     }
