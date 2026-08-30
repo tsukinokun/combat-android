@@ -12,6 +12,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -288,8 +289,16 @@ namespace CombatAndroid::ECS {
             for(entt::entity entity : view)
                 entities.push_back(entity);
 
-            for(entt::entity entity : entities)
+            for(entt::entity entity : entities) {
+                // HitStopSystemの自然終了パスと同様、削除前にplayback_speedを
+                // ヒットストップ開始時点の値へ復元する。これをしないとレベルアップと
+                // ヒットストップが重なった際にアニメーション速度が固まったまま戻らなくなる
+                const HitStopComponent& hitStop = view.get<HitStopComponent>(entity);
+                if(auto* animPlayer = registry.try_get<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity)) {
+                    animPlayer->playback_speed = hitStop.baseAnimSpeed;
+                }
                 registry.RemoveComponent<HitStopComponent>(entity);
+            }
         }
     }    // namespace
 
