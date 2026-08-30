@@ -27,6 +27,7 @@
 #include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
+#include <CombatAndroid/ECS/Component/GameLogComponent.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
@@ -48,6 +49,7 @@
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameOverSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -264,6 +266,14 @@ namespace CombatAndroid {
             enemyWeaponDropSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
+        {
+            // GameLogEventを購読して画面右の取得ログを流す。発火元（PickupSystem=Gameplay、
+            // ExpOrbSystem=ExpOrb、SkillSelectSystem=SkillSelect）が全てここより手前に居るので
+            // 同じフレームで拾えて表示が遅れず、位置を書き込むTransformUIより手前でもある
+            auto gameLogSystem = std::make_shared<CombatAndroid::ECS::GameLogSystem>();
+            m_scene.AddSystem(gameLogSystem, (int)SystemPriority::PlayerHud);
+            gameLogSystem->Initialize(eventBus);
+        }
         {
             // PlayerDamagedEventを購読して被弾演出（点滅・画面フラッシュ）を進行させる。
             // HP確定（WeaponAttachでCombatSystemがPublish）の後であればよいので、PlayerHudと同じ並びでよい
@@ -780,6 +790,68 @@ namespace CombatAndroid {
             survivalTimeFont.sortOrder         = CombatAndroid::UI::kHudText;
 
             hud.survivalTimeTextEntity = survivalTimeEntity;
+        }
+
+        //--------------------------------------------------------------
+        // 画面右の取得ログ用エンティティのプール。ダメージ数値と同じく毎フレーム生成せず
+        // 固定数を使い回す（GameLogEventはExpOrbSystemのview.eachの内側からもPublishされるため、
+        // そのハンドラでエンティティを生成するとEnTTのイテレータが壊れる）。
+        //
+        // 1行＝「パネル・アクセントバー・種別ラベル・主題」の4エンティティで、
+        // 根であるパネルにGameLogComponentを付け、残り3つはそこからエンティティ参照で辿る。
+        // 位置・大きさ・色は全てGameLogSystemが毎フレーム画面サイズから計算して書くため、
+        // ここでは非表示（スケール0／空文字）の状態だけ作っておく
+        //--------------------------------------------------------------
+        {
+            Tsukino::Asset::AssetHandle gameLogTextureHandle =
+                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+
+            auto makeGameLogSprite = [&](int sortOrder) {
+                Tsukino::ECS::Entity spriteEntity = m_scene.CreateEntity();
+
+                Tsukino::BuiltIn::ECS::TransformComponent& spriteTransform =
+                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(spriteEntity);
+                spriteTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
+                spriteTransform.dirty = true;
+
+                Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(spriteEntity);
+                sprite.textureHandle                           = gameLogTextureHandle;
+                sprite.sortOrder                               = sortOrder;
+
+                return spriteEntity;
+            };
+
+            auto makeGameLogText = [&]() {
+                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
+
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
+
+                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
+                font.text                                  = L"";    // 空文字の間はFontRendererSystemが描画しない
+                font.outlineColor                          = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+                font.outlineWidth                          = 2.0f;
+                font.horizontalAlign                       = Tsukino::BuiltIn::ECS::HorizontalAlign::Left;
+                font.verticalAlign                         = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
+                font.sortOrder                             = CombatAndroid::UI::kGameLogText;    // パネル・バーより手前に描く
+                // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われるため
+                // 日本語をそのまま渡してよい
+
+                return textEntity;
+            };
+
+            for(int i = 0; i < CombatAndroid::ECS::kGameLogPoolSize; ++i) {
+                // 4つとも作り切ってからGameLogComponentを付ける。先に付けてしまうと、
+                // 残りの生成中に得た参照が生きているかどうかを気にする必要が出る
+                Tsukino::ECS::Entity panelEntity  = makeGameLogSprite(CombatAndroid::UI::kGameLogPanel);
+                Tsukino::ECS::Entity accentEntity = makeGameLogSprite(CombatAndroid::UI::kGameLogAccent);
+                Tsukino::ECS::Entity labelEntity  = makeGameLogText();
+                Tsukino::ECS::Entity textEntity   = makeGameLogText();
+
+                CombatAndroid::ECS::GameLogComponent& gameLog = registry.AddComponent<CombatAndroid::ECS::GameLogComponent>(panelEntity);
+                gameLog.accentEntity                          = accentEntity;
+                gameLog.labelEntity                           = labelEntity;
+                gameLog.textEntity                            = textEntity;
+            }
         }
 
         //--------------------------------------------------------------

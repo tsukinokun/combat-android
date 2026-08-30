@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -19,6 +20,7 @@
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 #include <Tsukino/Engine/Asset/Texture/TextureAsset.hpp>
 
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Input/InputSystem.hpp>
 #include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Core/Window.hpp>
@@ -420,6 +422,17 @@ namespace CombatAndroid::ECS {
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];
                 acquiredLevel      = std::min(acquiredLevel + 1, kMaxSkillLevel);
                 RecalculateSkillStats(skills);
+
+                //-------------------------------------------------------------
+                // 画面右の取得ログへ流す。メニューを閉じるまではdeltaTimeが0のため
+                // 演出は止まったままだが、ログは暗転板より奥の層に居て見えないので、
+                // 実際にはメニューが閉じた瞬間からスライドインが始まる
+                //-------------------------------------------------------------
+                if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                    eventBus->Publish(GameLogEvent{GameLogCategory::SkillAcquired,
+                                                  std::wstring(GetSkillEntry(acquiredId).displayName) + L" Lv."
+                                                      + std::to_wstring(acquiredLevel)});
+                }
 
                 --select.pendingLevelUps;
                 select.isActive = false;

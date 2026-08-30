@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponAbsorbComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
+#include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
@@ -19,6 +20,7 @@
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Input/InputSystem.hpp>
 #include <Tsukino/Core/Math/MathHelper.hpp>
 
@@ -26,6 +28,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <string>
 #include <vector>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -161,6 +164,13 @@ namespace CombatAndroid::ECS {
                     if(targetWeapon.level < kMaxWeaponLevel) {
                         ++targetWeapon.level;
                         RecalculateWeaponStats(targetWeapon);
+
+                        // 画面右の取得ログへ流す。カンストしている場合は何も起きていないので出さない
+                        if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                            eventBus->Publish(GameLogEvent{GameLogCategory::WeaponLevelUp,
+                                                          std::wstring(GetWeaponEntry(targetWeapon.weaponId).displayName) + L" Lv."
+                                                              + std::to_wstring(targetWeapon.level)});
+                        }
                     }
                     targetWeapon.levelUpFlashTimer = kLevelUpFlashDuration;
                 }
@@ -314,6 +324,12 @@ namespace CombatAndroid::ECS {
                     pickedWeapon.floatEnabled = true;
 
                     player->weaponInventory.push_back(nearest);
+
+                    // 画面右の取得ログへ流す（初取得のときだけ。2本目以降は上の吸収側が出す）
+                    if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                        eventBus->Publish(
+                            GameLogEvent{GameLogCategory::WeaponAcquired, GetWeaponEntry(pickedWeapon.weaponId).displayName});
+                    }
                 }
             }
 

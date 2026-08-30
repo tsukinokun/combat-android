@@ -9,14 +9,18 @@
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
+
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 
 #include <hlsl++.h>
 #include <entt/entt.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
@@ -162,6 +166,10 @@ namespace CombatAndroid::ECS {
             playerSkillSelect = registry.try_get<SkillSelectComponent>(playerEntity);
         }
 
+        // レベルアップを画面右の取得ログへ流すために使う。下のview.eachの内側から
+        // 引くと毎回コンテキストを叩くことになるため、ここで1回だけ取っておく
+        auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>();
+
         //-------------------------------------------------------------
         // 表示中のスロットを進める
         //-------------------------------------------------------------
@@ -239,6 +247,14 @@ namespace CombatAndroid::ECS {
 
                         if(playerSkillSelect)
                             ++playerSkillSelect->pendingLevelUps;
+
+                        //-------------------------------------------------------------
+                        // 画面右の取得ログへ流す。ここはview.eachの内側だが、
+                        // GameLogSystemのハンドラはキューへ積むだけでECSを触らないため安全
+                        // （1個の玉で複数レベル上がった場合は、上がった回数だけ行が出る）
+                        //-------------------------------------------------------------
+                        if(eventBus)
+                            eventBus->Publish(GameLogEvent{GameLogCategory::PlayerLevelUp, L"Lv." + std::to_wstring(playerExp->level)});
                     }
                 }
 

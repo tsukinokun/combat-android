@@ -28,6 +28,12 @@ namespace CombatAndroid::UI {
     constexpr int kHudBarFill       = 201;    //!< HP/EXPバーの残量
     constexpr int kHudText          = 210;    //!< HP/EXPの数値・生存時間
 
+    //! 画面右の取得ログ（武器取得・レベルアップ等が右からスライドインして上へ消える）。
+    //! スキル選択の暗転板(400)より奥なので、レベルアップメニュー表示中はモーダルの下に沈む
+    constexpr int kGameLogPanel  = 220;    //!< 1行の黒い半透明パネル
+    constexpr int kGameLogAccent = 221;    //!< パネル左端の種別色バー
+    constexpr int kGameLogText   = 230;    //!< 種別ラベル・主題テキスト
+
     //! 全画面演出
     constexpr int kScreenDamageFlash = 300;    //!< 被弾時の赤フラッシュ。HUDより手前に掛けて画面全体を染める
 
