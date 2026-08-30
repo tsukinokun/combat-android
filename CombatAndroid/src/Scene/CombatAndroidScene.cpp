@@ -605,7 +605,7 @@ namespace CombatAndroid {
         {
             auto& warhammerWeapon    = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
             warhammerWeapon.floatSelected = true;
-            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWeapon);    // 重量武器。Lv1=38。3段目（damageMultiplier 2.0）で76となり、SmallZombie/BigZombie両方を怯ませる
+            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWeapon);    // 重量武器。Lv1=38の通常攻撃でもSmallZombie（閾値30）を怯ませる。3段目（damageMultiplier 2.0）で76となりBigZombie（閾値60）も怯ませるが、SmallZombieに対しては76>maxHealth(40)のため怯ませる前に即死させる
             // 3段目フィニッシュのAoE(範囲攻撃)。attackSteps[2].areaAttackと組み合わさって発動する
             warhammerWeapon.areaAttackRadius      = 160.0f;
             warhammerWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
@@ -671,7 +671,8 @@ namespace CombatAndroid {
                              hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
         {
             auto& greatswordWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity);
-            // 軽量武器。Lv1=22。3段目（damageMultiplier 2.0）で44となり、SmallZombieのみ怯ませる（BigZombieは怯まない）
+            // 軽量武器。Lv1=22の通常攻撃はSmallZombie（閾値30）も怯ませない。3段目（damageMultiplier 2.0）で44となるが、
+            // 44>maxHealth(40)のためSmallZombieは怯ませる前に即死する（BigZombie（閾値60）はLv1では怯まない）
             CombatAndroid::ECS::RecalculateWeaponStats(greatswordWeapon);
 
             //-------------------------------------------------------------

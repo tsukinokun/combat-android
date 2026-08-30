@@ -30,6 +30,7 @@
 #include <Tsukino/GraphicsCommon/Model/ModelData.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Math/MathHelper.hpp>
+#include <Tsukino/Engine/Physics/SpringBone/SpringBoneMath.hpp>
 #ifdef _DEBUG
 #include <Tsukino/Renderer/Renderer.hpp>
 #include <Tsukino/GraphicsCommon/Vertex/DebugVertex.hpp>
@@ -225,6 +226,74 @@ namespace CombatAndroid::ECS {
                 prev = next;
             }
         }
+
+        //-------------------------------------------------------------
+        //! @brief  任意軸のカプセル（halfHeightがほぼ0なら球）をワイヤーフレームで描画する。
+        //!         rotationはJolt/OverlapCapsuleと同じくローカルY軸をカプセルの軸として扱う
+        //-------------------------------------------------------------
+        void DrawWireCapsule(Tsukino::Renderer::Renderer* renderer, const hlslpp::float3& center,
+                             const hlslpp::quaternion& rotation, float radius, float halfHeight, const hlslpp::float4& color) {
+            constexpr float kPi = 3.14159265f;
+
+            hlslpp::float3 axisX = hlslpp::mul(hlslpp::float3(1.0f, 0.0f, 0.0f), rotation);
+            hlslpp::float3 axisY = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), rotation);
+            hlslpp::float3 axisZ = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), rotation);
+
+            // 中心cから直交2軸u,v上に、startAngle〜endAngleの円弧をsegments分割で描く
+            auto drawArc = [&](const hlslpp::float3& c, const hlslpp::float3& u, const hlslpp::float3& v,
+                                float startAngle, float endAngle, int segments) {
+                hlslpp::float3 firstPos = c + u * (std::cos(startAngle) * radius) + v * (std::sin(startAngle) * radius);
+                Tsukino::GraphicsCommon::DebugVertex prev{
+                    {firstPos.x, firstPos.y, firstPos.z},
+                    {color.x, color.y, color.z, color.w}
+                };
+                for(int i = 1; i <= segments; ++i) {
+                    float          angle = startAngle + (endAngle - startAngle) * (static_cast<float>(i) / static_cast<float>(segments));
+                    hlslpp::float3 pos    = c + u * (std::cos(angle) * radius) + v * (std::sin(angle) * radius);
+                    Tsukino::GraphicsCommon::DebugVertex next{
+                        {pos.x, pos.y, pos.z},
+                        {color.x, color.y, color.z, color.w}
+                    };
+                    renderer->DrawDebugLine(prev, next);
+                    prev = next;
+                }
+            };
+
+            constexpr int kFullSegments = 24;
+
+            if(halfHeight <= 1e-4f) {
+                // 半径のみ＝球として3方向の円で簡易表現する
+                drawArc(center, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
+                drawArc(center, axisX, axisY, 0.0f, 2.0f * kPi, kFullSegments);
+                drawArc(center, axisZ, axisY, 0.0f, 2.0f * kPi, kFullSegments);
+                return;
+            }
+
+            hlslpp::float3 top    = center + axisY * halfHeight;
+            hlslpp::float3 bottom = center - axisY * halfHeight;
+
+            // 円柱側面の断面円（両端）
+            drawArc(top, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
+            drawArc(bottom, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
+
+            // 半球キャップ（上下2端×2平面の円弧）
+            constexpr int kCapSegments = kFullSegments / 2;
+            drawArc(top, axisX, axisY, 0.0f, kPi, kCapSegments);
+            drawArc(top, axisZ, axisY, 0.0f, kPi, kCapSegments);
+            drawArc(bottom, axisX, axisY, 0.0f, -kPi, kCapSegments);
+            drawArc(bottom, axisZ, axisY, 0.0f, -kPi, kCapSegments);
+
+            // 円柱側面をつなぐ縦線（0°/90°/180°/270°）
+            for(int i = 0; i < 4; ++i) {
+                float          angle  = (kPi * 0.5f) * static_cast<float>(i);
+                hlslpp::float3 offset = axisX * (std::cos(angle) * radius) + axisZ * (std::sin(angle) * radius);
+                hlslpp::float3 a      = top + offset;
+                hlslpp::float3 b      = bottom + offset;
+                renderer->DrawDebugLine(
+                    Tsukino::GraphicsCommon::DebugVertex{{a.x, a.y, a.z}, {color.x, color.y, color.z, color.w}},
+                    Tsukino::GraphicsCommon::DebugVertex{{b.x, b.y, b.z}, {color.x, color.y, color.z, color.w}});
+            }
+        }
 #endif
 
         //-------------------------------------------------------------
@@ -293,6 +362,11 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         auto weaponView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
         weaponView.each([&](entt::entity entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+            // 追従・浮遊計算でtransformが書き換わる前の姿勢（＝前フレーム終了時点の姿勢）を保存しておく。
+            // 新しいアタックがこのフレームで開始した場合、サブステップ補間のprevとして使う
+            hlslpp::float3     preFollowPosition = transform.position;
+            hlslpp::quaternion preFollowRotation = transform.rotation;
+
             if(weapon.owner != entt::null && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weapon.owner)) {
                 Tsukino::BuiltIn::ECS::TransformComponent& ownerTransform =
                     registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weapon.owner);
@@ -475,15 +549,15 @@ namespace CombatAndroid::ECS {
                 transform.dirty = true;
 
 #ifdef _DEBUG
-                // 当たり判定カプセルの足跡（グリップ側・刃先側の断面円）を可視化する。
+                // 当たり判定カプセルを可視化する（OverlapCapsuleへ実際に渡す値と同じcenter/rotation/radius/halfHeight）。
                 // 当たり判定有効中は赤、それ以外はシアンにする
                 if(ctx && ctx->renderer) {
-                    hlslpp::float3 bladeDir = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), transform.rotation);
-                    hlslpp::float3 tipPos   = transform.position + bladeDir * weapon.range;
+                    hlslpp::float3 bladeDir      = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), transform.rotation);
+                    float          debugHalfLen  = weapon.range * 0.5f;
+                    hlslpp::float3 debugCapsuleCenter = transform.position + bladeDir * debugHalfLen;
                     hlslpp::float4 color =
                         weapon.isActive ? hlslpp::float4(1.0f, 0.2f, 0.0f, 1.0f) : hlslpp::float4(0.0f, 1.0f, 1.0f, 1.0f);
-                    DrawWireCircleXZ(ctx->renderer, transform.position, weapon.hitCapsuleRadius, color);
-                    DrawWireCircleXZ(ctx->renderer, tipPos, weapon.hitCapsuleRadius, color);
+                    DrawWireCapsule(ctx->renderer, debugCapsuleCenter, transform.rotation, weapon.hitCapsuleRadius, debugHalfLen, color);
 
                     // AoE(範囲攻撃)半径の可視化。発動待ちカウントダウン中はマゼンタ、それ以外は薄紫で常時表示する
                     if(weapon.areaAttackRadius > 0.0f) {
@@ -511,8 +585,12 @@ namespace CombatAndroid::ECS {
                 // （毎フレームの判定側でクリアすると同じ敵に何度もヒットしてしまう）
                 weapon.hitEnemiesThisAttack.clear();
 
-                // 新しいアタックの初回フレームは前アタックの姿勢からサブステップ補間しないようにする
-                weapon.hasPrevAttackPose = false;
+                // 新しいアタック開始フレームも前フレーム姿勢(浮遊/追従姿勢)からサブステップ補間できるよう、
+                // 追従計算前に保存しておいた姿勢をprevとして与える（falseにリセットして初回フレームだけ
+                // 判定漏れさせていたのをやめる）
+                weapon.prevAttackPosition = preFollowPosition;
+                weapon.prevAttackRotation = preFollowRotation;
+                weapon.hasPrevAttackPose  = true;
 
                 // AoE(範囲攻撃)の武装。この段がAoEを要求していて、かつ装備武器がAoE対応
                 // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む
@@ -814,10 +892,16 @@ namespace CombatAndroid::ECS {
 #ifdef _DEBUG
             if(ctx->renderer) {
                 hlslpp::float4 color = hitbox.hasLandedThisAttack ? hlslpp::float4(1.0f, 0.2f, 0.8f, 1.0f) : hlslpp::float4(0.3f, 0.6f, 1.0f, 1.0f);
-                DrawWireCircleXZ(ctx->renderer, hitStart, hitbox.radius, color);
-                if(isCapsuleMode) {
-                    DrawWireCircleXZ(ctx->renderer, hitEnd, hitbox.radius, color);
-                }
+
+                // hitStart→hitEndの芯線からカプセル（球モードはhitStart==hitEndでhalfHeight=0となり
+                // DrawWireCapsule側が自動的に球として描画する）を組み立てて可視化する
+                hlslpp::float3     debugSegment    = hitEnd - hitStart;
+                float              debugSegLen     = hlslpp::length(debugSegment);
+                hlslpp::float3     debugCapsuleCenter = (hitStart + hitEnd) * 0.5f;
+                hlslpp::quaternion debugCapsuleRot = (debugSegLen > 1e-4f)
+                    ? Tsukino::Physics::QuatFromToRotation(hlslpp::float3(0.0f, 1.0f, 0.0f), debugSegment / debugSegLen)
+                    : hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
+                DrawWireCapsule(ctx->renderer, debugCapsuleCenter, debugCapsuleRot, hitbox.radius, debugSegLen * 0.5f, color);
             }
 #endif
         });

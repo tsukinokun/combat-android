@@ -202,7 +202,11 @@ namespace CombatAndroid::ECS {
         // 手ボーンより判定中心が後退するため、接触距離（bodyRadius35+プレイヤー半径35＝70）のすぐ外まで
         // 詰めさせて、振りかぶりの間にプレイヤーが多少下がっても当たる余裕を持たせる
         config.attackRange              = 78.0f;
-        config.knockbackDamageThreshold = 40.0f;
+        // 旧値40.0fはmaxHealth(40.0f)と完全に一致しており、閾値を満たす一撃は常にその場で
+        // 満タンHPを0以下にして即死＝Death分岐がKnockback分岐より優先されるため、ひるみモーションが
+        // 実質的に一度も再生されない不具合があった。maxHealthより明確に低い値へ下げ、
+        // 致死未満の一撃でも生き残ってひるめるようにする
+        config.knockbackDamageThreshold = 30.0f;
         config.expReward                = 10.0f;
         config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Unarmed Walk Forward.fbx"));
         config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx"));
