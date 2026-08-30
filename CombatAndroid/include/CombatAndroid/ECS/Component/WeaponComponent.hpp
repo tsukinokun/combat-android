@@ -189,5 +189,12 @@ namespace CombatAndroid::ECS {
         u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
         float attackStepStartTime[PlayerAnimationSetComponent::kAttackComboCount] = {};    //!< 各段の再生開始時刻（秒）
         float attackStepEndTime[PlayerAnimationSetComponent::kAttackComboCount]   = {};    //!< 各段の再生終了時刻（秒）
+
+        //-------------------------------------------------------------
+        // 溜め攻撃(チャージアタック)。有効な武器は左クリック長押しで溜め、離す（または一定時間経過）と
+        // 解放する。weaponId/WeaponTable経由では持たず、attackClip等と同じ流儀でインスタンスごとに
+        // 設定する（battleaxeのスポーン箇所のみtrueにする）
+        //-------------------------------------------------------------
+        bool chargeAttackEnabled = false;    //!< trueならこの武器は左クリック長押しで溜め攻撃できる
     };
 }    // namespace CombatAndroid::ECS

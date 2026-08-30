@@ -132,7 +132,7 @@ namespace CombatAndroid::ECS {
                 // CharacterControllerComponentへ水平方向の希望移動速度を渡す
                 cc.moveInput = moveDir * currentSpeed;
 
-                if(!isAttacking && !attackTriggeredThisFrame && !player.isDodging && !dodgeTriggeredThisFrame) {
+                if(!isAttacking && !attackTriggeredThisFrame && !player.isDodging && !dodgeTriggeredThisFrame && !player.isCharging) {
                     // 移動方向へ向き直す（瞬時に向かず、slerpで滑らかに補間する）
                     float               yawRad         = std::atan2(moveDir.x, moveDir.z);
                     hlslpp::quaternion targetRotation = hlslpp::quaternion::rotation_y(yawRad);
@@ -170,12 +170,18 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
+            // 左クリックの押しっぱなし状態。溜め攻撃の継続／解放判定にPlayerAnimationSystemが使う
+            //-------------------------------------------------------------
+            player.attackInputHeld = inputSystem->IsKeyDown(Tsukino::Input::KeyCode::LButton);
+
+            //-------------------------------------------------------------
             // マウスホイールで装備中の武器を切り替える（1ノッチ=±1.0）。
             // 攻撃中に切り替わると持ち替えの見た目が破綻するため、攻撃中は入力を無視する
-            // （isAttacking/attackTriggeredThisFrameは上の向き直り抑制と同じ判定を流用）
+            // （isAttacking/attackTriggeredThisFrameは上の向き直り抑制と同じ判定を流用）。
+            // 溜め攻撃中も同様に持ち替えを禁止する
             //-------------------------------------------------------------
             float wheelDelta = inputSystem->GetWheelDelta();
-            if(!isAttacking && !attackTriggeredThisFrame &&
+            if(!isAttacking && !attackTriggeredThisFrame && !player.isCharging &&
                wheelDelta != 0.0f && player.weaponInventory.size() > 1) {
                 int direction   = wheelDelta > 0.0f ? 1 : -1;
                 int weaponCount = static_cast<int>(player.weaponInventory.size());

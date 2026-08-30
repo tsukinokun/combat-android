@@ -322,6 +322,10 @@ namespace CombatAndroid {
         // 流儀でgreatswordのスポーン箇所のみWeaponComponent::attackClipへ設定する（下記参照）
         Tsukino::Asset::AssetHandle greatSwordAttackAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx"));
+        // バトルアックス専用の攻撃クリップ。武器種別を判定するenumは持たず、areaAttack等と同じ
+        // 流儀でbattleaxeのスポーン箇所のみWeaponComponent::attackClipへ設定する（下記参照）
+        Tsukino::Asset::AssetHandle battleaxeAttackAnimHandle =
+            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Standing Melee Attack Backhand.fbx"));
         // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。GameOverSystem参照）
         Tsukino::Asset::AssetHandle deathAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
@@ -424,6 +428,10 @@ namespace CombatAndroid {
         Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(playerEntity);
         model.modelHandle                            = modelHandle;
         model.visible                                = true;
+
+        // 溜め攻撃の段階表示（白→青→紫のリムライト）用。既定はactive=falseなので、溜めていない間は
+        // 通常のモデル描画に一切影響しない（PlayerAnimationSystemが溜め中のみ書き込む）
+        registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(playerEntity);
 
         // アニメーションを再生・制御するコンポーネント（初期状態はIdle。以後はPlayerAnimationSystemが管理する）
         Tsukino::BuiltIn::ECS::AnimationPlayerComponent& animPlayer = registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(playerEntity);
@@ -696,6 +704,44 @@ namespace CombatAndroid {
 
             greatswordWeapon.attackStepStartTime[2] = kGreatSwordStepLength * 1.3f;
             greatswordWeapon.attackStepEndTime[2]   = kGreatSwordClipDuration;
+        }
+
+        // battleaxeもgreatsword/warhammerと同じ調整済み値を暫定適用（メッシュが違うため厳密には別値が必要になりうる。
+        // ずれる場合はWeaponGripDebugSystemのF6調整モードで別途詰める）
+        Tsukino::ECS::Entity battleaxeEntity =
+            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/battleaxe.fbx"), CombatAndroid::ECS::WeaponId::Battleaxe,
+                             hlslpp::float3(300.0f, 10.0f, 100.0f), L"バトルアックス",
+                             hlslpp::float3(0.0f, 0.0f, 10.0f),
+                             hlslpp::float3(0.0f, 0.0f, 0.0f),
+                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        {
+            auto& battleaxeWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(battleaxeEntity);
+            CombatAndroid::ECS::RecalculateWeaponStats(battleaxeWeapon);
+
+            //-------------------------------------------------------------
+            // バトルアックス専用の攻撃モーション（Standing Melee Attack Backhand.fbx）。Hammer Attack.fbxと同じ
+            // 「1クリップに3段入り」構成・分割比率（0 / 1x / 1.3x / 終端）を暫定的に踏襲しているが、
+            // Standing Melee Attack Backhand.fbx自体の実尺・フレーム構成はソースからは確認できないため、
+            // 下のkBattleaxeClipDurationを含め実機でWeaponGripDebugSystemのF10/F11コマ送りを
+            // 見ながら個別に調整する前提の暫定値
+            //-------------------------------------------------------------
+            constexpr float kBattleaxeClipDuration = kAttackClipDuration;    // 暫定：Hammer Attack.fbxと同尺と仮定
+            constexpr float kBattleaxeStepLength    = kBattleaxeClipDuration / 3.0f;
+
+            battleaxeWeapon.attackClip           = battleaxeAttackAnimHandle;
+            battleaxeWeapon.attackAnimationIndex = 1;
+
+            battleaxeWeapon.attackStepStartTime[0] = kBattleaxeStepLength * 0.0f;
+            battleaxeWeapon.attackStepEndTime[0]   = kBattleaxeStepLength * 1.0f;
+
+            battleaxeWeapon.attackStepStartTime[1] = kBattleaxeStepLength * 1.0f;
+            battleaxeWeapon.attackStepEndTime[1]   = kBattleaxeStepLength * 1.3f;
+
+            battleaxeWeapon.attackStepStartTime[2] = kBattleaxeStepLength * 1.3f;
+            battleaxeWeapon.attackStepEndTime[2]   = kBattleaxeClipDuration;
+
+            // バトルアックス専用：左クリック長押しで溜め、離すと解放する溜め攻撃を有効化する
+            battleaxeWeapon.chargeAttackEnabled = true;
         }
 
         // warhammerは最初から装備している個体（spawnFloatingWeapon）と同じモデルのため、同じ調整済み値を使う

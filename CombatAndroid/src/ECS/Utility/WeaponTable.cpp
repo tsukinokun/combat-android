@@ -39,8 +39,17 @@ namespace CombatAndroid::ECS {
             {46.0f},
         };
 
+        constexpr WeaponLevelEntry kBattleaxeLevels[] = {
+            {30.0f},
+            {36.0f},
+            {42.0f},
+            {48.0f},
+            {54.0f},
+        };
+
         static_assert(std::size(kWarhammerLevels) == static_cast<size_t>(kMaxWeaponLevel), "kWarhammerLevels の段階数を kMaxWeaponLevel に合わせること");
         static_assert(std::size(kGreatswordLevels) == static_cast<size_t>(kMaxWeaponLevel), "kGreatswordLevels の段階数を kMaxWeaponLevel に合わせること");
+        static_assert(std::size(kBattleaxeLevels) == static_cast<size_t>(kMaxWeaponLevel), "kBattleaxeLevels の段階数を kMaxWeaponLevel に合わせること");
 
         //-------------------------------------------------------------
         // 武器テーブル本体。
@@ -54,6 +63,7 @@ namespace CombatAndroid::ECS {
         constexpr WeaponTableEntry kWeaponTable[] = {
             {WeaponId::Warhammer, L"ウォーハンマー", kWarhammerLevels},
             {WeaponId::Greatsword, L"グレートソード", kGreatswordLevels},
+            {WeaponId::Battleaxe, L"バトルアックス", kBattleaxeLevels},
         };
 
         // 種類を足したのにテーブルへ書き忘れる事故を防ぐ

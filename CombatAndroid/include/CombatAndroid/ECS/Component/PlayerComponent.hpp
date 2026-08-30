@@ -55,5 +55,26 @@ namespace CombatAndroid::ECS {
         // 攻撃中の入力はすぐには反映されず、PlayerAnimationSystem側で1回だけ先行入力としてバッファされる
         //-------------------------------------------------------------
         bool attackInputPressed = false;
+
+        //-------------------------------------------------------------
+        // 溜め攻撃（WeaponComponent::chargeAttackEnabledがtrueの武器のみ）のチューニング値。
+        // 実機で見た目・バランスを確認しながら調整する前提の暫定値
+        //-------------------------------------------------------------
+        float chargeStage2Threshold        = 0.6f;    //!< この秒数を超えると2段階目（青）へ
+        float chargeStage3Threshold        = 1.2f;    //!< この秒数を超えると3段階目（紫）へ
+        float chargeMaxDuration            = 2.0f;    //!< この秒数に達したら強制的に解放する
+        float chargePlaybackSpeed          = 0.15f;   //!< 溜め中のアニメーション再生速度倍率（超スロー）
+        float chargeReleasePlaybackSpeedMultiplier = 1.5f;    //!< 解放後のスイング（Attack1）の再生速度倍率。段のplaybackSpeedに乗算する
+        float chargeDamageMultiplierStage1 = 1.0f;    //!< 白段階で解放した場合のダメージ倍率
+        float chargeDamageMultiplierStage2 = 1.6f;    //!< 青段階で解放した場合のダメージ倍率
+        float chargeDamageMultiplierStage3 = 2.4f;    //!< 紫段階で解放した場合のダメージ倍率
+
+        //-------------------------------------------------------------
+        // 左クリックの押しっぱなし状態。PlayerSystemが毎フレーム更新し、PlayerAnimationSystemが
+        // 溜め継続／解放の判定に使う（attackInputPressedは「押した瞬間」だけを表す別物）
+        //-------------------------------------------------------------
+        bool attackInputHeld = false;
+
+        bool isCharging = false;    //!< 溜め攻撃中か。PlayerAnimationSystemが毎フレーム確定させ、PlayerSystemが向き直り・武器切り替え抑制に参照する
     };
 }    // namespace CombatAndroid::ECS

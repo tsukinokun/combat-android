@@ -18,6 +18,7 @@ namespace CombatAndroid::ECS {
         Run,
         FastRun,
         Dodge,      //!< 回避（前転）
+        Charge,     //!< 溜め攻撃の構え（WeaponComponent::chargeAttackEnabledな武器装備時のみ、左クリック長押しで入る）
         Attack1,    //!< 連撃1段目
         Attack2,    //!< 連撃2段目
         Attack3,    //!< 連撃3段目
@@ -95,5 +96,16 @@ namespace CombatAndroid::ECS {
         float          dodgeTimer         = 0.0f;                            //!< 回避ステートに入ってからの経過時間（無敵時間の判定と保険タイムアウトに使う）
         float          dodgeCooldownTimer = 0.0f;                            //!< 0より大きい間は回避入力を受け付けない（回避終了時にPlayerComponent::dodgeCooldownを積む）
         hlslpp::float3 dodgeDirection     = {0.0f, 0.0f, 1.0f};    //!< 回避開始時に確定した進行方向（水平・正規化済み）。回避中は入力に関わらずこの方向へ進む
+
+        float chargeTimer = 0.0f;    //!< Chargeステートに入ってからの経過時間（溜め段階・強制解放の判定に使う）
+
+        //-------------------------------------------------------------
+        // 溜め攻撃を解放してAttack1へ入る瞬間だけtrueにする一度きりのフラグ。
+        // 通常は同じ段へ入るたびにクリップを頭から再生し直す（MakeAttackStepEnterCallback参照）が、
+        // 溜め解放時は「溜めていたポーズの続き」から再生したいため、このフラグが立っている間だけ
+        // MakeAttackStepEnterCallbackがAnimationControllerComponent::nextの発行（＝頭出し）を
+        // スキップする。読み取り側（MakeAttackStepEnterCallback）が消費してfalseへ戻す
+        //-------------------------------------------------------------
+        bool suppressAnimationRestart = false;
     };
 }    // namespace CombatAndroid::ECS

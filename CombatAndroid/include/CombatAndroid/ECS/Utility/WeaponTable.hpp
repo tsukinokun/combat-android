@@ -26,6 +26,7 @@ namespace CombatAndroid::ECS {
     enum class WeaponId : int {
         Warhammer = 0,
         Greatsword,
+        Battleaxe,
         Count,
     };
 

@@ -14,6 +14,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
 
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Log.hpp>
@@ -63,10 +64,12 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  「連撃のN段目へ入る」OnEnterコールバックを作るヘルパー
-        //! @param  stepIndex [in] PlayerAnimationSetComponent::attackSteps のインデックス
+        //! @param  stepIndex  [in] PlayerAnimationSetComponent::attackSteps のインデックス
+        //! @param  armAttack  [in] 当たり判定をアームするか。falseの場合はクリップ再生のみ行い、
+        //!                          WeaponComponent::attackRequested等は一切変更しない（Chargeステートで使う）
         //-------------------------------------------------------------
-        StateMachine<PlayerAnimState>::Callback MakeAttackStepEnterCallback(u32 stepIndex) {
-            return [stepIndex](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+        StateMachine<PlayerAnimState>::Callback MakeAttackStepEnterCallback(u32 stepIndex, bool armAttack = true) {
+            return [stepIndex, armAttack](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 auto&       animSet = registry.GetComponent<PlayerAnimationSetComponent>(entity);
                 const auto& step    = animSet.attackSteps[stepIndex];
 
@@ -96,16 +99,27 @@ namespace CombatAndroid::ECS {
                 if(!clip.IsValid())
                     return;
 
-                auto& animController = registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity);
+                //-------------------------------------------------------------
+                // 通常は毎回このクリップ・レンジを頭から再生し直す（AnimationControllerComponent::next
+                // を発行するとAnimationSystemがelapsed_timeを0へリセットするため）。ただし
+                // suppressAnimationRestartが立っている場合（溜め攻撃の解放）は、同じクリップ・
+                // レンジを既にChargeステートで再生中なので、nextの発行自体をスキップして現在の
+                // 再生（elapsed_time含む）をそのまま引き継ぐ＝「溜めていたポーズの続き」から再生する
+                //-------------------------------------------------------------
+                if(animSet.suppressAnimationRestart) {
+                    animSet.suppressAnimationRestart = false;    // 一度きりの消費
+                } else {
+                    auto& animController = registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity);
 
-                animController.next.clip            = clip;
-                animController.next.animation_index = animationIndex;
-                animController.next.fade_time       = step.fadeTime;
-                animController.next.immediate       = false;    // クロスフェードで切り替える
-                animController.next.is_looping      = false;    // 各段は単発再生（コンボ窓を過ぎたら次段かIdle等へ抜ける）
-                animController.next.clip_start_time = startTime;
-                animController.next.clip_end_time   = endTime;
-                animController.next.in_place        = step.inPlace;
+                    animController.next.clip            = clip;
+                    animController.next.animation_index = animationIndex;
+                    animController.next.fade_time       = step.fadeTime;
+                    animController.next.immediate       = false;    // クロスフェードで切り替える
+                    animController.next.is_looping      = false;    // 各段は単発再生（コンボ窓を過ぎたら次段かIdle等へ抜ける）
+                    animController.next.clip_start_time = startTime;
+                    animController.next.clip_end_time   = endTime;
+                    animController.next.in_place        = step.inPlace;
+                }
 
                 // この段の再生速度倍率を適用する（攻撃モーションの速さの微調整用）。
                 // MakeClipEnterCallback側で他ステートに入るときに1.0へ戻すため、ここでの
@@ -120,7 +134,7 @@ namespace CombatAndroid::ECS {
                 // コンボ窓キャンセルのタイミングでまだ残っている可能性があるため、段の突入時に
                 // 明示的に0へ落として次段のヒット判定をブロックしないようにする
                 //-------------------------------------------------------------
-                if(weapon != nullptr) {
+                if(armAttack && weapon != nullptr) {
                     weapon->attackRequested = true;
                     weapon->cooldownTimer   = 0.0f;
                     weapon->nextActiveDurationOverride = step.hitWindowDuration;
@@ -130,6 +144,49 @@ namespace CombatAndroid::ECS {
                     weapon->pendingAreaAttackDelay = step.areaAttackDelay;
                 }
             };
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  溜め攻撃（Chargeステート）を抜けるときのOnExitコールバック。
+        //!         解放・回避によるキャンセル・死亡のいずれの経路でも必ず呼ばれるため、
+        //!         ここでリムライトを消すだけで消灯漏れが起きない
+        //-------------------------------------------------------------
+        StateMachine<PlayerAnimState>::Callback MakeChargeExitCallback() {
+            return [](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+                if(registry.HasComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity))
+                    registry.GetComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity).active = false;
+            };
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  溜め時間から現在の溜め段階（1=白, 2=青, 3=紫）を求める
+        //-------------------------------------------------------------
+        int ResolveChargeStage(float chargeTimer, const PlayerComponent& player) {
+            if(chargeTimer >= player.chargeStage3Threshold) return 3;
+            if(chargeTimer >= player.chargeStage2Threshold) return 2;
+            return 1;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  溜め段階から解放時のダメージ倍率を求める
+        //-------------------------------------------------------------
+        float ResolveChargeDamageMultiplier(int stage, const PlayerComponent& player) {
+            switch(stage) {
+            case 3:  return player.chargeDamageMultiplierStage3;
+            case 2:  return player.chargeDamageMultiplierStage2;
+            default: return player.chargeDamageMultiplierStage1;
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  溜め段階からリムライトの色を求める（白→青→紫）
+        //-------------------------------------------------------------
+        hlslpp::float3 ResolveChargeRimColor(int stage) {
+            switch(stage) {
+            case 3:  return hlslpp::float3(0.65f, 0.15f, 1.0f);    // 紫
+            case 2:  return hlslpp::float3(0.25f, 0.55f, 1.0f);    // 青
+            default: return hlslpp::float3(1.0f, 1.0f, 1.0f);      // 白
+            }
         }
 
         //-------------------------------------------------------------
@@ -187,6 +244,11 @@ namespace CombatAndroid::ECS {
         // 回避（前転）は緊急動作なので入りのクロスフェードは短く。前進はCharacterControllerが
         // 担当する（Update側でmoveInputを上書きする）ため、クリップ側のルート移動はin_placeで殺す
         m_stateMachine.RegisterState(PlayerAnimState::Dodge, MakeClipEnterCallback(&PlayerAnimationSetComponent::dodgeClip, 1, false, 0.08f, true));
+        // 溜め攻撃の構え。専用クリップは持たず、装備武器のAttack1相当のクリップ・時間レンジ（＝振りの
+        // 前半部分）をそのまま使い、Update側で超スロー再生することで「振りかぶって溜めている」見た目にする。
+        // armAttack=falseなので当たり判定はアームされない（発生するのは解放後のAttack1のみ）。
+        // OnExitでリムライトを必ず消す（解放・回避キャンセル・死亡のどの経路でも呼ばれる）
+        m_stateMachine.RegisterState(PlayerAnimState::Charge, MakeAttackStepEnterCallback(0, /*armAttack=*/false), MakeChargeExitCallback());
         // 連撃の各段は、Hammer Attack.fbx 1本を時間レンジで3分割して参照する（PlayerAnimationSetComponent::attackSteps）。
         // 装備武器がWeaponComponent::attackClipを持つ場合はそちらへ差し替わる（Great Sword等。MakeAttackStepEnterCallback参照）
         m_stateMachine.RegisterState(PlayerAnimState::Attack1, MakeAttackStepEnterCallback(0));
@@ -232,6 +294,7 @@ namespace CombatAndroid::ECS {
                 player.dodgeInputPressed  = false;
                 player.isDodging           = false;
                 player.isInvincible        = false;
+                player.isCharging          = false;    // Chargeで死亡した場合もOnExitがリムライトを消すため、ここでは公開フラグだけ落とす
 
                 if(player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity))
                     registry.GetComponent<WeaponComponent>(player.weaponEntity).isAttacking = false;
@@ -242,9 +305,14 @@ namespace CombatAndroid::ECS {
 
             bool isAttacking = IsAttackState(animSet.currentState);
             bool isDodging   = animSet.currentState == PlayerAnimState::Dodge;
+            bool isCharging  = animSet.currentState == PlayerAnimState::Charge;
 
             if(isAttacking) {
                 animSet.attackTimer += deltaTime;
+            }
+
+            if(isCharging) {
+                animSet.chargeTimer += deltaTime;
             }
 
             if(isDodging) {
@@ -270,12 +338,24 @@ namespace CombatAndroid::ECS {
 
             bool hasWeapon = player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity);
 
+            //-------------------------------------------------------------
+            // 装備武器が溜め攻撃対応（WeaponComponent::chargeAttackEnabled）かどうかで、
+            // 左クリックの押下を「即座にAttack1」か「Chargeへ入って構える」かに振り分ける
+            //-------------------------------------------------------------
+            bool weaponChargeCapable = hasWeapon && registry.GetComponent<WeaponComponent>(player.weaponEntity).chargeAttackEnabled;
+
+            bool chargeJustStarted = false;
             bool attackJustStarted = false;
             if(attackJustPressed && hasWeapon) {
-                if(!isAttacking && !isDodging) {
-                    attackJustStarted = true;
-                } else {
-                    // 回避中の攻撃入力もここへ入り、回避が終わってから1段目として消費される
+                if(!isAttacking && !isDodging && !isCharging) {
+                    if(weaponChargeCapable) {
+                        chargeJustStarted = true;
+                    } else {
+                        attackJustStarted = true;
+                    }
+                } else if(!isCharging) {
+                    // 回避中・攻撃中の攻撃入力はここへ入り、モーションが終わってから1段目として消費される。
+                    // 溜め中（isCharging）の再押下は起こり得ない（離すまでIsKeyPressedは再発火しない）ため無視する
                     animSet.bufferedInput = BufferedInput::Attack;
                 }
             }
@@ -303,6 +383,13 @@ namespace CombatAndroid::ECS {
             // 回避の終了判定も攻撃段と同じ流儀（実クリップの再生完了＋保険のタイムアウト）で行う
             //-------------------------------------------------------------
             bool dodgeFinished = isDodging && (animPlayer.is_finished || animSet.dodgeTimer >= player.dodgeTimeoutSafety);
+
+            //-------------------------------------------------------------
+            // 溜め攻撃の解放判定。左クリックを離すか、chargeMaxDurationに達したら強制的に解放する。
+            // chargeStageは解放時のダメージ倍率・リムライト色の両方に使う（このフレームの溜め時間から算出）
+            //-------------------------------------------------------------
+            bool chargeReleased = isCharging && (!player.attackInputHeld || animSet.chargeTimer >= player.chargeMaxDuration);
+            int  chargeStage     = isCharging ? ResolveChargeStage(animSet.chargeTimer, player) : 1;
 
             //-------------------------------------------------------------
             // 現在のプレイヤーの状態から、あるべきアニメーションステートを決定する
@@ -335,10 +422,16 @@ namespace CombatAndroid::ECS {
             };
 
             if(dodgeJustStarted) {
-                // 回避は最優先。ただし攻撃中・回避中は上のdodgeJustStartedが立たないため、
-                // ここへ来るのは「何もしていない状態から回避を始める」場合だけ
+                // 回避は最優先。ただし攻撃中・回避中・溜め中は上のdodgeJustStartedが立たないため、
+                // ここへ来るのは「何もしていない状態から回避を始める」場合だけ……のはずだが、
+                // 溜め中（isCharging）はisAttacking扱いではないため、溜め中に回避を押すとここへ来て
+                // 攻撃を出さずに溜めをキャンセルして回避へ割り込める（Chargeのstate自体はOnExitで
+                // リムライトを消すだけなので、キャンセルしても後始末は自動的に行われる）
                 EnterDodge();
                 desiredState = PlayerAnimState::Dodge;
+            } else if(chargeJustStarted) {
+                animSet.chargeTimer = 0.0f;
+                desiredState         = PlayerAnimState::Charge;
             } else if(attackJustStarted) {
                 desiredState = PlayerAnimState::Attack1;
             } else if(isDodging && !dodgeFinished) {
@@ -352,6 +445,12 @@ namespace CombatAndroid::ECS {
                 }
                 // それ以外はdesiredStateを上で計算した移動判定のまま使う
                 animSet.bufferedInput = BufferedInput::None;
+            } else if(isCharging && !chargeReleased) {
+                desiredState = animSet.currentState;    // 離す/強制タイムアウトまで構えを維持する
+            } else if(isCharging && chargeReleased) {
+                desiredState = PlayerAnimState::Attack1;    // 解放。1段目のスイングとして繰り出す
+                // 溜めていたポーズの続きから再生する（頭からやり直さない）。Attack1のOnEnterが消費する
+                animSet.suppressAnimationRestart = true;
             } else if(isAttacking && !attackStepFinished) {
                 desiredState = animSet.currentState;    // 現在の段を最後まで再生する（キャンセルしない）
             } else if(attackStepFinished) {
@@ -384,15 +483,16 @@ namespace CombatAndroid::ECS {
 
             bool willBeAttacking = IsAttackState(desiredState);
             bool willBeDodging   = desiredState == PlayerAnimState::Dodge;
+            bool willBeCharging  = desiredState == PlayerAnimState::Charge;
 
             //-------------------------------------------------------------
-            // 攻撃中は移動させない（PlayerSystemが今フレーム書き込んだ
+            // 攻撃中・溜め攻撃中は移動させない（PlayerSystemが今フレーム書き込んだ
             // moveInputを、Physicsが消費する前にここで打ち消す）。
             // 逆に回避中は、開始時に確定した方向へ一定速度で進ませる
             // （エンジンはクリップのルートモーションをTransformへ適用しないため、
             //   前転の前進はここでCharacterControllerへ与える必要がある）
             //-------------------------------------------------------------
-            if(willBeAttacking) {
+            if(willBeAttacking || willBeCharging) {
                 cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
             } else if(willBeDodging) {
                 cc.moveInput = animSet.dodgeDirection * player.dodgeSpeed;
@@ -415,11 +515,47 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
+            // 溜め攻撃中の再生速度を超スローへ上書きする（Dodgeの再生速度上書きと同じ手法）。
+            // MakeAttackStepEnterCallback（Chargeの OnEnter）が入り口で通常速度を設定するため、
+            // それより後であるここで毎フレーム上書きする
+            //-------------------------------------------------------------
+            if(willBeCharging) {
+                animPlayer.playback_speed = player.chargePlaybackSpeed;
+            }
+
+            //-------------------------------------------------------------
             // 装備中の武器へ「攻撃アニメーション再生中か」を伝える
-            // （CombatSystemがこれを見て、浮遊演出のON/OFFと手ボーンへの追従度を切り替える）
+            // （CombatSystemがこれを見て、浮遊演出のON/OFFと手ボーンへの追従度を切り替える）。
+            // 溜め攻撃中も武器を構えたまま静止させたいため、攻撃中と同じ扱いにする
             //-------------------------------------------------------------
             if(hasWeapon) {
-                registry.GetComponent<WeaponComponent>(player.weaponEntity).isAttacking = willBeAttacking;
+                registry.GetComponent<WeaponComponent>(player.weaponEntity).isAttacking = willBeAttacking || willBeCharging;
+            }
+
+            //-------------------------------------------------------------
+            // 溜め攻撃を解放した瞬間、到達した段階に応じてダメージ倍率を上書きする。
+            // 直前のTransitionToでAttack1のOnEnter（MakeAttackStepEnterCallback）が
+            // damageMultiplier = step.damageMultiplier（既定1.0）を設定済みなので、それに乗算する
+            //-------------------------------------------------------------
+            if(isCharging && chargeReleased && hasWeapon) {
+                registry.GetComponent<WeaponComponent>(player.weaponEntity).damageMultiplier *= ResolveChargeDamageMultiplier(chargeStage, player);
+                // 解放直後のスイング（Attack1）は、Attack1のOnEnterが設定した通常速度よりも
+                // 速く振らせる。段の速度（step.playbackSpeed）へ乗算する形にしておき、
+                // 将来step側の速度を変えてもここが二重に効かないようにする
+                animPlayer.playback_speed *= player.chargeReleasePlaybackSpeedMultiplier;
+            }
+
+            //-------------------------------------------------------------
+            // 溜め攻撃中のリムライト点灯（白→青→紫）。消灯はChargeのOnExitコールバックが担当するため、
+            // ここでは点灯中の値の書き込みのみ行う
+            //-------------------------------------------------------------
+            if(willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity)) {
+                auto& highlight         = registry.GetComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity);
+                highlight.active       = true;
+                highlight.rimColor     = ResolveChargeRimColor(ResolveChargeStage(animSet.chargeTimer, player));
+                highlight.rimIntensity = 5.0f;
+                highlight.rimPower     = 2.5f;
+                highlight.glow         = 0.3f;
             }
 
             //-------------------------------------------------------------
@@ -430,6 +566,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             player.isDodging    = willBeDodging;
             player.isInvincible = willBeDodging && animSet.dodgeTimer < player.dodgeInvincibleDuration;
+            player.isCharging    = willBeCharging;    // PlayerSystem（次フレーム）が向き直り・武器切り替えの抑制に読む
 
 #if defined(_DEBUG)
             //-------------------------------------------------------------
