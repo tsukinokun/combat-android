@@ -26,7 +26,8 @@ namespace CombatAndroid::UI {
     //! 画面固定のHUD
     constexpr int kHudBarBackground = 200;    //!< HP/EXPバーの背景
     constexpr int kHudBarFill       = 201;    //!< HP/EXPバーの残量
-    constexpr int kHudText          = 210;    //!< HP/EXPの数値・生存時間
+    constexpr int kHudSkillIcon     = 202;    //!< EXPバーの下に並ぶ取得済みスキルのアイコン枠
+    constexpr int kHudText          = 210;    //!< HP/EXPの数値・生存時間・取得済みスキル名
 
     //! 画面右の取得ログ（武器取得・レベルアップ等が右からスライドインして上へ消える）。
     //! スキル選択の暗転板(400)より奥なので、レベルアップメニュー表示中はモーダルの下に沈む

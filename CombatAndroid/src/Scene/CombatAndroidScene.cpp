@@ -27,6 +27,7 @@
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
 #include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerSkillHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/GameLogComponent.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
@@ -47,6 +48,7 @@
 #include <CombatAndroid/ECS/System/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameOverSystem.hpp>
@@ -275,6 +277,9 @@ namespace CombatAndroid {
             enemyWeaponDropSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
+        // EXPバーの下に並べる取得済みスキル一覧。取得段階はSkillSelectSystem（SystemPriority::SkillSelect）が
+        // 同じフレームの手前で確定させているため、選んだ内容がその回のフレームから一覧へ載る
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSkillHudSystem>(), (int)SystemPriority::PlayerHud);
         {
             // GameLogEventを購読して画面右の取得ログを流す。発火元（PickupSystem=Gameplay、
             // ExpOrbSystem=ExpOrb、SkillSelectSystem=SkillSelect、RunClockSystem=RunClock）が
@@ -831,6 +836,23 @@ namespace CombatAndroid {
             dangerRankFont.sortOrder         = CombatAndroid::UI::kHudText;
 
             hud.dangerRankTextEntity = dangerRankEntity;
+
+            //-------------------------------------------------------------
+            // EXPバーの下に並べる「取得済みスキル一覧」。1行＝「アイコン枠スプライト＋文字」で、
+            // スキルの種類数ぶんを非表示（スケール0／空文字）で作っておき、
+            // PlayerSkillHudSystemが取得済みのものだけを上から詰めて書き込む。
+            //
+            // 今はアイコン枠にWhitePixelを入れてスキル色で着色した四角を出しているだけだが、
+            // スキルごとのアイコン画像を用意したらSystem側の差し替え先を変えるだけで絵になる
+            // （バー・文字と同じ作りなので、makeBarSprite／makeHudTextをそのまま使える）
+            //-------------------------------------------------------------
+            CombatAndroid::ECS::PlayerSkillHudComponent& skillHud =
+                registry.AddComponent<CombatAndroid::ECS::PlayerSkillHudComponent>(playerEntity);
+
+            for(CombatAndroid::ECS::PlayerSkillHudRow& skillHudRow : skillHud.rows) {
+                skillHudRow.iconEntity = makeBarSprite(CombatAndroid::UI::kHudSkillIcon);
+                skillHudRow.textEntity = makeHudText();
+            }
         }
 
         //--------------------------------------------------------------
