@@ -20,6 +20,7 @@ namespace CombatAndroid::ECS {
         WeaponLevelUp,         //!< 武器のレベルアップ（同じ種類を吸収した）
         PlayerLevelUp,         //!< プレイヤーのレベルアップ
         SkillAcquired,         //!< スキル取得
+        DangerRankUp,          //!< 危険度ランクの上昇（時間経過で敵が強くなった）
         Count,
     };
 

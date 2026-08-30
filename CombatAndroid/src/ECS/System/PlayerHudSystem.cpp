@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
+#include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -38,6 +39,16 @@ namespace CombatAndroid::ECS {
 
         const hlslpp::float4 kBarBackgroundColor = hlslpp::float4(0.12f, 0.12f, 0.12f, 0.85f);    //!< 背景（暗いグレー半透明）
         const hlslpp::float4 kExpBarFillColor    = hlslpp::float4(0.35f, 0.65f, 1.0f, 1.0f);       //!< EXPバーの残量色（水色）
+
+        //! 危険度テキストの基準拡大率。昇格演出はこの値を一時的に上回る
+        constexpr float kDangerRankFontScale = 1.0f;
+
+        //! 危険度テキストの色が赤へ振り切るランク。ランク数に上限が無いため、
+        //! これ以上は色が変わらない（色で段を数えさせる意図は無く、危険さの気配だけ伝える）
+        constexpr float kDangerRankColorFull = 10.0f;
+
+        //! 昇格直後に文字を大きくする割合。0.45で最大1.45倍
+        constexpr float kRankUpFlashScaleGain = 0.45f;
 
         //-------------------------------------------------------------
         //! @brief  1本のバー（背景・残量の2エンティティ）の見た目を更新する
@@ -89,11 +100,12 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PlayerHudSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
-        auto view = registry.View<PlayerComponent, HealthComponent, PlayerExperienceComponent, PlayerHudComponent>();
+        auto view = registry.View<PlayerComponent, HealthComponent, PlayerExperienceComponent, PlayerHudComponent, RunClockComponent>();
         for(entt::entity entity : view) {
             const auto& health = view.get<HealthComponent>(entity);
             const auto& exp     = view.get<PlayerExperienceComponent>(entity);
             auto&       hud     = view.get<PlayerHudComponent>(entity);
+            const auto& clock   = view.get<RunClockComponent>(entity);
 
             //-------------------------------------------------------------
             // HPバー：残量に応じて緑→赤へ補間する（HealthBarSystemと同じ考え方）
@@ -138,14 +150,12 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 生存時間：死亡していない間だけ加算し、mm:ss形式で画面上部中央に表示する
+            // 生存時間：mm:ss形式で画面上部中央に表示する。
+            // 加算はRunClockSystemが行うため、ここは表示だけを受け持つ
             //-------------------------------------------------------------
-            if(!health.isDead)
-                hud.survivalTime += deltaTime;
-
             if(hud.survivalTimeTextEntity != entt::null) {
                 if(auto* survivalTimeFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(hud.survivalTimeTextEntity)) {
-                    int totalSeconds = static_cast<int>(hud.survivalTime);
+                    int totalSeconds = static_cast<int>(clock.elapsedSeconds);
                     int minutes       = totalSeconds / 60;
                     int seconds       = totalSeconds % 60;
 
@@ -155,6 +165,36 @@ namespace CombatAndroid::ECS {
                         secondsText.insert(0, L"0");
 
                     survivalTimeFont->text = minutesText + L":" + secondsText;
+                }
+            }
+
+            //-------------------------------------------------------------
+            // 危険度：生存時間の真下に出す。時間が経つほど敵が強くなることを
+            // プレイヤーへ見せておかないと、難易度上昇が原因不明の理不尽になる。
+            // 生存時間の「横」ではなく「下」に置くのは、横並びにすると
+            // "12:34" の描画幅を知る必要があり、桁が増えた瞬間に重なるため
+            //-------------------------------------------------------------
+            if(hud.dangerRankTextEntity != entt::null) {
+                if(auto* rankFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(hud.dangerRankTextEntity)) {
+                    rankFont->text = L"危険度 " + std::to_wstring(clock.dangerRank);
+
+                    // ランクが上がるほど白→赤へ寄せる。段数に上限が無いので
+                    // kDangerRankColorFullで頭打ちにする
+                    float rankT = std::clamp(static_cast<float>(clock.dangerRank - 1) / kDangerRankColorFull, 0.0f, 1.0f);
+                    rankFont->color = hlslpp::float4(1.0f, 1.0f - 0.65f * rankT, 1.0f - 0.75f * rankT, 1.0f);
+                }
+
+                //-----------------------------------------------------
+                // 昇格直後だけ文字を一瞬大きくする。FontRendererSystemは
+                // worldMatrixのX軸長を拡大率として読むため、TransformComponent::scaleを
+                // 書けばよい（GameLogSystemのスライドインと同じ作法）
+                //-----------------------------------------------------
+                if(auto* rankTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.dangerRankTextEntity)) {
+                    float flash = std::clamp(clock.rankUpFlashTimer / kRankUpFlashDuration, 0.0f, 1.0f);
+                    float scale = kDangerRankFontScale * (1.0f + kRankUpFlashScaleGain * flash * flash);
+
+                    rankTransform->scale = hlslpp::float3(scale, scale, 1.0f);
+                    rankTransform->dirty = true;
                 }
             }
         }

@@ -23,6 +23,7 @@
 #include <CombatAndroid/ECS/Component/ExpOrbComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
+#include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
 #include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
@@ -46,6 +47,7 @@
 #include <CombatAndroid/ECS/System/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameOverSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
@@ -139,6 +141,10 @@ namespace CombatAndroid {
         // システムの生成と追加
         //--------------------------------------------------------------
         enum class SystemPriority : int {
+            RunClock = -5,                // 走行の経過時間と危険度ランクを進める。全システムの先頭に置く。
+                                          // EnemySpawnが同じフレームでこの危険度を読んで敵を強化し、
+                                          // PlayerHudが同じ値を表示するため、ここが最初に進んでいないと
+                                          // 「画面に出ている危険度」と「実際に湧いた敵の危険度」が1フレームずれる
             EnemySpawn = -4,               // サバイバーの湧き潰し（フォグの外から比重抽選で敵を湧かせる）。
                                           // 生成・破棄はStressTestと同じく全システムの先頭で済ませ、その回の
                                           // フレームからTransform/Animation/Physicsが新しい敵を正しく扱えるように
@@ -213,6 +219,9 @@ namespace CombatAndroid {
         // 生成・移動したライトのworldMatrixが1フレーム遅れ、LightSystemが古い位置を読む
         // モーションブラー用の前フレーム退避は、TransformSystem/AnimationSystemが
         // 今フレームの値で上書きする前に読む必要があるので最初に登録する
+        //
+        // 走行の経過時間と危険度ランクは、それらを読む湧き潰しより先に進めておく
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::RunClockSystem>(), (int)SystemPriority::RunClock);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySpawnDirectorSystem>(), (int)SystemPriority::EnemySpawn);
 #ifdef TSUKINO_ENABLE_STRESS_TEST
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyStressTestSystem>(), (int)SystemPriority::StressTest);
@@ -268,8 +277,9 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
         {
             // GameLogEventを購読して画面右の取得ログを流す。発火元（PickupSystem=Gameplay、
-            // ExpOrbSystem=ExpOrb、SkillSelectSystem=SkillSelect）が全てここより手前に居るので
-            // 同じフレームで拾えて表示が遅れず、位置を書き込むTransformUIより手前でもある
+            // ExpOrbSystem=ExpOrb、SkillSelectSystem=SkillSelect、RunClockSystem=RunClock）が
+            // 全てここより手前に居るので同じフレームで拾えて表示が遅れず、
+            // 位置を書き込むTransformUIより手前でもある
             auto gameLogSystem = std::make_shared<CombatAndroid::ECS::GameLogSystem>();
             m_scene.AddSystem(gameLogSystem, (int)SystemPriority::PlayerHud);
             gameLogSystem->Initialize(eventBus);
@@ -757,6 +767,10 @@ namespace CombatAndroid {
                 return textEntity;
             };
 
+            // 走行の経過時間と危険度ランク。RunClockSystemだけが書き込み、
+            // PlayerHudSystem（表示）とEnemySpawnDirectorSystem（敵の強化）が読む
+            registry.AddComponent<CombatAndroid::ECS::RunClockComponent>(playerEntity);
+
             CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);
             hud.hpBarBackgroundEntity                    = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
             hud.hpBarFillEntity                          = makeBarSprite(CombatAndroid::UI::kHudBarFill);
@@ -790,6 +804,33 @@ namespace CombatAndroid {
             survivalTimeFont.sortOrder         = CombatAndroid::UI::kHudText;
 
             hud.survivalTimeTextEntity = survivalTimeEntity;
+
+            //-------------------------------------------------------------
+            // 生存時間のすぐ下に置く危険度テキスト。時間経過で敵が強くなることを
+            // 見せておかないと、難易度上昇が原因不明の理不尽になる。
+            // 横並びにしないのは、"12:34" の描画幅を知らないと重なるため
+            //-------------------------------------------------------------
+            //! 生存時間テキストの上端からの縦オフセット（ピクセル）。フォントの行高ぶん下げる
+            constexpr float kDangerRankTextOffsetY = 34.0f;
+
+            Tsukino::ECS::Entity dangerRankEntity = m_scene.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& dangerRankTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(dangerRankEntity);
+            dangerRankTransform.position = hlslpp::float3(survivalTimeScreenCenterX, 24.0f + kDangerRankTextOffsetY, 0.0f);
+            dangerRankTransform.dirty     = true;
+
+            Tsukino::BuiltIn::ECS::FontComponent& dangerRankFont =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(dangerRankEntity);
+            dangerRankFont.text              = L"";
+            dangerRankFont.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            dangerRankFont.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+            dangerRankFont.outlineWidth      = 2.0f;
+            dangerRankFont.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
+            dangerRankFont.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Top;
+            dangerRankFont.sortOrder         = CombatAndroid::UI::kHudText;
+
+            hud.dangerRankTextEntity = dangerRankEntity;
         }
 
         //--------------------------------------------------------------

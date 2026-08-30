@@ -51,6 +51,7 @@ namespace CombatAndroid::ECS {
             {L"武器レベルアップ", hlslpp::float4(1.00f, 0.60f, 0.25f, 1.0f)},    // 橙
             {L"レベルアップ", hlslpp::float4(0.40f, 0.80f, 1.00f, 1.0f)},        // 水色
             {L"スキル取得", hlslpp::float4(0.75f, 0.55f, 1.00f, 1.0f)},          // 紫
+            {L"危険度上昇", hlslpp::float4(0.95f, 0.30f, 0.30f, 1.0f)},          // 赤
         };
 
         // 種別を足したのに表へ書き忘れる事故を防ぐ

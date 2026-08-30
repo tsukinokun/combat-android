@@ -24,6 +24,10 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::Entity expTextEntity          = entt::null;
 
         Tsukino::ECS::Entity survivalTimeTextEntity = entt::null;    //!< 画面上部中央の生存時間テキスト
-        float                survivalTime           = 0.0f;         //!< 生存時間（秒）。死亡すると加算を止める
+
+        //! 生存時間テキストの真下に出す危険度テキスト。
+        //! 表示する値はRunClockComponentが持つ（生存時間もそちらへ1本化したため、
+        //! ここには時間を数えるメンバは無い）
+        Tsukino::ECS::Entity dangerRankTextEntity = entt::null;
     };
 }    // namespace CombatAndroid::ECS

@@ -40,11 +40,15 @@ namespace CombatAndroid::ECS {
         //! @brief 敵を1体、抽選テーブルに従って湧かせる関数
         //! @param registry       [in] エンティティレジストリ
         //! @param context        [in] エンジンコンテキスト
-        //! @param playerPosition [in] プレイヤーの現在位置
+        //! @param playerPosition  [in] プレイヤーの現在位置
+        //! @param elapsedSeconds  [in] 走行の経過秒数（種類の解禁判定に使う）
+        //! @param dangerRank      [in] 現在の危険度ランク（EnemyDifficultyTableの倍率を引くのに使う）
         //-------------------------------------------------------------
         void SpawnOne(Tsukino::ECS::Registry& registry,
                       Tsukino::EngineIntegration::EngineContext& context,
-                      const hlslpp::float3& playerPosition);
+                      const hlslpp::float3& playerPosition,
+                      float elapsedSeconds,
+                      int dangerRank);
 
         //-------------------------------------------------------------
         //! @brief  プレイヤーを中心に、フォグの外側の湧き位置を1つ決める関数
@@ -134,7 +138,9 @@ namespace CombatAndroid::ECS {
         //! 乱数生成器。エンジン側に共通の乱数ユーティリティが無いため本Systemが自前で持つ
         std::mt19937 m_rng{std::random_device{}()};
 
-        float m_elapsedSeconds = 0.0f;    //!< シーン開始からの経過秒数（比重の解禁と間隔の詰めに使う）
-        float m_spawnTimer     = 0.0f;    //!< 次の湧きまでの残り秒数
+        //! 次の湧きまでの残り秒数。
+        //! 経過秒数は本Systemでは持たず、RunClockComponent（RunClockSystemが進める）を読む。
+        //! HUDへ出す危険度と、実際に湧く敵へ適用される危険度を必ず一致させるため
+        float m_spawnTimer = 0.0f;
     };
 }    // namespace CombatAndroid::ECS

@@ -9,7 +9,9 @@
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/SpawnedEnemyComponent.hpp>
+#include <CombatAndroid/ECS/Utility/EnemyDifficultyTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawnTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 
@@ -57,7 +59,17 @@ namespace CombatAndroid::ECS {
         const HealthComponent* playerHealth = registry.try_get<HealthComponent>(playerEntity);
         const bool             playerDead   = playerHealth && playerHealth->isDead;
 
-        m_elapsedSeconds += deltaTime;
+        //---------------------------------------------------------
+        // 経過秒数と危険度はRunClockSystem（SystemPriority::RunClock＝本Systemより手前）が
+        // 進めたものをそのまま読む。本Systemが自前で数えていた頃は、HUDの生存時間と
+        // 別々に加算されていて死亡後にズレていた
+        //---------------------------------------------------------
+        const RunClockComponent* runClock = registry.try_get<RunClockComponent>(playerEntity);
+        if(!runClock)
+            return;
+
+        const float elapsedSeconds = runClock->elapsedSeconds;
+        const int   dangerRank     = runClock->dangerRank;
 
         //---------------------------------------------------------
         // (1) 間引き → (2) 数える → (3) 湧かせる の順で行う。
@@ -66,7 +78,7 @@ namespace CombatAndroid::ECS {
         //---------------------------------------------------------
         CullDistantEnemies(registry, playerPosition);
 
-        if(playerDead || m_elapsedSeconds < kWarmupSeconds)
+        if(playerDead || elapsedSeconds < kWarmupSeconds)
             return;
 
         m_spawnTimer -= deltaTime;
@@ -74,7 +86,7 @@ namespace CombatAndroid::ECS {
             return;
 
         // 経過時間で湧き間隔を詰める（線形）
-        const float rampT = std::clamp(m_elapsedSeconds / kIntervalRampSeconds, 0.0f, 1.0f);
+        const float rampT = std::clamp(elapsedSeconds / kIntervalRampSeconds, 0.0f, 1.0f);
         m_spawnTimer       = kIntervalStart + (kIntervalEnd - kIntervalStart) * rampT;
 
         //---------------------------------------------------------
@@ -84,7 +96,7 @@ namespace CombatAndroid::ECS {
         //---------------------------------------------------------
         int liveCount = CountLiveEnemies(registry);
         for(int i = 0; i < kSpawnBatchSize && liveCount < kMaxLiveEnemies; ++i) {
-            SpawnOne(registry, *ctx, playerPosition);
+            SpawnOne(registry, *ctx, playerPosition, elapsedSeconds, dangerRank);
             ++liveCount;
         }
     }
@@ -94,8 +106,10 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void EnemySpawnDirectorSystem::SpawnOne(Tsukino::ECS::Registry& registry,
                                             Tsukino::EngineIntegration::EngineContext& context,
-                                            const hlslpp::float3& playerPosition) {
-        const EnemySpawnTableEntry* entry = PickEnemyType(m_rng, m_elapsedSeconds);
+                                            const hlslpp::float3& playerPosition,
+                                            float                 elapsedSeconds,
+                                            int                   dangerRank) {
+        const EnemySpawnTableEntry* entry = PickEnemyType(m_rng, elapsedSeconds);
         if(!entry)
             return;
 
@@ -104,6 +118,14 @@ namespace CombatAndroid::ECS {
         // 索敵距離の上書き。種類ごとの既定値（600）のままだとフォグの外から
         // 近づいてこないため、テーブルに何が増えてもここで一律に効かせる
         config.detectRange = kChaseDetectRange;
+
+        //-----------------------------------------------------
+        // ★ 危険度ランクに応じてHP・EXP・攻撃力・ひるみ閾値を底上げする ★
+        //   ここを通らない生成経路（シーン手置き・F1の負荷試験）は素の値のままになる。
+        //   負荷試験は1体あたりのコストを一定に保つ必要があり、手置きは見た目確認用なので、
+        //   スケーリングを本Systemだけの責務に閉じておくのが正しい
+        //-----------------------------------------------------
+        ApplyEnemyDifficulty(config, dangerRank);
 
         // 全個体の再生位置をずらす。揃っていると群れの足の運びが完全に一致し、
         // AnimationSystemの分岐も毎フレーム同じになって不自然に見える
