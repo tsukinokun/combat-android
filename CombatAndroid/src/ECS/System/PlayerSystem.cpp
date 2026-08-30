@@ -16,6 +16,7 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Core/Input/InputSystem.hpp>
+#include <Tsukino/Core/Math/MathHelper.hpp>
 
 #include <hlsl++.h>
 #include <cmath>
@@ -140,7 +141,7 @@ namespace CombatAndroid::ECS {
                     // このrotationはPhysicsSystemがJoltへ渡す（Kinematicセンサー同期・CharacterVirtual同期の
                     // 両方）ほか、worldMatrixの生成や武器のアタッチ計算でも読まれるため、
                     // 単位クォータニオンであることをここで保証しておく
-                    transform.rotation                 = hlslpp::normalize(hlslpp::slerp(transform.rotation, targetRotation, turnT));
+                    transform.rotation                 = hlslpp::normalize(Tsukino::Core::Math::SlerpShortestPath(transform.rotation, targetRotation, turnT));
                     transform.dirty                     = true;
                 }
             } else {

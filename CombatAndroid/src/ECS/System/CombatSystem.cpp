@@ -29,6 +29,7 @@
 #include <Tsukino/Engine/Asset/Model/ModelAsset.hpp>
 #include <Tsukino/GraphicsCommon/Model/ModelData.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
+#include <Tsukino/Core/Math/MathHelper.hpp>
 #ifdef _DEBUG
 #include <Tsukino/Renderer/Renderer.hpp>
 #include <Tsukino/GraphicsCommon/Vertex/DebugVertex.hpp>
@@ -319,7 +320,7 @@ namespace CombatAndroid::ECS {
                 // なので、実際に振られる手ボーンにそのまま適用するとテコの原理で武器が大きく・速く振り回されてしまう
                 float              trackingWeight = weapon.handTrackingWeight + (weapon.attackHandTrackingWeight - weapon.handTrackingWeight) * weapon.attackBlend;
                 hlslpp::float3     gripOffset     = hlslpp::lerp(weapon.localOffset, weapon.attackLocalOffset, weapon.attackBlend);
-                hlslpp::quaternion gripRotOffset = hlslpp::slerp(weapon.gripRotationOffset, weapon.attackGripRotationOffset, weapon.attackBlend);
+                hlslpp::quaternion gripRotOffset = Tsukino::Core::Math::SlerpShortestPath(weapon.gripRotationOffset, weapon.attackGripRotationOffset, weapon.attackBlend);
 
                 // ボーンが解決できていれば手のボーンへアタッチする。できなければ従来通り
                 // ルートTransformへ固定オフセットで追従させる（フォールバック）。
@@ -361,7 +362,7 @@ namespace CombatAndroid::ECS {
                         // （アニメーションクリップのボーン姿勢が信頼できない/振り幅が大きい場合に下げて使う。
                         //   0にすると所有者のルートTransformにのみ追従する）
                         hlslpp::float3     worldPos = hlslpp::lerp(ownerTransform.position, handWorldPos, trackingWeight);
-                        hlslpp::quaternion worldRot = hlslpp::slerp(ownerTransform.rotation, handWorldRot, trackingWeight);
+                        hlslpp::quaternion worldRot = Tsukino::Core::Math::SlerpShortestPath(ownerTransform.rotation, handWorldRot, trackingWeight);
 
                         // 握り位置・向きの微調整（WeaponComponentのオフセットをボーンローカル空間で適用）。
                         // gripRotOffsetは「手のローカル軸まわりの補正」なので、上と同じ理由で
@@ -403,7 +404,7 @@ namespace CombatAndroid::ECS {
                     hlslpp::quaternion floatRotation = hlslpp::mul(ownerTransform.rotation, localSway);
 
                     // attackBlendが1に近いほどボーン追従の姿勢（targetRotation）、0に近いほど浮遊姿勢へ
-                    targetRotation = hlslpp::slerp(floatRotation, targetRotation, weapon.attackBlend);
+                    targetRotation = Tsukino::Core::Math::SlerpShortestPath(floatRotation, targetRotation, weapon.attackBlend);
 
                     // 上下方向の漂い（ワールドYはどの向きでも共通なのでそのまま加算）。
                     // attackBlendが1に近づくほど自然にゼロへ収束させる
@@ -469,7 +470,7 @@ namespace CombatAndroid::ECS {
                     float positionLerpT = 1.0f - std::exp(-positionSpeed * deltaTime);
                     float rotationLerpT = 1.0f - std::exp(-rotationSpeed * deltaTime);
                     transform.position   = hlslpp::lerp(transform.position, targetPosition, positionLerpT);
-                    transform.rotation   = hlslpp::slerp(transform.rotation, targetRotation, rotationLerpT);
+                    transform.rotation   = Tsukino::Core::Math::SlerpShortestPath(transform.rotation, targetRotation, rotationLerpT);
                 }
                 transform.dirty = true;
 
@@ -568,7 +569,7 @@ namespace CombatAndroid::ECS {
                         for(int step = 1; step <= substeps; ++step) {
                             float              t          = static_cast<float>(step) / static_cast<float>(substeps);
                             hlslpp::float3     stepPos     = hlslpp::lerp(weapon.prevAttackPosition, transform.position, t);
-                            hlslpp::quaternion stepRot     = hlslpp::normalize(hlslpp::slerp(weapon.prevAttackRotation, transform.rotation, t));
+                            hlslpp::quaternion stepRot     = hlslpp::normalize(Tsukino::Core::Math::SlerpShortestPath(weapon.prevAttackRotation, transform.rotation, t));
                             hlslpp::float3     stepBladeDir = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), stepRot);
                             hlslpp::float3     stepCenter   = stepPos + stepBladeDir * halfLen;
 

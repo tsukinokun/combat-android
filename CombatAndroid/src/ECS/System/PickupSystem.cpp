@@ -20,6 +20,7 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Core/Input/InputSystem.hpp>
+#include <Tsukino/Core/Math/MathHelper.hpp>
 
 #include <hlsl++.h>
 #include <algorithm>
@@ -140,7 +141,7 @@ namespace CombatAndroid::ECS {
 
                 // 姿勢も装備武器の向きへ指数減衰で滑らかに近づける（CombatSystemの武器アタッチと同じ考え方）
                 float rotationLerpT = 1.0f - std::exp(-kAbsorbRotationLerpSpeed * deltaTime);
-                transform.rotation  = hlslpp::slerp(transform.rotation, targetRotation, rotationLerpT);
+                transform.rotation  = Tsukino::Core::Math::SlerpShortestPath(transform.rotation, targetRotation, rotationLerpT);
                 transform.dirty     = true;
 
                 bool reached  = distance <= kAbsorbReachDistance;
