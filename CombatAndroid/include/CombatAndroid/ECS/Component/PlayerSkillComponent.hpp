@@ -28,7 +28,15 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         float expGainMultiplier = 1.0f;    //!< 強欲：ExpOrbSystemが吸収時のexpValueに掛ける
         float healPerSoul       = 0.0f;    //!< 暴食：ExpOrbSystemが吸収時に回復するHP
-        float attackMultiplier  = 1.0f;    //!< 憤怒：CombatSystemが与ダメージに掛ける
+
+        //! 憤怒（上げる）と怠惰（下げる）の両方が書き込む唯一の値。
+        //! そのためRecalculateSkillStats側は代入ではなく乗算で積んでいる（テーブルの並び順に依存させないため）
+        float attackMultiplier = 1.0f;    //!< CombatSystemが与ダメージに掛ける
+
+        float damageTakenMultiplier = 1.0f;    //!< 傲慢：CombatSystemが被ダメージに掛ける（1.0未満で軽減）
+        float lifeStealRatio        = 0.0f;    //!< 嫉妬：CombatSystemが与ダメージに掛けてHPへ変換する割合
+        float moveSpeedMultiplier   = 1.0f;    //!< 色欲：PlayerSystemが移動速度に掛ける
+        float healPerSecond         = 0.0f;    //!< 怠惰：PlayerSystemが毎秒回復させるHP
     };
 
     //-------------------------------------------------------------

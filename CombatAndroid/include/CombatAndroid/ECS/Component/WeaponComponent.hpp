@@ -120,6 +120,14 @@ namespace CombatAndroid::ECS {
 
         std::vector<Tsukino::ECS::Entity> hitEnemiesThisAttack;    //!< このアタックで既にヒットした敵の記録（多重ヒット防止）。isActiveがtrueになった瞬間のみクリアする
 
+        //-------------------------------------------------------------
+        // スキル「嫉妬」がこのアタックで既に吸収したHPの合計。hitEnemiesThisAttackと同じ
+        // タイミング（アタック開始時）にリセットする。
+        // AoE対応の武器（warhammerの3段目）は一振りで10体以上を巻き込むことがあり、
+        // 上限を設けないと1回の攻撃で最大HPを何周も回復してしまうため、その頭打ち判定に使う
+        //-------------------------------------------------------------
+        float lifeStealHealedThisAttack = 0.0f;
+
         bool  isAttacking = false;    //!< 攻撃アニメーション再生中か。プレイヤーの武器はPlayerAnimationSystemが毎フレーム、
                                       //!< 敵の持ち武器はEnemyAnimationSystemがAttackステートの出入りでセットする。
                                       //!< trueの間はfloatEnabledによる浮遊演出を止め、attackHandTrackingWeightで手に追従させる

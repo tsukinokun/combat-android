@@ -58,6 +58,16 @@ namespace CombatAndroid::ECS {
         constexpr float kHpBarVisibleDuration = 3.0f;    //!< 被弾時に頭上HPバーを表示し続ける時間（秒）。HealthBarSystemが減算する
 
         //-------------------------------------------------------------
+        // スキル「嫉妬」が1回のアタックで吸収できるHPの上限（最大HPに対する割合）。
+        //
+        // 吸収量は与ダメージ比例なので、AoE対応武器（warhammerの3段目。damageMultiplier=2.0）で
+        // 群れを巻き込むとヒット数ぶん青天井に伸びてしまう。ヒット1発ずつに上限を付けても
+        // 巻き込み数で総量が伸びるのは変わらないため、アタック単位の総量で頭打ちにする
+        // （消費量はWeaponComponent::lifeStealHealedThisAttackが持つ）
+        //-------------------------------------------------------------
+        constexpr float kLifeStealCapRatioPerAttack = 0.25f;
+
+        //-------------------------------------------------------------
         //! @brief  1体のエンティティへヒットストップを要求/更新する。
         //!         画面全体ではなく対象エンティティだけをHitStopSystemが減速させる
         //! @param  entity   [in] 対象エンティティ（プレイヤーまたは敵）。entt::nullなら何もしない
@@ -304,7 +314,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity,
                                     WeaponComponent& weapon, entt::entity hitEntity, const hlslpp::float3& hitPositionFallback,
-                                    float skillAttackMultiplier) {
+                                    float skillAttackMultiplier, float skillLifeStealRatio) {
             if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
                 return;
 
@@ -333,6 +343,26 @@ namespace CombatAndroid::ECS {
             // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
             if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
                 enemy.pendingKnockback = true;
+
+            //---------------------------------------------------------
+            // 嫉妬（スキル）：与えたダメージの一部を持ち主のHPへ変換する。
+            // AoEで群れを巻き込んだ一撃が全快を何周もしないよう、アタック単位で総量を頭打ちにする
+            //---------------------------------------------------------
+            if(skillLifeStealRatio > 0.0f && weapon.owner != entt::null) {
+                if(auto* ownerHealth = registry.try_get<HealthComponent>(weapon.owner)) {
+                    if(!ownerHealth->isDead) {
+                        const float capThisAttack = ownerHealth->maxHealth * kLifeStealCapRatioPerAttack;
+                        const float allowance     = std::max(capThisAttack - weapon.lifeStealHealedThisAttack, 0.0f);
+                        const float healAmount    = std::min(dealtDamage * skillLifeStealRatio, allowance);
+
+                        // 実際に増えた分だけを上限の消費として計上する
+                        // （HPが満タンで回復しきれなかった分まで消費すると、続くヒットが不当に吸収できなくなる）
+                        const float healthBefore   = ownerHealth->currentHealth;
+                        ownerHealth->currentHealth = std::min(ownerHealth->currentHealth + healAmount, ownerHealth->maxHealth);
+                        weapon.lifeStealHealedThisAttack += ownerHealth->currentHealth - healthBefore;
+                    }
+                }
+            }
 
             hlslpp::float3 hitPosition = hitPositionFallback;
             if(registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
@@ -584,6 +614,7 @@ namespace CombatAndroid::ECS {
                 // 新しいアタックの開始。ヒット済み記録はここでのみクリアする
                 // （毎フレームの判定側でクリアすると同じ敵に何度もヒットしてしまう）
                 weapon.hitEnemiesThisAttack.clear();
+                weapon.lifeStealHealedThisAttack = 0.0f;    // 嫉妬の吸収上限もアタック単位なので同じタイミングで戻す
 
                 // 新しいアタック開始フレームも前フレーム姿勢(浮遊/追従姿勢)からサブステップ補間できるよう、
                 // 追従計算前に保存しておいた姿勢をprevとして与える（falseにリセットして初回フレームだけ
@@ -604,13 +635,16 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 憤怒（スキル）の攻撃力倍率。持ち主から引く。直線カプセル判定・AoE判定の
-            // 両方で使うため、どちらのブロックに入る前に1回だけ求めておく
+            // 憤怒・怠惰（攻撃力倍率）と嫉妬（吸収割合）のスキル値。持ち主から引く。
+            // 直線カプセル判定・AoE判定の両方で使うため、どちらのブロックに入る前に1回だけ求めておく
             //-------------------------------------------------------------
             float skillAttackMultiplier = 1.0f;
+            float skillLifeStealRatio   = 0.0f;
             if(weapon.owner != entt::null) {
-                if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner))
+                if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner)) {
                     skillAttackMultiplier = ownerSkills->attackMultiplier;
+                    skillLifeStealRatio   = ownerSkills->lifeStealRatio;
+                }
             }
 
             if(weapon.isActive) {
@@ -662,7 +696,8 @@ namespace CombatAndroid::ECS {
                     }
 
                     for(entt::entity hitEntity : overlapping) {
-                        ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier);
+                        ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier,
+                                               skillLifeStealRatio);
                     }
 
                     weapon.prevAttackPosition = transform.position;
@@ -697,7 +732,8 @@ namespace CombatAndroid::ECS {
                             transform.position, sphereRotation, weapon.areaAttackRadius, kAreaAttackCapsuleHalfHeight);
 
                         for(entt::entity hitEntity : areaHits) {
-                            ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier);
+                            ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier,
+                                                   skillLifeStealRatio);
                         }
 
                         if(ctx->effectSystem && weapon.areaAttackEffectAsset.IsValid()) {
@@ -728,11 +764,16 @@ namespace CombatAndroid::ECS {
         // 回避の無敵時間中か。本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、
         // ここで読めるのは今フレームの確定値になる
         bool             playerInvincible = false;
+        // 傲慢（スキル）の被ダメージ倍率。スキルを持たない場合に備えて既定は等倍
+        float            playerDamageTakenMultiplier = 1.0f;
         if(playerEntity != entt::null) {
             playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
             playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
             playerController = &registry.GetComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity);
             playerInvincible = registry.GetComponent<PlayerComponent>(playerEntity).isInvincible;
+
+            if(auto* playerSkills = registry.try_get<PlayerSkillComponent>(playerEntity))
+                playerDamageTakenMultiplier = playerSkills->damageTakenMultiplier;
         }
 
         //-------------------------------------------------------------
@@ -872,7 +913,12 @@ namespace CombatAndroid::ECS {
             // 無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
             // 同じ判定区間内であれば改めて当たり得る
             if(isHit && !playerInvincible) {
-                playerHealth->currentHealth -= hitbox.damage;
+                // 傲慢（スキル）で軽減した後の値を実ダメージとして扱う。
+                // 以降のダメージ表示（PlayerDamagedEvent経由）もこの値を使い、
+                // 画面に出る数字と実際のHPの減りを一致させる
+                const float takenDamage = hitbox.damage * playerDamageTakenMultiplier;
+
+                playerHealth->currentHealth -= takenDamage;
                 if(playerHealth->currentHealth <= 0.0f) {
                     playerHealth->currentHealth = 0.0f;
                     playerHealth->isDead         = true;
@@ -883,7 +929,7 @@ namespace CombatAndroid::ECS {
                 // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする。
                 // 画面全体ではなく、プレイヤーと攻撃した敵だけを止める
                 if(eventBus) {
-                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, hitbox.damage, sweepPoint});
+                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, takenDamage, sweepPoint});
                 }
                 ApplyHitStop(registry, playerEntity, kPlayerHitStopDuration, kPlayerHitStopScale);
                 ApplyHitStop(registry, enemyEntity, kPlayerHitStopDuration, kPlayerHitStopScale);

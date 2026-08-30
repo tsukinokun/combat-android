@@ -49,9 +49,53 @@ namespace CombatAndroid::ECS {
             {L"攻撃力 +75%", 0.75f},
         };
 
+        //! 傲慢：被ダメージに (1.0 - value) を掛ける。
+        //! 刻みを一定にせず先細りさせているのは、被ダメージ軽減が実効HPに対して非線形なため
+        //! （-30%は実効HP1.43倍だが-50%なら2.0倍）。等間隔で伸ばすと終盤の1段だけが極端に効いてしまう
+        constexpr SkillLevelEntry kPrideLevels[] = {
+            {L"被ダメージ -8%", 0.08f},
+            {L"被ダメージ -15%", 0.15f},
+            {L"被ダメージ -21%", 0.21f},
+            {L"被ダメージ -26%", 0.26f},
+            {L"被ダメージ -30%", 0.30f},
+        };
+
+        //! 嫉妬：敵へ与えたダメージにvalueを掛けた分だけ自分のHPを回復する（最大HPは超えない）
+        constexpr SkillLevelEntry kEnvyLevels[] = {
+            {L"与ダメージの3%をHPに変換", 0.03f},
+            {L"与ダメージの6%をHPに変換", 0.06f},
+            {L"与ダメージの9%をHPに変換", 0.09f},
+            {L"与ダメージの12%をHPに変換", 0.12f},
+            {L"与ダメージの15%をHPに変換", 0.15f},
+        };
+
+        //! 色欲：移動速度に (1.0 + value) を掛ける
+        constexpr SkillLevelEntry kLustLevels[] = {
+            {L"移動速度 +8%", 0.08f},
+            {L"移動速度 +16%", 0.16f},
+            {L"移動速度 +24%", 0.24f},
+            {L"移動速度 +32%", 0.32f},
+            {L"移動速度 +40%", 0.40f},
+        };
+
+        //! 怠惰：毎秒valueぶんHPが回復する代わりに、攻撃力へ (1.0 - value2) が掛かる。
+        //! 唯一の「諸刃」スキル。回復量は等間隔に伸ばし、ペナルティの伸びは先細りさせてある
+        //! （深く取るほど1段あたりの損が減るので、中途半端に1枚だけ取るより伸ばしきる方が報われる）
+        constexpr SkillLevelEntry kSlothLevels[] = {
+            {L"毎秒 HP+0.6 / 攻撃力 -5%", 0.6f, 0.05f},
+            {L"毎秒 HP+1.2 / 攻撃力 -8%", 1.2f, 0.08f},
+            {L"毎秒 HP+1.8 / 攻撃力 -11%", 1.8f, 0.11f},
+            {L"毎秒 HP+2.4 / 攻撃力 -14%", 2.4f, 0.14f},
+            {L"毎秒 HP+3.0 / 攻撃力 -17%", 3.0f, 0.17f},
+        };
+
         static_assert(std::size(kGreedLevels) == static_cast<size_t>(kMaxSkillLevel), "kGreedLevels の段階数を kMaxSkillLevel に合わせること");
         static_assert(std::size(kGluttonyLevels) == static_cast<size_t>(kMaxSkillLevel), "kGluttonyLevels の段階数を kMaxSkillLevel に合わせること");
         static_assert(std::size(kWrathLevels) == static_cast<size_t>(kMaxSkillLevel), "kWrathLevels の段階数を kMaxSkillLevel に合わせること");
+        static_assert(std::size(kPrideLevels) == static_cast<size_t>(kMaxSkillLevel), "kPrideLevels の段階数を kMaxSkillLevel に合わせること");
+        static_assert(std::size(kEnvyLevels) == static_cast<size_t>(kMaxSkillLevel), "kEnvyLevels の段階数を kMaxSkillLevel に合わせること");
+        static_assert(std::size(kLustLevels) == static_cast<size_t>(kMaxSkillLevel), "kLustLevels の段階数を kMaxSkillLevel に合わせること");
+        static_assert(std::size(kSlothLevels) == static_cast<size_t>(kMaxSkillLevel), "kSlothLevels の段階数を kMaxSkillLevel に合わせること");
 
         //-------------------------------------------------------------
         // スキルテーブル本体。
@@ -74,6 +118,10 @@ namespace CombatAndroid::ECS {
             {SkillId::Greed, L"強欲", kPlaceholderTexturePath, {0.85f, 0.72f, 0.20f, 1.0f}, kGreedLevels},
             {SkillId::Gluttony, L"暴食", kPlaceholderTexturePath, {0.35f, 0.70f, 0.35f, 1.0f}, kGluttonyLevels},
             {SkillId::Wrath, L"憤怒", kPlaceholderTexturePath, {0.80f, 0.25f, 0.25f, 1.0f}, kWrathLevels},
+            {SkillId::Pride, L"傲慢", kPlaceholderTexturePath, {0.55f, 0.35f, 0.80f, 1.0f}, kPrideLevels},
+            {SkillId::Envy, L"嫉妬", kPlaceholderTexturePath, {0.25f, 0.65f, 0.60f, 1.0f}, kEnvyLevels},
+            {SkillId::Lust, L"色欲", kPlaceholderTexturePath, {0.90f, 0.40f, 0.65f, 1.0f}, kLustLevels},
+            {SkillId::Sloth, L"怠惰", kPlaceholderTexturePath, {0.45f, 0.50f, 0.60f, 1.0f}, kSlothLevels},
         };
 
         // 種類を足したのにテーブルへ書き忘れる事故を防ぐ
@@ -135,9 +183,13 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void RecalculateSkillStats(PlayerSkillComponent& skills) {
         // 一度「何も取っていない状態」へ戻してから積み直す
-        skills.expGainMultiplier = 1.0f;
-        skills.healPerSoul       = 0.0f;
-        skills.attackMultiplier  = 1.0f;
+        skills.expGainMultiplier     = 1.0f;
+        skills.healPerSoul           = 0.0f;
+        skills.attackMultiplier      = 1.0f;
+        skills.damageTakenMultiplier = 1.0f;
+        skills.lifeStealRatio        = 0.0f;
+        skills.moveSpeedMultiplier   = 1.0f;
+        skills.healPerSecond         = 0.0f;
 
         for(const SkillTableEntry& entry : kSkillTable) {
             const int level = skills.levels[static_cast<size_t>(entry.id)];
@@ -146,7 +198,8 @@ namespace CombatAndroid::ECS {
 
             // 段階は累積ではなく「その段階の値がそのまま今の効果」という定義なので、
             // levels[level-1]だけを見ればよい（Lv3を取ったらLv1とLv2の分は足さない）
-            const float value = entry.levels[static_cast<size_t>(std::min(level, kMaxSkillLevel) - 1)].value;
+            const SkillLevelEntry& levelEntry = entry.levels[static_cast<size_t>(std::min(level, kMaxSkillLevel) - 1)];
+            const float            value      = levelEntry.value;
 
             switch(entry.id) {
             case SkillId::Greed:
@@ -156,7 +209,22 @@ namespace CombatAndroid::ECS {
                 skills.healPerSoul = value;
                 break;
             case SkillId::Wrath:
-                skills.attackMultiplier = 1.0f + value;
+                // attackMultiplierは憤怒と怠惰の二者が書き込む唯一の値なので、代入ではなく乗算で積む。
+                // リセット値が1.0なので、憤怒だけを取った場合の結果は代入していた頃と一致する
+                skills.attackMultiplier *= 1.0f + value;
+                break;
+            case SkillId::Pride:
+                skills.damageTakenMultiplier = 1.0f - value;
+                break;
+            case SkillId::Envy:
+                skills.lifeStealRatio = value;
+                break;
+            case SkillId::Lust:
+                skills.moveSpeedMultiplier = 1.0f + value;
+                break;
+            case SkillId::Sloth:
+                skills.healPerSecond = value;
+                skills.attackMultiplier *= 1.0f - levelEntry.value2;    // 回復と引き換えの攻撃力ペナルティ
                 break;
             default:
                 break;

@@ -29,6 +29,10 @@ namespace CombatAndroid::ECS {
         Greed = 0,    //!< 強欲：ソウル（EXP玉）取得時の経験値量を増やす
         Gluttony,     //!< 暴食：ソウル取得時にHPを回復する
         Wrath,        //!< 憤怒：攻撃力が上がる
+        Pride,        //!< 傲慢：被ダメージを軽減する
+        Envy,         //!< 嫉妬：与えたダメージの一部をHPへ変換する
+        Lust,         //!< 色欲：移動速度が上がる
+        Sloth,        //!< 怠惰：常時HPが回復するが、その代わり攻撃力が下がる
         Count,
     };
 
@@ -42,13 +46,20 @@ namespace CombatAndroid::ECS {
     //! @struct SkillLevelEntry
     //! @brief  スキル1段階ぶんの効果
     //! @note   valueの意味はSkillIdごとに異なる：
-    //!         Greed/Wrathは「加算する割合」（0.20で+20%）、
-    //!         Gluttonyは「ソウル1個あたりに回復するHP」。
+    //!         Greed/Wrath/Pride/Lustは「加減する割合」（0.20で±20%）、
+    //!         Gluttonyは「ソウル1個あたりに回復するHP」、
+    //!         Envyは「与ダメージのうちHPへ変換する割合」、
+    //!         Slothは「1秒あたりに回復するHP」。
     //!         解釈を持っているのはRecalculateSkillStats（SkillTable.cpp）だけ
     //-------------------------------------------------------------
     struct SkillLevelEntry {
         const wchar_t* description;    //!< カードに出す効果の説明文
         float          value;          //!< 効果量
+
+        //! 2つ目の効果量。「上昇と引き換えに何かが下がる」スキルの、下がる側に使う。
+        //! 既定値を持たせてあるので、1つしか効果を持たないスキルのテーブルは従来どおり
+        //! 2要素で書けばよい（今これを使うのはSlothの攻撃力ペナルティだけ）
+        float value2 = 0.0f;
     };
 
     //-------------------------------------------------------------

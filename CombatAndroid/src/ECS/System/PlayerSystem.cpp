@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -19,6 +20,7 @@
 #include <Tsukino/Core/Math/MathHelper.hpp>
 
 #include <hlsl++.h>
+#include <algorithm>
 #include <cmath>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -79,6 +81,24 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
+            // 色欲（移動速度）と怠惰（自動回復）のスキル値を引く。
+            // スキルを持たないプレイヤーでも動くよう、既定は等倍・回復なしにしておく
+            //-------------------------------------------------------------
+            float skillMoveSpeedMultiplier = 1.0f;
+            if(auto* skills = registry.try_get<PlayerSkillComponent>(entity)) {
+                skillMoveSpeedMultiplier = skills->moveSpeedMultiplier;
+
+                //-------------------------------------------------------------
+                // 怠惰：何もしていなくても毎秒回復する。
+                // スキル選択メニュー中はこのSystem自体が冒頭で早期リターンしているため、
+                // メニューを開いたまま回復し続けることはない
+                //-------------------------------------------------------------
+                if(skills->healPerSecond > 0.0f) {
+                    health.currentHealth = std::min(health.currentHealth + skills->healPerSecond * deltaTime, health.maxHealth);
+                }
+            }
+
+            //-------------------------------------------------------------
             // 攻撃中か（前フレームにPlayerAnimationSystemが確定した値）を取得。
             // 攻撃モーション中は移動方向への向き直しを止める
             //-------------------------------------------------------------
@@ -127,7 +147,9 @@ namespace CombatAndroid::ECS {
 
                 // Shift押下中はスプリント（PlayerAnimationSystemがFastRun状態の判定に使う）
                 player.isSprinting  = inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Shift);
-                float currentSpeed = player.isSprinting ? player.moveSpeed * player.sprintSpeedMultiplier : player.moveSpeed;
+                // 色欲（スキル）の倍率は通常移動・スプリントのどちらにも等しく乗せる
+                float currentSpeed = (player.isSprinting ? player.moveSpeed * player.sprintSpeedMultiplier : player.moveSpeed)
+                                     * skillMoveSpeedMultiplier;
 
                 // CharacterControllerComponentへ水平方向の希望移動速度を渡す
                 cc.moveInput = moveDir * currentSpeed;
