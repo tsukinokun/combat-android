@@ -5,6 +5,10 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+
+#include <entt/entt.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
@@ -50,6 +54,30 @@ namespace CombatAndroid::ECS {
                 registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity).playback_speed = 1.0f;
             };
         }
+
+        //-------------------------------------------------------------
+        //! @brief  敵が手に持つ武器へ「攻撃アニメーション再生中か」を伝えるヘルパー
+        //! @param  registry    [in] エンティティレジストリ
+        //! @param  entity      [in] 敵本体のエンティティ
+        //! @param  isAttacking [in] 攻撃アニメーション再生中か
+        //! @note   CombatSystemはこのフラグからattackBlendを作り、非攻撃時のルート追従（浮遊）と
+        //!         攻撃中の手ボーン追従を連続的に補間する。プレイヤー側でPlayerAnimationSystemが
+        //!         WeaponComponent::isAttackingを書いているのとまったく同じ経路で、
+        //!         本Systemも実行順が同じ（SystemPriority::Gameplay）ためCombatSystem
+        //!         （SystemPriority::WeaponAttach）が同じフレームのうちに読める。
+        //!         武器は敵の子ではなく独立したエンティティなのでEnemyHeldWeaponComponent越しに引く。
+        //!         コンポーネント構成は変えずフィールドを書くだけなので、View反復中に呼んでも安全
+        //-------------------------------------------------------------
+        void SetHeldWeaponAttacking(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, bool isAttacking) {
+            const auto* heldWeapon = registry.try_get<EnemyHeldWeaponComponent>(entity);
+            if(!heldWeapon || heldWeapon->weaponEntity == entt::null)
+                return;    // 武器を持たない敵（ゾンビ系）
+
+            if(!registry.IsValid(heldWeapon->weaponEntity) || !registry.HasComponent<WeaponComponent>(heldWeapon->weaponEntity))
+                return;    // 既に破棄済み
+
+            registry.GetComponent<WeaponComponent>(heldWeapon->weaponEntity).isAttacking = isAttacking;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -67,17 +95,26 @@ namespace CombatAndroid::ECS {
         // 実際にAttackクリップへ切り替わった瞬間を基準に測り直す。
         // 併せてEnemyAttackHitboxComponentのhasLandedThisAttackもクリアし、
         // 新しい一振りで再度ヒットを取れるようにする
+        // 併せて、手に武器を持っている敵（Paladin等）はここで武器を「攻撃中」にする。
+        // Attackを抜けるときのOnExitで戻すことで、待機・歩行・のけぞり・死亡の間は
+        // プレイヤーと同じ浮遊追従に戻る
         auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, false, kAttackBlendTime, true);
-        m_stateMachine.RegisterState(EnemyAnimState::Attack, [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
-            attackClipEnter(registry, entity);
-            registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
-            if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
-                hitbox->hasLandedThisAttack = false;
-                // 前フレームの判定点も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
-                // スイープしてしまうと、離れた場所にいるプレイヤーへ誤って当たることがあるため
-                hitbox->hasPrevSweepPoint = false;
-            }
-        });
+        m_stateMachine.RegisterState(
+            EnemyAnimState::Attack,
+            [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+                attackClipEnter(registry, entity);
+                registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
+                if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
+                    hitbox->hasLandedThisAttack = false;
+                    // 前フレームの判定点も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
+                    // スイープしてしまうと、離れた場所にいるプレイヤーへ誤って当たることがあるため
+                    hitbox->hasPrevSweepPoint = false;
+                }
+                SetHeldWeaponAttacking(registry, entity, true);
+            },
+            [](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+                SetHeldWeaponAttacking(registry, entity, false);
+            });
 
         // Knockbackへ入るときはknockbackTimer（ZombieBehavior::PlayKnockbackの終了判定ウォッチドッグ）をリセットする
         auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, false, kKnockbackBlendTime, true);

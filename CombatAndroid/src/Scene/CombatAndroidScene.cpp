@@ -30,6 +30,7 @@
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
 #include <CombatAndroid/ECS/System/CombatSystem.hpp>
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
@@ -41,6 +42,7 @@
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
 #include <CombatAndroid/ECS/System/HealthBarSystem.hpp>
 #include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
+#include <CombatAndroid/ECS/System/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
@@ -170,6 +172,8 @@ namespace CombatAndroid {
             ExpOrb,           // EXP玉のスロット割り当てと落下→ホーミング→吸収の状態更新。敵の死亡通知
                               // （EnemyDiedEvent、Movementで動くBTから発火）の後、かつプレイヤーの今フレームの
                               // 位置（Movementで確定済み）を吸い寄せ先に使うため、DamageNumberと同じ並びでよい
+            EnemyWeaponDrop,    // 敵が持っていた武器を地面へ落とす。EXP玉と同じくEnemyDiedEventを
+                                // 購読するだけなので、ExpOrbと同じ並びでよい
             PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                               // （ExpOrbが確定）の両方より後に置く
             TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
@@ -253,6 +257,12 @@ namespace CombatAndroid {
             m_scene.AddSystem(expOrbSystem, (int)SystemPriority::ExpOrb);
             expOrbSystem->Initialize(eventBus);
         }
+        {
+            // EnemyDiedEventを購読して、敵が持っていた武器を拾える状態で地面へ落とす
+            auto enemyWeaponDropSystem = std::make_shared<CombatAndroid::ECS::EnemyWeaponDropSystem>();
+            m_scene.AddSystem(enemyWeaponDropSystem, (int)SystemPriority::EnemyWeaponDrop);
+            enemyWeaponDropSystem->Initialize(eventBus);
+        }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)SystemPriority::PlayerHud);
         {
             // PlayerDamagedEventを購読して被弾演出（点滅・画面フラッシュ）を進行させる。
@@ -318,21 +328,13 @@ namespace CombatAndroid {
         // （下のattackSteps初期化を参照）
         Tsukino::Asset::AssetHandle hammerAttackAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx"));
-        // グレートソード専用の攻撃クリップ。武器種別を判定するenumは持たず、areaAttack等と同じ
-        // 流儀でgreatswordのスポーン箇所のみWeaponComponent::attackClipへ設定する（下記参照）
-        Tsukino::Asset::AssetHandle greatSwordAttackAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx"));
-        // バトルアックス専用の攻撃クリップ。武器種別を判定するenumは持たず、areaAttack等と同じ
-        // 流儀でbattleaxeのスポーン箇所のみWeaponComponent::attackClipへ設定する（下記参照）
-        Tsukino::Asset::AssetHandle battleaxeAttackAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Standing Melee Attack Backhand.fbx"));
+        // 武器ごとの専用攻撃クリップ（Great Sword Slash / Standing Melee Attack Backhand）と、
+        // ウォーハンマー3段目のAoE(範囲攻撃)エフェクトのロードは WeaponSpawner の
+        // ConfigureWeapon 側へ移した。AssetManager がパスでキャッシュするため、
+        // 何本生成しても実際のロードは1回で済む
         // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。GameOverSystem参照）
         Tsukino::Asset::AssetHandle deathAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
-
-        // ウォーハンマー3段目（フィニッシュ）のAoE(範囲攻撃)発動時に再生するEffekseerエフェクト
-        Tsukino::Core::Path warhammerCombo3EffectPath("CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc");
-        Tsukino::Asset::AssetHandle warhammerCombo3EffectHandle = context->assetManager->Load(warhammerCombo3EffectPath);
 
         // 敵（BigZombie / SmallZombie）が使うクリップのロードは
         // MakeBigZombieConfig / MakeSmallZombieConfig 側へ移した（EnemySpawner.cpp）。
@@ -538,228 +540,54 @@ namespace CombatAndroid {
         Tsukino::BuiltIn::ECS::SkeletonOutputComponent& skeletonOutput = registry.AddComponent<Tsukino::BuiltIn::ECS::SkeletonOutputComponent>(playerEntity);
 
         //--------------------------------------------------------------
-        // 武器エンティティ生成（プレイヤーの周りをふわふわ浮遊させる演出）。
-        // 複数の武器を同時に浮遊させられるよう、1本分の生成処理を共通化する。
-        // 位置・回転はCombatSystemが毎フレーム所有者（プレイヤー）を基準に計算する
+        // 武器エンティティ生成。
+        // 「武器1種類をどう組み立てるか」（メッシュ・握り・専用攻撃モーション・
+        // AoE(範囲攻撃)・溜め攻撃）は WeaponSpawner の定義テーブルへ集約してあるため、
+        // ここでは「どこに何を置くか」だけを書く。敵（Paladin）が持って湧く武器も、
+        // 撃破時に落とす武器も同じ経路を通るので、出所によらず性能はまったく同じになる
         //--------------------------------------------------------------
-        auto spawnFloatingWeapon = [&](const Tsukino::Core::Path& modelPath, CombatAndroid::ECS::WeaponId weaponId,
-                                       const hlslpp::float3& localOffset,
-                                       const hlslpp::float3& gripPointLocal, const hlslpp::float3& attackLocalOffset,
-                                       const hlslpp::quaternion& attackGripRotationOffset) -> Tsukino::ECS::Entity {
-            Tsukino::ECS::Entity weaponEntity = m_scene.CreateEntity();
 
-            Tsukino::BuiltIn::ECS::TransformComponent& weaponTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponEntity);
-            weaponTransform.position                                   = playerTransform.position;    // 初期値。以後CombatSystemが上書きする
-            weaponTransform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
-            weaponTransform.scale                                      = hlslpp::float3(1.0f, 1.0f, 1.0f);    // 暫定値。実機で見た目を確認しながら調整する
-            weaponTransform.dirty                                      = true;
-            weaponTransform.parent                                     = entt::null;
-
-            Tsukino::Asset::AssetHandle weaponModelHandle = context->assetManager->Load(modelPath);
-            Tsukino::BuiltIn::ECS::ModelComponent& weaponModel = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(weaponEntity);
-            weaponModel.modelHandle                            = weaponModelHandle;
-            weaponModel.visible                                = true;
-
-            CombatAndroid::ECS::WeaponComponent& weapon = registry.AddComponent<CombatAndroid::ECS::WeaponComponent>(weaponEntity);
-            weapon.owner                             = playerEntity;
-            weapon.weaponId                          = weaponId;
-            weapon.level                             = 1;
-            // 非攻撃時：右手ボーンへのアタッチは、Idle.fbx（アニメーションクリップ）側のボーン姿勢データが
-            // 実際の見た目のポーズと一致しない（別アセットのため、ボーン名は一致してもリグの前提が食い違っている）
-            // ため使わない。handTrackingWeight=0で所有者のルートTransformからの固定オフセットにのみ追従させ、
-            // floatEnabledで「手に持つ」のではなく肩の斜め上をふわふわ浮遊する演出にする。
-            // 位置・姿勢とも所有者のローカル空間を基準に計算するので、どの向きでも所有者に対する
-            // 相対位置・相対姿勢が変わらない（＝キャラクターの旋回に合わせて武器も一緒に回る。
-            // 攻撃への入り／抜けのブレンド経路を向きに依存させないために必要）。
-            // gripRotationOffsetは武器がなるべく縦向きになるよう実機で見た目を確認しながら調整した値。
-            // 攻撃時：PlayerAnimationSystemがWeaponComponent::isAttackingをセットし、CombatSystemはこの間
-            // floatEnabledを無視してattackHandTrackingWeight（既定1.0=完全追従）でAttackクリップの
-            // 右手ボーン姿勢へ追従させる（Idleと違い、Attackクリップ自体の腕の振りに合わせて動くため）。
-            weapon.localOffset              = localOffset;
-            weapon.gripRotationOffset       = hlslpp::quaternion::rotation_x(1.5708f);
-            weapon.handTrackingWeight       = 0.0f;
-            weapon.attackHandTrackingWeight = 1.0f;
-            // idleと同じく、武器メッシュのデフォルト向き（エクスポート時の軸）を握り姿勢へ補正する。
-            // 未設定のままだと攻撃中だけこの補正が抜け落ち、手の回転がそのままメッシュの想定外の軸に
-            // 乗ってしまい暴れて見える原因になっていた。gripPointLocal/attackLocalOffset/
-            // attackGripRotationOffsetはWeaponGripDebugSystem（_DEBUGビルドのF6調整モード）で
-            // 実機の見た目を確認しながら武器ごとに調整し、確定値をここへ焼き込む
-            weapon.gripPointLocal           = gripPointLocal;
-            weapon.attackGripRotationOffset = attackGripRotationOffset;
-            weapon.attackLocalOffset        = attackLocalOffset;
-            weapon.floatEnabled             = true;
-
-            // レベルアップ時のリムライト発光演出（PickupSystem）の土台。
-            // active既定falseのため通常時の見た目には影響しない
-            registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(weaponEntity);
-
-            return weaponEntity;
-        };
-
-        // warhammer：プレイヤーの右肩斜め上で浮遊させる（最初から装備している唯一の武器）。
-        // 握りパラメータはWeaponGripDebugSystemで実機調整済みの値
-        Tsukino::ECS::Entity warhammerEntity = spawnFloatingWeapon(
-            Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"), CombatAndroid::ECS::WeaponId::Warhammer,
-            hlslpp::float3(35.0f, 170.0f, -20.0f),
-            hlslpp::float3(0.0f, 0.0f, 10.0f),
-            hlslpp::float3(0.0f, 0.0f, 0.0f),
-            hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
+        // 最初から装備している唯一の武器。プレイヤーの右肩斜め上で浮遊させる。
+        // 位置・回転はCombatSystemが毎フレーム所有者（プレイヤー）を基準に計算するため、
+        // ここで渡す位置は次のフレームまでの初期値でしかない
+        Tsukino::ECS::Entity warhammerEntity =
+            CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Warhammer,
+                                            playerTransform.position, playerEntity);
 
         // 切り替え対象の武器一覧（PlayerSystemがマウスホイール入力でここを順送りする）。
         // 初期状態はwarhammerのみ。他の武器はワールドに落ちており、Fキーで拾うとここに増える
         player.weaponInventory     = {warhammerEntity};
         player.selectedWeaponIndex = 0;
-        player.weaponEntity         = warhammerEntity;
+        player.weaponEntity        = warhammerEntity;
         {
-            auto& warhammerWeapon    = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
+            auto& warhammerWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerEntity);
+
+            // 非攻撃時：右手ボーンへのアタッチは、Idle.fbx（アニメーションクリップ）側のボーン姿勢データが
+            // 実際の見た目のポーズと一致しない（別アセットのため、ボーン名は一致してもリグの前提が食い違っている）
+            // ため使わない。SpawnWeaponが入れるhandTrackingWeight=0のまま所有者のルートTransformからの
+            // 固定オフセットにのみ追従させ、floatEnabledで「手に持つ」のではなく肩の斜め上を
+            // ふわふわ浮遊する演出にする。
+            // 攻撃時：PlayerAnimationSystemがWeaponComponent::isAttackingをセットし、CombatSystemはこの間
+            // floatEnabledを無視してattackHandTrackingWeight（既定1.0=完全追従）でAttackクリップの
+            // 右手ボーン姿勢へ追従させる（Idleと違い、Attackクリップ自体の腕の振りに合わせて動くため）
+            warhammerWeapon.floatEnabled  = true;
             warhammerWeapon.floatSelected = true;
-            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWeapon);    // 重量武器。Lv1=38の通常攻撃でもSmallZombie（閾値30）を怯ませる。3段目（damageMultiplier 2.0）で76となりBigZombie（閾値60）も怯ませるが、SmallZombieに対しては76>maxHealth(40)のため怯ませる前に即死させる
-            // 3段目フィニッシュのAoE(範囲攻撃)。attackSteps[2].areaAttackと組み合わさって発動する
-            warhammerWeapon.areaAttackRadius      = 160.0f;
-            warhammerWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
-            warhammerWeapon.areaAttackEffectPath  = warhammerCombo3EffectPath;
-            warhammerWeapon.areaAttackEffectScale = 100.0f;    // 1ユニット≒1cm規約への単位合わせ。実機で見ながら調整する
         }
 
         //--------------------------------------------------------------
         // 地面に落ちている武器の生成（Fキーで拾える）。
         // ownerを設定しないため、CombatSystemの追従処理（owner != entt::nullが条件）には入らず
         // その場に留まる。PickupSystemが範囲内・最近傍の1本だけをハイライトし、Fキーで
-        // WeaponComponent::ownerをプレイヤーへ設定して浮遊武器へ昇格させる
+        // WeaponComponent::ownerをプレイヤーへ設定して浮遊武器へ昇格させる。
+        // 動作確認用に近い位置へまとめて置き、「同時に範囲内でも1つだけ光る」ことを
+        // 確認できるようにしている
         //--------------------------------------------------------------
-        auto spawnWorldWeapon = [&](const Tsukino::Core::Path& modelPath,
-                                    CombatAndroid::ECS::WeaponId weaponId,
-                                    const hlslpp::float3&      worldPosition,
-                                    const std::wstring&        displayName,
-                                    const hlslpp::float3&      gripPointLocal,
-                                    const hlslpp::float3&      attackLocalOffset,
-                                    const hlslpp::quaternion&  attackGripRotationOffset) -> Tsukino::ECS::Entity {
-            Tsukino::ECS::Entity weaponEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponEntity);
-            transform.position                                   = worldPosition;
-            transform.rotation                                   = hlslpp::quaternion::rotation_x(1.5708f);    // 地面に横たわらせる
-            transform.scale                                      = hlslpp::float3(1.0f, 1.0f, 1.0f);
-            transform.dirty                                      = true;
-            transform.parent                                     = entt::null;
-
-            Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(weaponEntity);
-            model.modelHandle                            = context->assetManager->Load(modelPath);
-            model.visible                                = true;
-
-            CombatAndroid::ECS::WeaponComponent& weapon = registry.AddComponent<CombatAndroid::ECS::WeaponComponent>(weaponEntity);
-            weapon.owner                              = entt::null;    // 未所有＝ワールドに落ちている状態
-            weapon.weaponId                           = weaponId;
-            weapon.level                              = 1;
-            weapon.localOffset                        = hlslpp::float3(35.0f, 170.0f, -20.0f);
-            weapon.gripRotationOffset                 = hlslpp::quaternion::rotation_x(1.5708f);
-            // 握りパラメータは呼び出し側で武器ごとに指定する（WeaponGripDebugSystemで実機調整した値）
-            weapon.gripPointLocal                     = gripPointLocal;
-            weapon.attackGripRotationOffset           = attackGripRotationOffset;
-            weapon.attackLocalOffset                  = attackLocalOffset;
-            weapon.handTrackingWeight                 = 0.0f;
-            weapon.floatEnabled                       = false;    // 拾った時にPickupSystemがtrueにする
-
-            CombatAndroid::ECS::PickupComponent& pickup = registry.AddComponent<CombatAndroid::ECS::PickupComponent>(weaponEntity);
-            pickup.displayName                        = displayName;
-
-            registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(weaponEntity);
-
-            return weaponEntity;
-        };
-
-        // 動作確認用に近い位置へ2本まとめて置き、「同時に範囲内でも1つだけ光る」ことを確認できるようにする。
-        // greatswordはwarhammerと同じ調整済み値を暫定適用（メッシュが違うため厳密には別値が必要になりうる。
-        // ずれる場合はWeaponGripDebugSystemのF6調整モードで別途詰める）
-        Tsukino::ECS::Entity greatswordEntity =
-            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/greatsword.fbx"), CombatAndroid::ECS::WeaponId::Greatsword,
-                             hlslpp::float3(250.0f, 10.0f, 0.0f), L"グレートソード",
-                             hlslpp::float3(0.0f, 0.0f, 10.0f),
-                             hlslpp::float3(0.0f, 0.0f, 0.0f),
-                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-        {
-            auto& greatswordWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(greatswordEntity);
-            // 軽量武器。Lv1=22の通常攻撃はSmallZombie（閾値30）も怯ませない。3段目（damageMultiplier 2.0）で44となるが、
-            // 44>maxHealth(40)のためSmallZombieは怯ませる前に即死する（BigZombie（閾値60）はLv1では怯まない）
-            CombatAndroid::ECS::RecalculateWeaponStats(greatswordWeapon);
-
-            //-------------------------------------------------------------
-            // グレートソード専用の攻撃モーション（Great Sword Slash.fbx）。Hammer Attack.fbxと同じ
-            // 「1クリップに3段入り」構成・分割比率（0 / 1x / 1.3x / 終端）を暫定的に踏襲しているが、
-            // Great Sword Slash.fbx自体の実尺・フレーム構成はソースからは確認できないため、
-            // 下のkGreatSwordClipDurationを含め実機でWeaponGripDebugSystemのF10/F11コマ送りを
-            // 見ながら個別に調整する前提の暫定値
-            //-------------------------------------------------------------
-            constexpr float kGreatSwordClipDuration = kAttackClipDuration;    // 暫定：Hammer Attack.fbxと同尺と仮定
-            constexpr float kGreatSwordStepLength    = kGreatSwordClipDuration / 3.0f;
-
-            greatswordWeapon.attackClip           = greatSwordAttackAnimHandle;
-            greatswordWeapon.attackAnimationIndex = 1;
-
-            greatswordWeapon.attackStepStartTime[0] = kGreatSwordStepLength * 0.0f;
-            greatswordWeapon.attackStepEndTime[0]   = kGreatSwordStepLength * 1.0f;
-
-            greatswordWeapon.attackStepStartTime[1] = kGreatSwordStepLength * 1.0f;
-            greatswordWeapon.attackStepEndTime[1]   = kGreatSwordStepLength * 1.3f;
-
-            greatswordWeapon.attackStepStartTime[2] = kGreatSwordStepLength * 1.3f;
-            greatswordWeapon.attackStepEndTime[2]   = kGreatSwordClipDuration;
-        }
-
-        // battleaxeもgreatsword/warhammerと同じ調整済み値を暫定適用（メッシュが違うため厳密には別値が必要になりうる。
-        // ずれる場合はWeaponGripDebugSystemのF6調整モードで別途詰める）
-        Tsukino::ECS::Entity battleaxeEntity =
-            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/battleaxe.fbx"), CombatAndroid::ECS::WeaponId::Battleaxe,
-                             hlslpp::float3(300.0f, 10.0f, 100.0f), L"バトルアックス",
-                             hlslpp::float3(0.0f, 0.0f, 10.0f),
-                             hlslpp::float3(0.0f, 0.0f, 0.0f),
-                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-        {
-            auto& battleaxeWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(battleaxeEntity);
-            CombatAndroid::ECS::RecalculateWeaponStats(battleaxeWeapon);
-
-            //-------------------------------------------------------------
-            // バトルアックス専用の攻撃モーション（Standing Melee Attack Backhand.fbx）。Hammer Attack.fbxと同じ
-            // 「1クリップに3段入り」構成・分割比率（0 / 1x / 1.3x / 終端）を暫定的に踏襲しているが、
-            // Standing Melee Attack Backhand.fbx自体の実尺・フレーム構成はソースからは確認できないため、
-            // 下のkBattleaxeClipDurationを含め実機でWeaponGripDebugSystemのF10/F11コマ送りを
-            // 見ながら個別に調整する前提の暫定値
-            //-------------------------------------------------------------
-            constexpr float kBattleaxeClipDuration = kAttackClipDuration;    // 暫定：Hammer Attack.fbxと同尺と仮定
-            constexpr float kBattleaxeStepLength    = kBattleaxeClipDuration / 3.0f;
-
-            battleaxeWeapon.attackClip           = battleaxeAttackAnimHandle;
-            battleaxeWeapon.attackAnimationIndex = 1;
-
-            battleaxeWeapon.attackStepStartTime[0] = kBattleaxeStepLength * 0.0f;
-            battleaxeWeapon.attackStepEndTime[0]   = kBattleaxeStepLength * 1.0f;
-
-            battleaxeWeapon.attackStepStartTime[1] = kBattleaxeStepLength * 1.0f;
-            battleaxeWeapon.attackStepEndTime[1]   = kBattleaxeStepLength * 1.3f;
-
-            battleaxeWeapon.attackStepStartTime[2] = kBattleaxeStepLength * 1.3f;
-            battleaxeWeapon.attackStepEndTime[2]   = kBattleaxeClipDuration;
-
-            // バトルアックス専用：左クリック長押しで溜め、離すと解放する溜め攻撃を有効化する
-            battleaxeWeapon.chargeAttackEnabled = true;
-        }
-
-        // warhammerは最初から装備している個体（spawnFloatingWeapon）と同じモデルのため、同じ調整済み値を使う
-        Tsukino::ECS::Entity warhammerWorldEntity =
-            spawnWorldWeapon(Tsukino::Core::Path("CombatAndroid/Assets/Models/warhammer.fbx"), CombatAndroid::ECS::WeaponId::Warhammer,
-                             hlslpp::float3(340.0f, 10.0f, 0.0f), L"ウォーハンマー",
-                             hlslpp::float3(0.0f, 0.0f, 10.0f),
-                             hlslpp::float3(0.0f, 0.0f, 0.0f),
-                             hlslpp::quaternion(0.5f, 0.5f, -0.5f, 0.5f));
-        {
-            auto& warhammerWorldWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(warhammerWorldEntity);
-            CombatAndroid::ECS::RecalculateWeaponStats(warhammerWorldWeapon);
-            // 拾って装備した場合も3段目フィニッシュのAoEが機能するよう、初期装備の個体と同じ値を設定する
-            warhammerWorldWeapon.areaAttackRadius      = 160.0f;
-            warhammerWorldWeapon.areaAttackEffectAsset = warhammerCombo3EffectHandle;
-            warhammerWorldWeapon.areaAttackEffectPath  = warhammerCombo3EffectPath;
-            warhammerWorldWeapon.areaAttackEffectScale = 100.0f;
-        }
+        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Greatsword,
+                                        hlslpp::float3(250.0f, 10.0f, 0.0f));
+        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Battleaxe,
+                                        hlslpp::float3(300.0f, 10.0f, 100.0f));
+        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Warhammer,
+                                        hlslpp::float3(340.0f, 10.0f, 0.0f));
 
         //--------------------------------------------------------------
         // 敵エンティティ生成。全敵共通でビヘイビアツリー駆動（歩く→射程内で攻撃、被弾でノックバック、
@@ -781,6 +609,8 @@ namespace CombatAndroid {
 
         CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
                                                CombatAndroid::ECS::MakeBigZombieConfig(*context, hlslpp::float3(-250.0f, 20.0f, -250.0f)));
+
+
 
         //--------------------------------------------------------------
         // 2Dカメラエンティティの生成

@@ -120,8 +120,9 @@ namespace CombatAndroid::ECS {
 
         std::vector<Tsukino::ECS::Entity> hitEnemiesThisAttack;    //!< このアタックで既にヒットした敵の記録（多重ヒット防止）。isActiveがtrueになった瞬間のみクリアする
 
-        bool  isAttacking = false;    //!< 攻撃アニメーション再生中か（PlayerAnimationSystemが毎フレームセットする）。
-                                       //!< trueの間はfloatEnabledによる浮遊演出を止め、attackHandTrackingWeightで手に追従させる
+        bool  isAttacking = false;    //!< 攻撃アニメーション再生中か。プレイヤーの武器はPlayerAnimationSystemが毎フレーム、
+                                      //!< 敵の持ち武器はEnemyAnimationSystemがAttackステートの出入りでセットする。
+                                      //!< trueの間はfloatEnabledによる浮遊演出を止め、attackHandTrackingWeightで手に追従させる
 
         //-------------------------------------------------------------
         // isAttackingの真偽値が瞬時に切り替わっても、握りオフセット・回転（浮遊姿勢↔手ボーン追従）が

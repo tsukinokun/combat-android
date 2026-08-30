@@ -10,7 +10,10 @@
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -27,6 +30,9 @@
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 
 #include <entt/entt.hpp>
+
+#include <iterator>
+#include <random>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -173,6 +179,38 @@ namespace CombatAndroid::ECS {
             registry.AddComponent<CombatAndroid::ECS::BehaviorTreeComponent>(enemyEntity);
         behaviorTree.root = CombatAndroid::ECS::BuildZombieTree();
 
+        //-------------------------------------------------------------
+        // 手に持つ武器（Paladin等）。プレイヤーの武器とまったく同じ経路で作り、
+        // WeaponComponent::ownerをこの敵にすることでCombatSystemが右手ボーンへ追従させる。
+        //
+        // この武器がプレイヤーを殴ることは無い：武器のダメージ判定はWeaponComponent::isActive
+        // でしか開くことができず、それを開けるのはattackRequested経路（PlayerAnimationSystem）
+        // だけだからである。敵からプレイヤーへのダメージは他の敵と同じく
+        // EnemyAttackHitboxComponent（手→武器先端のカプセル）が担当する
+        //-------------------------------------------------------------
+        if(config.hasHeldWeapon) {
+            Tsukino::ECS::Entity heldWeaponEntity =
+                CombatAndroid::ECS::SpawnWeapon(registry, context, config.heldWeaponId, config.spawnPosition, enemyEntity);
+
+            CombatAndroid::ECS::WeaponComponent& heldWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(heldWeaponEntity);
+
+            // 持ち方はプレイヤーとまったく同じにする。SpawnWeaponが入れた既定の追従パラメータ
+            // （非攻撃時は手ボーンへ追従せず、ルートTransformから見て肩の斜め上）をそのまま使い、
+            // 浮遊演出だけを立てる。攻撃中は EnemyAnimationSystem が立てる
+            // WeaponComponent::isAttacking から CombatSystem が attackBlend を作り、
+            // 手ボーン追従（attackHandTrackingWeight / attackLocalOffset）側へ連続的に切り替わる。
+            //
+            // 常時手ボーン追従にしていた頃は、待機・歩行クリップの手ボーン姿勢に武器がそのまま
+            // 乗ってしまい、腕の振りに合わせて武器が暴れていた（プレイヤー側で
+            // handTrackingWeight=0にしているのと同じ理由）
+            heldWeapon.floatEnabled = true;
+
+            CombatAndroid::ECS::EnemyHeldWeaponComponent& heldWeaponRef =
+                registry.AddComponent<CombatAndroid::ECS::EnemyHeldWeaponComponent>(enemyEntity);
+            heldWeaponRef.weaponEntity = heldWeaponEntity;
+            heldWeaponRef.weaponId     = config.heldWeaponId;
+        }
+
         return enemyEntity;
     }
 
@@ -267,5 +305,136 @@ namespace CombatAndroid::ECS {
         config.hitDuration              = 0.60f;
 
         return config;
+    }
+
+    namespace {
+        //-------------------------------------------------------------
+        //! @struct PaladinWeaponVariant
+        //! @brief  Paladinが持つ武器1種類ぶんの、攻撃まわりのパラメータ
+        //! @note   Paladinは武器を持って湧く敵で、持っている武器によって攻撃モーション・
+        //!         間合い・威力が変わる。「1個体が持つ武器は湧いた瞬間に確定する」ため、
+        //!         攻撃クリップは常に1本で済み、EnemyAnimState側へ攻撃ステートを増やす必要はない
+        //-------------------------------------------------------------
+        struct PaladinWeaponVariant {
+            WeaponId    weaponId;
+            const char* attackClipPath;
+            float       attackRange;     //!< BTが攻撃へ移る距離（＝MoveToPlayerが足を止める距離）
+            float       hitboxReach;     //!< 手ボーンから武器先端までの距離
+            float       hitboxRadius;
+            float       hitboxDamage;
+            float       hitStartTime;
+            float       hitDuration;
+        };
+
+        //-------------------------------------------------------------
+        // 手ボーンから武器先端までの距離。プレイヤーが振るときの当たり判定の長さ
+        // （WeaponComponent::range＝グリップから刃先までの到達距離）と同じ値にしてある。
+        // 武器メッシュも敵の手に付くときのスケールも共通なので、実際の刃先までの距離は同じになる
+        //-------------------------------------------------------------
+        constexpr float kPaladinWeaponReach = 90.0f;
+
+        //-------------------------------------------------------------
+        // 武器ごとの攻撃パラメータ。attackRangeは接触距離（bodyRadius37＋プレイヤー半径35＝72）より
+        // だいぶ外だが、判定が「手→武器先端のカプセル」で前へ大きく張り出すため届く。
+        // リーチの長い武器ほど手前で足を止めさせ、間合いの違いを見た目に出している。
+        // 判定窓（hitStartTime〜+hitDuration）は既存敵と同じく広めに取ってから実機で詰める
+        //-------------------------------------------------------------
+        constexpr PaladinWeaponVariant kPaladinWeaponVariants[] = {
+            {WeaponId::Greatsword, "CombatAndroid/Assets/Anims/Paladin/greatSwordAttack.fbx", 150.0f, kPaladinWeaponReach, 26.0f, 22.0f, 0.45f, 0.55f},
+            {WeaponId::Battleaxe, "CombatAndroid/Assets/Anims/Paladin/battleAxeAttack.fbx", 140.0f, kPaladinWeaponReach, 28.0f, 25.0f, 0.45f, 0.55f},
+            {WeaponId::Warhammer, "CombatAndroid/Assets/Anims/Paladin/hammerAttack.fbx", 130.0f, kPaladinWeaponReach, 30.0f, 28.0f, 0.50f, 0.55f},
+        };
+
+        //-------------------------------------------------------------
+        //! @brief  識別子からPaladinの武器バリアントを引く関数
+        //! @note   kPaladinWeaponVariantsはWeaponIdの並び順とは無関係（間合いの長い順）なので、
+        //!         添字ではなく線形走査で引く。要素数は高々数個なのでこれで十分
+        //-------------------------------------------------------------
+        const PaladinWeaponVariant& FindPaladinWeaponVariant(WeaponId weaponId) {
+            for(const PaladinWeaponVariant& variant : kPaladinWeaponVariants) {
+                if(variant.weaponId == weaponId)
+                    return variant;
+            }
+
+            return kPaladinWeaponVariants[0];
+        }
+    }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief Paladin 1体分の生成パラメータを作る（武器を明示指定する版）
+    //-------------------------------------------------------------
+    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context,
+                                       const hlslpp::float3& spawnPosition,
+                                       WeaponId weaponId) {
+        Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
+
+        const PaladinWeaponVariant& variant = FindPaladinWeaponVariant(weaponId);
+
+        // Paladin.fbxの実寸を計測したところ身長はY=約0〜172.5（約172.5ユニット）で、
+        // プレイヤー（Y=0〜100の100ユニット）ともゾンビ系（約203）とも違うスケールで
+        // モデリングされていた。「レア敵＝ひとまわり大きい」を狙ってBigZombieと同じ
+        // 身長220に合わせ、scale=220/172.5≒1.275に補正する。
+        // カプセルもradius=37, halfHeight=73（合計220の半分）に揃え、見た目とコリジョンの整合を取る。
+        // Idle用クリップが無いため、待機はWalkingをin_place再生（その場足踏み）にして流用する
+        EnemySpawnConfig config{};
+        config.spawnPosition  = spawnPosition;
+        config.moveSpeed      = 110.0f;
+        config.maxHealth      = 200.0f;
+        config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/Paladin.fbx");
+        config.scale          = hlslpp::float3(1.275f, 1.275f, 1.275f);
+        config.bodyRadius     = 37.0f;
+        config.bodyHalfHeight = 73.0f;
+        config.attackRange    = variant.attackRange;
+        // maxHealth(200)より十分低い値にして、致死未満の一撃でも生き残ってひるめるようにする
+        // （閾値をmaxHealthと同じにするとひるみモーションが一度も再生されない。
+        //   MakeSmallZombieConfigのコメント参照）。
+        // ウォーハンマー3段目（38×2.0＝76）とバトルアックス3段目（30×2.0＝60）で怯む値
+        config.knockbackDamageThreshold = 60.0f;
+        config.expReward                = 60.0f;
+        config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Walking.fbx"));
+        config.attackClip               = assetManager.Load(Tsukino::Core::Path(variant.attackClipPath));
+        config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Head Hit.fbx"));
+        config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Dying.fbx"));
+
+        //-------------------------------------------------------------
+        // 判定は「右手→武器先端」のカプセル。始点と終点に同じボーンを指定し、
+        // endBoneLocalOffsetで武器の長さぶんだけ伸ばすことで、専用の先端ボーンが無くても
+        // 武器の形を判定に反映できる（EnemyAttackHitboxComponentは始点・終点それぞれ別に
+        // 解決キャッシュを持つため、同じボーン名を2回指定しても正しく解決される）。
+        //
+        // オフセットが手ボーンのローカル+X方向なのは、武器の姿勢が
+        // 「手ボーンの姿勢 × 握り補正（WeaponSpawnerのkCommonAttackGripRotation）」で決まり、
+        // 武器メッシュの刃方向であるローカル+Yを握り補正で回すと+Xを向くため。
+        // なおboneLocalOffset/endBoneLocalOffsetには敵のscaleが掛からない（CombatSystem参照）ので、
+        // ここの値はそのままワールド単位（1ユニット≒1cm）になる
+        //-------------------------------------------------------------
+        config.boneName           = "mixamorig:RightHand";
+        config.endBoneName        = "mixamorig:RightHand";
+        config.endBoneLocalOffset = hlslpp::float3(variant.hitboxReach, 0.0f, 0.0f);
+        config.hitboxRadius       = variant.hitboxRadius;
+        config.hitboxDamage       = variant.hitboxDamage;
+        config.hitStartTime       = variant.hitStartTime;
+        config.hitDuration        = variant.hitDuration;
+
+        // 抽選された武器を実際に手へ持たせる（SpawnBehaviorEnemyが武器エンティティを作る）
+        config.hasHeldWeapon = true;
+        config.heldWeaponId  = weaponId;
+
+        return config;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief Paladin 1体分の生成パラメータを作る（武器をランダムに選ぶ版）
+    //-------------------------------------------------------------
+    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
+        // EnemyConfigFactoryは乱数生成器を引数に取らないため、ここだけは
+        // ファイルローカルな生成器を持つ（各Systemが自前のmt19937を持っているのと同じ流儀）。
+        // 抽選を伴わない決定的な処理は全て上のオーバーロード側にあるので、
+        // シーンの手置きや動作確認では武器を明示して呼べばよい
+        static std::mt19937 s_weaponRng{std::random_device{}()};
+
+        std::uniform_int_distribution<size_t> distribution(0, std::size(kPaladinWeaponVariants) - 1);
+
+        return MakePaladinConfig(context, spawnPosition, kPaladinWeaponVariants[distribution(s_weaponRng)].weaponId);
     }
 }    // namespace CombatAndroid::ECS

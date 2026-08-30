@@ -8,6 +8,7 @@
 #ifdef TSUKINO_ENABLE_STRESS_TEST
 
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyStressTestComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
@@ -339,6 +340,20 @@ namespace CombatAndroid::ECS {
 
                 if(health.hpBarFillEntity != entt::null)
                     registry.QueueDestroy(health.hpBarFillEntity);
+            }
+
+            //-----------------------------------------------------
+            // 武器を持つ敵（Paladin等）は、その武器も一緒に消す。
+            // 武器も敵とは別のエンティティなので、HPバーと同じく消し忘れると残ってしまう。
+            // 現状この負荷試験はSmallZombieしか湧かせないため実際には効かないが、
+            // 湧かせる種類を変えたときに黙って漏れないよう先に塞いでおく
+            //-----------------------------------------------------
+            if(registry.HasComponent<CombatAndroid::ECS::EnemyHeldWeaponComponent>(entity)) {
+                const CombatAndroid::ECS::EnemyHeldWeaponComponent& heldWeapon =
+                    registry.GetComponent<CombatAndroid::ECS::EnemyHeldWeaponComponent>(entity);
+
+                if(heldWeapon.weaponEntity != entt::null)
+                    registry.QueueDestroy(heldWeapon.weaponEntity);
             }
 
             // System の中からの破棄は必ず QueueDestroy を使う（即時破棄はイテレータを壊す）。

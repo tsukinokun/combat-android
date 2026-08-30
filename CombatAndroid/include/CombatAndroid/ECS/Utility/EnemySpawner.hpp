@@ -8,6 +8,8 @@
 //-------------------------------------------------------------
 #pragma once
 
+#include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
+
 #include <Tsukino/Core/ECS/Registry/Registry.hpp>
 #include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Engine/Asset/AssetHandle.hpp>
@@ -68,6 +70,16 @@ namespace CombatAndroid::ECS {
         float          hitboxDamage = 15.0f;
         float          hitStartTime = 0.40f;    //!< Attackへ入ってからの経過秒。ここから判定が有効になる
         float          hitDuration  = 0.20f;
+
+        //-------------------------------------------------------------
+        // 手に持たせる武器（Paladin等）。SpawnBehaviorEnemyが武器エンティティを別途生成し、
+        // WeaponComponent::ownerをこの敵にして右手ボーンへ追従させる。
+        // 生成した武器はEnemyHeldWeaponComponentへ記録され、撃破時にドロップされる。
+        // 武器の性能はWeaponSpawner::ConfigureWeaponが決めるため、
+        // 拾ったプレイヤーは手置きの武器とまったく同じものを手に入れる
+        //-------------------------------------------------------------
+        bool     hasHeldWeapon = false;                    //!< 手に武器を持たせるか
+        WeaponId heldWeaponId  = WeaponId::Warhammer;    //!< 持たせる武器の種類
     };
 
     //-------------------------------------------------------------
@@ -103,4 +115,32 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     EnemySpawnConfig MakeBigZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition);
+
+    //-------------------------------------------------------------
+    //! @brief  Paladin 1体分の生成パラメータを作る関数（武器を明示指定する版）
+    //! @param  context       [in] エンジンコンテキスト
+    //! @param  spawnPosition [in] 出現位置
+    //! @param  weaponId      [in] 持たせる武器の種類
+    //! @return 生成パラメータ
+    //! @note   Paladinは持っている武器によって攻撃モーション・間合い・威力が変わる。
+    //!         抽選を伴わない決定的な版なので、シーンへの手置きや見た目の確認に使う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context,
+                                       const hlslpp::float3& spawnPosition,
+                                       WeaponId weaponId);
+
+    //-------------------------------------------------------------
+    //! @brief  Paladin 1体分の生成パラメータを作る関数（武器をランダムに選ぶ版）
+    //! @param  context       [in] エンジンコンテキスト
+    //! @param  spawnPosition [in] 出現位置
+    //! @return 生成パラメータ
+    //! @note   EnemySpawnTableのEnemyConfigFactoryへ渡すのはこちら。
+    //!         EnemyConfigFactoryは乱数生成器を引数に取らないため、抽選は.cpp側の
+    //!         ファイルローカルなmt19937で行い、あとは武器を明示する上のオーバーロードへ委譲する
+    //!         （シグネチャを変えると負荷試験・シーンの手置き側にも乱数生成器が要るようになり、
+    //!         　それらは抽選を必要としないため割に合わない）
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition);
 }    // namespace CombatAndroid::ECS

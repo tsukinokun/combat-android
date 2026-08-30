@@ -34,6 +34,7 @@ namespace CombatAndroid::ECS {
     enum class EnemyTypeId : int {
         SmallZombie = 0,
         BigZombie,
+        Paladin,
         Count,
     };
 

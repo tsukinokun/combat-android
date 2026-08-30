@@ -25,6 +25,10 @@ namespace CombatAndroid::ECS {
             {EnemyTypeId::SmallZombie, "SmallZombie", &MakeSmallZombieConfig, 80.0f, 0.0f},
             // BigZombieは体力150・攻撃も痛いので、序盤30秒は出さずに比重も低くする
             {EnemyTypeId::BigZombie, "BigZombie", &MakeBigZombieConfig, 20.0f, 30.0f},
+            // Paladinは武器を持って湧き、撃破するとその武器を落とすレア敵。
+            // 体力200・EXP60と報酬が大きいぶん比重をぐっと下げ、序盤60秒は出さない。
+            // 比重5は「20体に1体くらい混ざる」狙い（SmallZombie80 + BigZombie20 + Paladin5）
+            {EnemyTypeId::Paladin, "Paladin", &MakePaladinConfig, 5.0f, 60.0f},
         };
 
         // 種類を足したのにテーブルへ書き忘れる事故を防ぐ

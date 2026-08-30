@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/SpawnedEnemyComponent.hpp>
@@ -182,6 +183,17 @@ namespace CombatAndroid::ECS {
                 if(health->hpBarFillEntity != entt::null)
                     registry.QueueDestroy(health->hpBarFillEntity);
             }
+
+            // 武器を持つ敵（Paladin等）は、その武器も一緒に消す。
+            // 武器は敵の子エンティティではなく独立したエンティティなので、
+            // ここで消し忘れると所有者を失った武器が地面に置き去りのまま永久に残り続ける
+            // （撃破された場合はEnemyWeaponDropSystemが拾える武器として引き取るが、
+            // 　間引きはその経路を通らない）
+            if(const EnemyHeldWeaponComponent* heldWeapon = registry.try_get<EnemyHeldWeaponComponent>(entity)) {
+                if(heldWeapon->weaponEntity != entt::null)
+                    registry.QueueDestroy(heldWeapon->weaponEntity);
+            }
+
             registry.QueueDestroy(entity);
         });
     }

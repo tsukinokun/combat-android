@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Event/EnemyDiedEvent.hpp>
@@ -113,7 +114,16 @@ namespace CombatAndroid::ECS {
                 // 実際のエンティティ生成はExpOrbSystem::Updateへ一本化する
                 if(auto* eventBus = context.registry.GetContext<Tsukino::ECS::EventBus*>()) {
                     const auto& deathTransform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
-                    eventBus->Publish(EnemyDiedEvent{deathTransform.position, static_cast<int>(enemy.expReward + 0.5f)});
+
+                    // 手に武器を持っていれば（Paladin等）、それも一緒に通知して地面へ落とさせる。
+                    // ここで武器エンティティのコンポーネント構成を変えるとBT反復中のView/Poolを
+                    // 壊しかねないため、実際のドロップ処理はEnemyWeaponDropSystem::Updateへ委ねる
+                    Tsukino::ECS::Entity heldWeaponEntity = entt::null;
+                    if(auto* heldWeapon = context.registry.try_get<EnemyHeldWeaponComponent>(context.entity))
+                        heldWeaponEntity = heldWeapon->weaponEntity;
+
+                    eventBus->Publish(
+                        EnemyDiedEvent{deathTransform.position, static_cast<int>(enemy.expReward + 0.5f), heldWeaponEntity});
                 }
 
                 // 本体・頭上HPバー（背景・残量）を破棄予約する。
