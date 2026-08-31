@@ -16,9 +16,48 @@
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    //-------------------------------------------------------------
+    //! @brief 敵1体へノックバックを要求する
+    //-------------------------------------------------------------
+    void RequestKnockback(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity enemyEntity, const KnockbackParams& params) {
+        auto* enemy = registry.try_get<EnemyComponent>(enemyEntity);
+        if(!enemy)
+            return;
+
+        // 硬直中は「今より強い要求」だけを通す。弱い要求まで通すと、連撃のたびに
+        // のけぞりが頭から再生され直して永久に硬直するハメになる
+        if(enemy->isKnockedBack && params.speed <= enemy->knockbackStrength)
+            return;
+
+        //---------------------------------------------------------
+        // 押し出す向き：起点（プレイヤー）から対象へ向かう水平方向。
+        // 起点と対象がほぼ重なっている場合は向きが定まらないので、
+        // 対象の背面方向（＝自分から見た後ろ）へ逃がす
+        //---------------------------------------------------------
+        hlslpp::float3 direction(0.0f, 0.0f, 0.0f);
+        if(params.speed > 0.0f) {
+            if(const auto* transform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity)) {
+                hlslpp::float3 away = transform->position - params.sourcePosition;
+                away.y              = 0.0f;    // 水平のみ。浮かせると接地高さの管理が要るため今は上へは飛ばさない
+
+                float awayLength = hlslpp::length(away);
+                if(awayLength > 1e-4f)
+                    direction = away / awayLength;
+                else
+                    direction = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, -1.0f), transform->rotation);
+            }
+        }
+
+        enemy->pendingKnockback         = true;
+        enemy->pendingKnockbackVelocity = direction * params.speed;
+        enemy->pendingKnockbackStun     = params.stunDuration;
+        enemy->knockbackStrength        = params.speed;
+    }
+
     //-------------------------------------------------------------
     //! @brief 1体のエンティティへヒットストップを要求/更新する
     //-------------------------------------------------------------
@@ -56,7 +95,8 @@ namespace CombatAndroid::ECS {
                         const hlslpp::float3& hitPositionFallback,
                         std::vector<Tsukino::ECS::Entity>& hitRecord,
                         float lifeStealRatio,
-                        float& lifeStealHealed) {
+                        float& lifeStealHealed,
+                        const KnockbackParams& knockback) {
         if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
             return false;
 
@@ -77,9 +117,12 @@ namespace CombatAndroid::ECS {
         hitRecord.push_back(hitEntity);
 
         // 一定以上の単発ダメージでノックバックを要求する（BTのPlayKnockbackが消費する）。
-        // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
-        if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
-            enemy.pendingKnockback = true;
+        // 重い武器（KnockbackParams::ignoreDamageThreshold＝greatsword等）はダメージ量に関わらず
+        // 必ず怯ませる。これはEnemyDifficultyTable::knockbackThresholdScaleによる難易度スケールも
+        // 一緒にバイパスするが、「重い武器は難易度に関わらず怯ませる」ことを狙った意図的な挙動。
+        // 硬直中の再要求を弾くハメ防止はRequestKnockback側（強い要求だけが勝つ）が持つ
+        if(knockback.ignoreDamageThreshold || dealtDamage >= enemy.knockbackDamageThreshold)
+            RequestKnockback(registry, hitEntity, knockback);
 
         //---------------------------------------------------------
         // 嫉妬（スキル）：与えたダメージの一部を攻撃者のHPへ変換する。

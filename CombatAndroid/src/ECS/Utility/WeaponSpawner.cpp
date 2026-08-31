@@ -66,6 +66,10 @@ namespace CombatAndroid::ECS {
              false,
              // 3段目フィニッシュのAoE(範囲攻撃)。スケール100は1ユニット≒1cm規約への単位合わせ
              160.0f, "CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc", 100.0f,
+             // ノックバックは従来どおり（敵のknockbackDamageThreshold頼み・その場で怯むだけ）
+             /* IgnoresThreshold */ false,
+             /* KnockbackSpeed */ 0.0f, /* KnockbackStun */ 0.0f,
+             /* AreaKnockbackSpeed */ 0.0f, /* AreaKnockbackStun */ 0.0f,
              // 斬撃弾は非対応
              nullptr, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2, 0.0f, 0.0f, 0.0f},
 
@@ -73,7 +77,18 @@ namespace CombatAndroid::ECS {
              kCommonGripPointLocal, kCommonAttackLocalOffset, kCommonAttackGripRotation,
              "CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx", kAttackClipDuration,
              false,
-             0.0f, nullptr, 1.0f,
+             // 3段目フィニッシュのAoE。warhammer(160)より一回り広い。スケール100は1ユニット≒1cm規約への単位合わせ
+             180.0f, "CombatAndroid/Assets/Effect/greatswordAttackCombo3.efkefc", 100.0f,
+             //-------------------------------------------------------------
+             // 重くて遅いぶん、通常の一撃でも必ずスタン＋小さく押し出し、3段目のAoEでは大きく吹っ飛ばす。
+             // 押し出しの到達距離は 初速 / EnemyComponent::knockbackDecayRate(8.0) に収束するので、
+             // 通常は約33ユニット・AoEは約88ユニット（敵のbodyRadiusが40）。
+             // スタン時間はEnemyAnimationSetComponent::knockbackTimeoutSafety(1.5秒)を超えさせないこと
+             //-------------------------------------------------------------
+             /* IgnoresThreshold */ true,
+             /* KnockbackSpeed */ 260.0f, /* KnockbackStun */ 0.15f,
+             /* AreaKnockbackSpeed */ 700.0f, /* AreaKnockbackStun */ 0.45f,
+             // 斬撃弾は非対応
              nullptr, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2, 0.0f, 0.0f, 0.0f},
 
             {WeaponId::Battleaxe, "CombatAndroid/Assets/Models/battleaxe.fbx", L"バトルアックス",
@@ -82,6 +97,10 @@ namespace CombatAndroid::ECS {
              // バトルアックスのみ、左クリック長押しの溜め攻撃に対応する
              true,
              0.0f, nullptr, 1.0f,
+             // ノックバックは従来どおり（敵のknockbackDamageThreshold頼み・その場で怯むだけ）
+             /* IgnoresThreshold */ false,
+             /* KnockbackSpeed */ 0.0f, /* KnockbackStun */ 0.0f,
+             /* AreaKnockbackSpeed */ 0.0f, /* AreaKnockbackStun */ 0.0f,
              //-------------------------------------------------------------
              // 溜め攻撃の解放で前方へ飛ばす斬撃弾。エフェクトは座標移動を持たないので
              // 弾エンティティが運ぶ（ProjectileSystem）。再生速度は等倍
@@ -187,6 +206,16 @@ namespace CombatAndroid::ECS {
             weapon.areaAttackEffectPath  = effectPath;
             weapon.areaAttackEffectScale = definition.areaAttackEffectScale;
         }
+
+        //-------------------------------------------------------------
+        // ノックバック（怯み＋吹っ飛ばし）。AoEと違い「0なら無効」の分岐は要らない
+        // （0のまま書けば従来どおりの挙動になる）ので無条件にコピーする
+        //-------------------------------------------------------------
+        weapon.knockbackIgnoresThreshold = definition.knockbackIgnoresThreshold;
+        weapon.knockbackSpeed            = definition.knockbackSpeed;
+        weapon.knockbackStun             = definition.knockbackStun;
+        weapon.areaKnockbackSpeed        = definition.areaKnockbackSpeed;
+        weapon.areaKnockbackStun         = definition.areaKnockbackStun;
 
         weapon.chargeAttackEnabled = definition.chargeAttackEnabled;
 

@@ -189,6 +189,18 @@ namespace CombatAndroid::ECS {
         float areaAttackTimer = 0.0f;      //!< AoE発動までの残り時間（秒）
 
         //-------------------------------------------------------------
+        // ノックバック（この武器が当てたときに敵へ与える怯み・押し出し）。
+        // 全て0/falseなら従来どおり「敵のknockbackDamageThresholdを超えた一撃だけがその場で怯む」。
+        // 重くて遅い武器（greatsword）は閾値を無視して必ず怯ませ、さらに位置を押し出す。
+        // areaAttackRadius等と同じ流儀でインスタンスごとにWeaponSpawnDefinitionから焼き込む
+        //-------------------------------------------------------------
+        bool  knockbackIgnoresThreshold = false;    //!< trueなら敵のknockbackDamageThresholdを無視して必ず怯ませる
+        float knockbackSpeed            = 0.0f;      //!< 通常ヒットの押し出し初速（ユニット/秒）。0なら位置を動かさず怯むだけ
+        float knockbackStun             = 0.0f;      //!< 通常ヒットの追加スタン時間（秒）
+        float areaKnockbackSpeed        = 0.0f;      //!< AoEヒットの押し出し初速（＝3段目フィニッシュの吹っ飛ばし）
+        float areaKnockbackStun         = 0.0f;      //!< AoEヒットの追加スタン時間（秒）
+
+        //-------------------------------------------------------------
         // 攻撃モーションの武器差し替え。未設定（!attackClip.IsValid()）ならプレイヤー既定の
         // PlayerAnimationSetComponent::attackSteps（Hammer Attack.fbx）をそのまま使う。
         // weaponId/WeaponTable経由では持たず、areaAttack等と同じ流儀でインスタンスごとに

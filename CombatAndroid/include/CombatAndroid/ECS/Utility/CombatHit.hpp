@@ -36,6 +36,32 @@ namespace CombatAndroid::ECS {
     inline constexpr float kLifeStealCapRatioPerAttack = 0.25f;
 
     //-------------------------------------------------------------
+    //! @struct KnockbackParams
+    //! @brief  ノックバック（のけぞり＋吹っ飛ばし）1回ぶんの要求内容
+    //! @note   既定構築（全て0/false）なら「ダメージがknockbackDamageThresholdを超えたときに
+    //!         その場で怯むだけ」という従来どおりの挙動になる。斬撃弾（ProjectileSystem）は
+    //!         これをそのまま渡している
+    //-------------------------------------------------------------
+    struct KnockbackParams {
+        hlslpp::float3 sourcePosition = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 押し出しの起点。ここから対象へ向かう水平方向へ押し出す
+        float          speed                 = 0.0f;     //!< 押し出しの初速（ユニット/秒）。0なら位置を動かさず怯むだけ
+        float          stunDuration          = 0.0f;     //!< 追加の強制硬直時間（秒）。EnemyAnimationSetComponent::knockbackTimeoutSafetyを超えさせないこと
+        bool           ignoreDamageThreshold = false;    //!< trueならknockbackDamageThresholdを満たさなくても発動する（重い武器用）
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  敵1体へノックバックを要求する
+    //! @param  registry     [in,out] ECSレジストリ
+    //! @param  enemyEntity  [in]     対象。EnemyComponentとTransformComponentを持たなければ何もしない
+    //! @param  params       [in]     要求内容
+    //! @note   硬直中（isKnockedBack）は「今より強い要求」だけが上書きできる。
+    //!         弱い要求を弾くことで連撃で仰け反り続けるハメを防ぎつつ、3段目の吹っ飛ばしは
+    //!         怯み中の敵にも通る。同じ内容で2回呼んでも2回目は上書き条件を満たさず無害
+    //!         （AoEがダメージ経路と押し出し経路の両方から呼ぶため、これに依存している）
+    //-------------------------------------------------------------
+    void RequestKnockback(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity enemyEntity, const KnockbackParams& params);
+
+    //-------------------------------------------------------------
     //! @brief  1体のエンティティへヒットストップを要求/更新する。
     //!         画面全体ではなく対象エンティティだけをHitStopSystemが減速させる
     //! @param  registry [in,out] ECSレジストリ
@@ -59,6 +85,7 @@ namespace CombatAndroid::ECS {
     //! @param  hitRecord           [in,out] 多重ヒット防止の記録。既に載っている相手はスキップし、当てたら追加する
     //! @param  lifeStealRatio      [in]     スキル「嫉妬」の吸収割合（0なら吸収しない）
     //! @param  lifeStealHealed     [in,out] 上記の吸収済み総量。上限（kLifeStealCapRatioPerAttack）の判定に使う
+    //! @param  knockback           [in]     ノックバックの要求内容。既定構築なら従来どおり（閾値超えでその場硬直）
     //! @return 実際にダメージを与えたらtrue
     //-------------------------------------------------------------
     bool ApplyCombatHit(Tsukino::ECS::Registry& registry,
@@ -70,5 +97,6 @@ namespace CombatAndroid::ECS {
                         const hlslpp::float3& hitPositionFallback,
                         std::vector<Tsukino::ECS::Entity>& hitRecord,
                         float lifeStealRatio,
-                        float& lifeStealHealed);
+                        float& lifeStealHealed,
+                        const KnockbackParams& knockback = KnockbackParams{});
 }    // namespace CombatAndroid::ECS

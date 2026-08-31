@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/EnemyDiedEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -139,24 +140,55 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  ノックバックアクション。desiredStateをKnockbackへ書き、その場で硬直する
+        //! @brief  ノックバックアクション。desiredStateをKnockbackへ書き、硬直しながら押し出される
         //! @details
-        //! 押し戻しは行わない（Transformを一切書かない）。硬直中（isKnockedBack）は
-        //! CombatSystem側がpendingKnockbackを立てないため、再ノックバックは発生しない
+        //! RequestKnockback（CombatHit）が積んだ初速を指数減衰させながら水平にTransformへ積む。
+        //! 敵はKinematic＋センサーカプセルでTransformに追従するだけなので、物理へインパルスを
+        //! 与える経路は無く、ここで直接書くのが正しい（MoveToPlayerと同じ流儀）。
+        //! 初速0（＝軽い武器の従来のノックバック）なら位置は動かず、その場で硬直するだけになる
         //-------------------------------------------------------------
         NodeStatus PlayKnockback(BehaviorContext<EnemyBlackboard>& context) {
-            auto& enemy   = context.registry.GetComponent<EnemyComponent>(context.entity);
-            auto& animSet = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            auto& enemy     = context.registry.GetComponent<EnemyComponent>(context.entity);
+            auto& animSet   = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            auto& transform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
 
             if(enemy.pendingKnockback) {
-                // 立ち上がりの1回だけ：硬直状態へ入る
-                enemy.pendingKnockback = false;
-                enemy.isKnockedBack     = true;
-                animSet.knockbackTimer = 0.0f;
+                // 立ち上がりの1回だけ：硬直状態へ入り、要求された初速・スタン時間を取り込む。
+                // 既に硬直中でもここへ来ることがあるが、その場合はRequestKnockback側で
+                // 「今より強い要求」だけに絞られているので、上書き＝より強い一撃で吹き飛ぶ、で正しい
+                enemy.pendingKnockback    = false;
+                enemy.isKnockedBack        = true;
+                enemy.knockbackVelocity   = enemy.pendingKnockbackVelocity;
+                enemy.stunTimer            = enemy.pendingKnockbackStun;
+                animSet.knockbackTimer    = 0.0f;
             }
 
             animSet.desiredState    = EnemyAnimState::Knockback;
             animSet.knockbackTimer += context.deltaTime;
+
+            if(enemy.stunTimer > 0.0f) {
+                enemy.stunTimer -= context.deltaTime;
+                if(enemy.stunTimer < 0.0f)
+                    enemy.stunTimer = 0.0f;
+            }
+
+            //---------------------------------------------------------
+            // 押し出し。ヒットストップ中は動かさない：絵が止まったまま滑ると不自然なので、
+            // 「衝撃で止まる → 弾け飛ぶ」の順になるようにする（ヒットストップは0.08秒と短い）。
+            // yは触らない＝水平のみ（浮かせると接地高さの管理が要る）
+            //---------------------------------------------------------
+            if(!context.registry.HasComponent<HitStopComponent>(context.entity)) {
+                float knockbackSpeed = hlslpp::length(enemy.knockbackVelocity);
+                if(knockbackSpeed > 1.0f) {
+                    transform.position = transform.position + enemy.knockbackVelocity * context.deltaTime;
+                    transform.dirty    = true;
+
+                    // 指数減衰（フレームレート非依存）。到達距離は 初速 / knockbackDecayRate に収束する
+                    enemy.knockbackVelocity = enemy.knockbackVelocity * std::exp(-enemy.knockbackDecayRate * context.deltaTime);
+                } else {
+                    enemy.knockbackVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                }
+            }
 
             bool isPlayingKnockbackClip = animSet.currentState == EnemyAnimState::Knockback;
             bool clipFinished             = false;
@@ -165,15 +197,21 @@ namespace CombatAndroid::ECS {
                 clipFinished             = animPlayer.is_finished;
             }
 
+            // knockbackTimeoutSafety（1.5秒）はクリップ設定ミス等の保険。stunTimerはそれより
+            // 短い前提だが、万一長い値を入れられてもここで打ち切れるようORのままにしてある
             bool timedOut = animSet.knockbackTimer >= animSet.knockbackTimeoutSafety;
 
-            if((isPlayingKnockbackClip && clipFinished) || timedOut) {
+            // スタン時間が残っている間はクリップを再生しきっても抜けない（重い武器の追加硬直）
+            if((isPlayingKnockbackClip && clipFinished && enemy.stunTimer <= 0.0f) || timedOut) {
                 enemy.isKnockedBack       = false;
+                enemy.knockbackVelocity   = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 抜けたあとに滑り続けないよう必ずクリアする
+                enemy.knockbackStrength   = 0.0f;                                  // 次のノックバックが強さで弾かれないよう戻す
+                enemy.stunTimer            = 0.0f;
                 enemy.attackCooldownTimer = enemy.attackCooldown;    // 怯み明けに即攻撃させない
                 return NodeStatus::Success;
             }
 
-            return NodeStatus::Running;    // Transformは一切書かない＝その場で硬直
+            return NodeStatus::Running;
         }
 
         //-------------------------------------------------------------

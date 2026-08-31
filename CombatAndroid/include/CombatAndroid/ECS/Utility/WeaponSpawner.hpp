@@ -67,6 +67,16 @@ namespace CombatAndroid::ECS {
         float       areaAttackEffectScale;
 
         //-------------------------------------------------------------
+        // ノックバック（怯み＋吹っ飛ばし）。全て0/falseなら従来どおり
+        // 「敵のknockbackDamageThresholdを超えた一撃だけがその場で怯む」挙動になる
+        //-------------------------------------------------------------
+        bool  knockbackIgnoresThreshold;    //!< trueなら敵の閾値を無視して必ず怯ませる（重い武器）
+        float knockbackSpeed;               //!< 通常ヒットの押し出し初速（ユニット/秒）。0なら位置を動かさない
+        float knockbackStun;                //!< 通常ヒットの追加スタン時間（秒）
+        float areaKnockbackSpeed;           //!< AoEヒットの押し出し初速（3段目フィニッシュの吹っ飛ばし）
+        float areaKnockbackStun;            //!< AoEヒットの追加スタン時間（秒）
+
+        //-------------------------------------------------------------
         // 溜め攻撃の解放時に前方へ飛ばす斬撃弾。projectileEffectPathがnullptrなら非対応。
         // chargeAttackEnabledがfalseの武器に値を入れても撃つ機会が無いので意味を持たない
         //-------------------------------------------------------------

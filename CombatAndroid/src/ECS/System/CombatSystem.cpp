@@ -194,21 +194,51 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  この武器の一撃が与えるノックバック（怯み＋押し出し）の内容を組み立てる
+        //! @param  registry       [in] 起点となる所有者のTransformを引くために使う
+        //! @param  weapon         [in] 強度を持つ武器
+        //! @param  weaponPosition [in] 所有者が引けない場合に起点として使う武器のグリップ位置
+        //! @param  isAreaAttack   [in] AoE(範囲攻撃)由来のヒットか（trueなら吹っ飛ばし側の値を使う）
+        //! @note   押し出しの起点は所有者（プレイヤー）のルート位置にする。武器のtransformは
+        //!         振っている最中の手ボーン上にあり左右へ大きくずれるため、そこを起点にすると
+        //!         同じ攻撃でも敵が飛ぶ向きがばらついてしまう
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        KnockbackParams MakeKnockbackParams(Tsukino::ECS::Registry& registry, const WeaponComponent& weapon,
+                                            const hlslpp::float3& weaponPosition, bool isAreaAttack) {
+            KnockbackParams knockback{};
+            knockback.sourcePosition        = weaponPosition;
+            knockback.speed                 = isAreaAttack ? weapon.areaKnockbackSpeed : weapon.knockbackSpeed;
+            knockback.stunDuration          = isAreaAttack ? weapon.areaKnockbackStun : weapon.knockbackStun;
+            knockback.ignoreDamageThreshold = weapon.knockbackIgnoresThreshold;
+
+            if(weapon.owner != entt::null) {
+                if(const auto* ownerTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(weapon.owner))
+                    knockback.sourcePosition = ownerTransform->position;
+            }
+
+            return knockback;
+        }
+
+        //-------------------------------------------------------------
         //! @brief  1体の敵への「武器ヒット」を確定させる。
         //!         直線カプセル判定・AoE(範囲攻撃)判定の両方から呼ばれる。
         //!         実ダメージの組み立て（武器の基礎ダメージ×連撃段の倍率×スキル「憤怒」の倍率）だけを
         //!         ここで行い、ヒットの確定そのものは斬撃弾と共有するApplyCombatHit（CombatHit.hpp）へ委ねる
         //! @param  hitPositionFallback [in] 対象にTransformComponentが無い場合に使う位置
+        //! @param  isAreaAttack        [in] AoE(範囲攻撃)由来のヒットか（ノックバックの強さが変わる）
         //-------------------------------------------------------------
         void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity,
                                     WeaponComponent& weapon, entt::entity hitEntity, const hlslpp::float3& hitPositionFallback,
-                                    float skillAttackMultiplier, float skillLifeStealRatio) {
+                                    float skillAttackMultiplier, float skillLifeStealRatio, bool isAreaAttack) {
             // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
             //             ×スキル「憤怒」の攻撃力倍率
             float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
 
+            KnockbackParams knockback = MakeKnockbackParams(registry, weapon, hitPositionFallback, isAreaAttack);
+
             ApplyCombatHit(registry, eventBus, weapon.owner, weaponEntity, hitEntity, dealtDamage, hitPositionFallback,
-                           weapon.hitEnemiesThisAttack, skillLifeStealRatio, weapon.lifeStealHealedThisAttack);
+                           weapon.hitEnemiesThisAttack, skillLifeStealRatio, weapon.lifeStealHealedThisAttack, knockback);
         }
     }    // namespace
 
@@ -542,7 +572,7 @@ namespace CombatAndroid::ECS {
 
                     for(entt::entity hitEntity : overlapping) {
                         ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier,
-                                               skillLifeStealRatio);
+                                               skillLifeStealRatio, /* isAreaAttack */ false);
                     }
 
                     weapon.prevAttackPosition = transform.position;
@@ -576,9 +606,24 @@ namespace CombatAndroid::ECS {
                         std::vector<entt::entity> areaHits = ctx->physicsSystem->OverlapCapsule(
                             transform.position, sphereRotation, weapon.areaAttackRadius, kAreaAttackCapsuleHalfHeight);
 
+                        //-------------------------------------------------------------
+                        // 円内の敵へダメージを与えつつ、吹っ飛ばしは全員へ掛ける。
+                        //
+                        // 直線カプセル判定で既に斬った敵はhitEnemiesThisAttackに載っており、
+                        // ApplyCombatHitが多重ヒット防止で早期returnする＝ノックバック要求まで
+                        // 落ちてこない。それだと「目の前で斬った敵だけ吹っ飛ばない」という
+                        // ちぐはぐな絵になるため、押し出しはRequestKnockbackを直接呼んで別経路にする。
+                        // ダメージ側のガードはそのままなので二重ダメージにはならず、
+                        // 新規ヒットの敵へ要求が2回来ても「強い要求だけが勝つ」ルールで2回目は無害
+                        //-------------------------------------------------------------
+                        KnockbackParams areaKnockback = MakeKnockbackParams(registry, weapon, transform.position, /* isAreaAttack */ true);
+
                         for(entt::entity hitEntity : areaHits) {
                             ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier,
-                                                   skillLifeStealRatio);
+                                                   skillLifeStealRatio, /* isAreaAttack */ true);
+
+                            if(areaKnockback.speed > 0.0f)
+                                RequestKnockback(registry, hitEntity, areaKnockback);
                         }
 
                         if(ctx->effectSystem && weapon.areaAttackEffectAsset.IsValid()) {
