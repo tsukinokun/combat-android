@@ -101,8 +101,9 @@ namespace CombatAndroid::ECS {
 
                 //-------------------------------------------------------------
                 // マウス移動量でyaw/pitchを更新する
+                // 左右は反転させる（マウスを右へ動かすとカメラは左へ旋回する）
                 //-------------------------------------------------------------
-                tpsCamera.yaw += static_cast<float>(mouseDx) * tpsCamera.mouseSensitivity;
+                tpsCamera.yaw -= static_cast<float>(mouseDx) * tpsCamera.mouseSensitivity;
                 tpsCamera.pitch += static_cast<float>(mouseDy) * tpsCamera.mouseSensitivity;
                 tpsCamera.pitch = std::clamp(tpsCamera.pitch, tpsCamera.minPitch, tpsCamera.maxPitch);
 
