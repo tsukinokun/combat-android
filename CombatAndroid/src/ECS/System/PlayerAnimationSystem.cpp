@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -142,6 +143,10 @@ namespace CombatAndroid::ECS {
                     // AoE(範囲攻撃)要求。実際に発動するかはCombatSystem側でweapon.areaAttackRadius>0を見て判定する
                     weapon->pendingAreaAttack      = step.areaAttack;
                     weapon->pendingAreaAttackDelay = step.areaAttackDelay;
+                    // 斬撃弾は溜め攻撃の解放でしか撃たない。通常の段へ入るときは必ず下ろしておき、
+                    // 前回の解放で立てた要求が持ち越されないようにする（この直後に走る
+                    // 解放判定のブロックが、解放時だけ改めて立て直す）
+                    weapon->pendingProjectile = false;
                 }
             };
         }
@@ -538,11 +543,38 @@ namespace CombatAndroid::ECS {
             // damageMultiplier = step.damageMultiplier（既定1.0）を設定済みなので、それに乗算する
             //-------------------------------------------------------------
             if(isCharging && chargeReleased && hasWeapon) {
-                registry.GetComponent<WeaponComponent>(player.weaponEntity).damageMultiplier *= ResolveChargeDamageMultiplier(chargeStage, player);
+                WeaponComponent& releasedWeapon = registry.GetComponent<WeaponComponent>(player.weaponEntity);
+
+                releasedWeapon.damageMultiplier *= ResolveChargeDamageMultiplier(chargeStage, player);
                 // 解放直後のスイング（Attack1）は、Attack1のOnEnterが設定した通常速度よりも
                 // 速く振らせる。段の速度（step.playbackSpeed）へ乗算する形にしておき、
                 // 将来step側の速度を変えてもここが二重に効かないようにする
                 animPlayer.playback_speed *= player.chargeReleasePlaybackSpeedMultiplier;
+
+                // 前方へ飛ぶ斬撃弾を要求する。実際に撃つかはCombatSystem側で
+                // weapon.projectileEffectAssetの有無を見て判定する（battleaxeのみ有効）。
+                // 溜め段階の倍率は上でdamageMultiplierへ乗せてあるため、弾の威力にもそのまま乗る。
+                // 段階そのものも渡すのは、貫通するかの判定（projectilePierceMinChargeStage）に要るため
+                releasedWeapon.pendingProjectile           = true;
+                releasedWeapon.pendingProjectileChargeStage = chargeStage;
+            }
+
+            //-------------------------------------------------------------
+            // 溜め中（超スロー）・回避中（早回し）の再生速度は、このSystemが毎フレーム
+            // 上書きして持っている「一時的な値」である。この最中に被弾すると、
+            // ヒットストップ（HitStopComponent::baseAnimSpeed）がその一時的な値を
+            // 「元の速度」として記録してしまい、ヒットストップ終了時にそれが復元される。
+            // 溜めを抜けた後もchargePlaybackSpeed（0.15）のまま再生され続け、次にステートが
+            // 切り替わる（＝OnEnterが等速へ戻す）までモーション全体がスローになる不具合の原因。
+            //
+            // そこで上書きを手放したこのフレームで、基準値を「今フレーム確定した速度」へ
+            // 取り直す。ここに置いているのは、上の解放処理まで含めて今フレームの
+            // playback_speedが確定した後だからである
+            //-------------------------------------------------------------
+            bool speedOverrideEnded = (isCharging && !willBeCharging) || (isDodging && !willBeDodging);
+            if(speedOverrideEnded) {
+                if(auto* hitStop = registry.try_get<HitStopComponent>(entity))
+                    hitStop->baseAnimSpeed = animPlayer.playback_speed;
             }
 
             //-------------------------------------------------------------

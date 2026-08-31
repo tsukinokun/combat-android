@@ -205,5 +205,39 @@ namespace CombatAndroid::ECS {
         // 設定する（battleaxeのスポーン箇所のみtrueにする）
         //-------------------------------------------------------------
         bool chargeAttackEnabled = false;    //!< trueならこの武器は左クリック長押しで溜め攻撃できる
+
+        //-------------------------------------------------------------
+        // 斬撃弾。溜め攻撃を解放したときだけ、前方へ飛ぶ攻撃判定（ProjectileComponent）を
+        // 1発生成する。areaAttack一式と同じ流儀で、WeaponSpawnDefinitionからインスタンスごとに
+        // 焼き込む（battleaxeのみ有効値が入る）。
+        // 見た目のエフェクトは弾エンティティのEffectComponentが持ち、弾のTransformへ追従する
+        //-------------------------------------------------------------
+        Tsukino::Asset::AssetHandle projectileEffectAsset;    //!< 弾の見た目に使うエフェクト（未設定ならこの武器は斬撃弾を撃たない）
+        Tsukino::Core::Path         projectileEffectPath;      //!< 上記のパス（EffectSystemのテクスチャ解決に使う）
+        float projectileEffectScale     = 1.0f;      //!< 上記の再生スケール（1ユニット≒1cm規約への単位合わせに100前後が要る）
+        float projectileEffectPlaySpeed = 1.0f;      //!< 上記の再生速度（1.0未満でゆっくり再生される）
+        float projectileSpeed            = 700.0f;    //!< 飛翔速度（ユニット/秒）
+        float projectileRadius           = 70.0f;     //!< 当たり判定カプセルの半径
+        float projectileLifetime         = 1.2f;      //!< 寿命（秒）
+        float projectileMaxDistance      = 1000.0f;   //!< 最大飛距離（ユニット）
+        float projectileDamageMultiplier = 1.0f;      //!< 弾のダメージ倍率（武器の実ダメージへ更に掛ける）
+        float projectileSpawnHeight      = 100.0f;    //!< 発射位置の高さ（所有者の足元原点からの相対）
+        float projectileSpawnForward     = 60.0f;     //!< 発射位置を前方へずらす量
+
+        //-------------------------------------------------------------
+        // どの溜め段階から弾が貫通するか。溜めの浅い一撃で群れを薙ぎ払えてしまうと
+        // 溜める意味が薄れるため、既定では2段階目（青）以上でのみ貫通させる。
+        // 1を入れれば常に貫通、4以上を入れれば常に貫通しない
+        //-------------------------------------------------------------
+        int projectilePierceMinChargeStage = 2;
+
+        bool  pendingProjectile   = false;    //!< 次にattackRequestedが消費される際、斬撃弾の射出を要求するか。
+                                               //!< PlayerAnimationSystemが溜め攻撃の解放時に立てる
+        int   pendingProjectileChargeStage = 1;    //!< 上の要求を立てたときの溜め段階（1=白 / 2=青 / 3=紫）。
+                                                    //!< CombatSystemが貫通するかの判定に使う
+        float projectileSpawnDelay = 0.25f;    //!< 攻撃開始から射出までの遅延（秒）。振り抜くタイミングに合わせる
+
+        bool  projectileArmed = false;    //!< 今回の攻撃で射出待ちか（CombatSystemが管理。射出または攻撃終了で消費）
+        float projectileTimer = 0.0f;      //!< 射出までの残り時間（秒）
     };
 }    // namespace CombatAndroid::ECS

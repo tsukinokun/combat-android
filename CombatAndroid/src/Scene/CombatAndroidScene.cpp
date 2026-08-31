@@ -36,6 +36,7 @@
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
 #include <CombatAndroid/ECS/System/CombatSystem.hpp>
+#include <CombatAndroid/ECS/System/ProjectileSystem.hpp>
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
@@ -172,6 +173,9 @@ namespace CombatAndroid {
                               // PlayerAnimationSystem（Gameplay）が今フレームのisAttackingを確定させた後、
                               // CombatSystem（WeaponAttach）がそれを読む前に割り込む
             WeaponAttach,     // 武器の追従（ボーンアタッチ）はAnimationSystemが今フレームのボーン姿勢を書き込んだ後に行う
+            Projectile,       // 斬撃弾の移動と当たり判定。弾を生成するCombatSystem（WeaponAttach）の後、
+                              // ヒットの結果を読むHealthBar/DamageNumberの前に置く。この並びでないと
+                              // 撃った弾が飛び始めるのも、HPバーとダメージ数値が出るのも1フレーム遅れる
             HealthBar,        // 頭上HPバーの表示可否・残量幅の更新。被弾（WeaponAttachでCombatSystemが
                               // hpBarVisibleTimerをセット）の後、WorldAnchorSystemが座標を確定させる前に行う
             DamageNumber,     // ダメージ数値のスロット割り当てとアニメーション更新。被弾（WeaponAttachで
@@ -256,6 +260,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::WeaponLevelDebugSystem>(), (int)SystemPriority::WeaponGripDebug);
 #endif
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CombatSystem>(), (int)SystemPriority::WeaponAttach);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ProjectileSystem>(), (int)SystemPriority::Projectile);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::HealthBarSystem>(), (int)SystemPriority::HealthBar);
         {
             // WeaponHitEventを購読してダメージ数値を出す。購読解除はSystemが持つ

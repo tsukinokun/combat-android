@@ -65,20 +65,37 @@ namespace CombatAndroid::ECS {
              "CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx", kAttackClipDuration,
              false,
              // 3段目フィニッシュのAoE(範囲攻撃)。スケール100は1ユニット≒1cm規約への単位合わせ
-             160.0f, "CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc", 100.0f},
+             160.0f, "CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc", 100.0f,
+             // 斬撃弾は非対応
+             nullptr, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2, 0.0f, 0.0f, 0.0f},
 
             {WeaponId::Greatsword, "CombatAndroid/Assets/Models/greatsword.fbx", L"グレートソード",
              kCommonGripPointLocal, kCommonAttackLocalOffset, kCommonAttackGripRotation,
              "CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx", kAttackClipDuration,
              false,
-             0.0f, nullptr, 1.0f},
+             0.0f, nullptr, 1.0f,
+             nullptr, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 2, 0.0f, 0.0f, 0.0f},
 
             {WeaponId::Battleaxe, "CombatAndroid/Assets/Models/battleaxe.fbx", L"バトルアックス",
              kCommonGripPointLocal, kCommonAttackLocalOffset, kCommonAttackGripRotation,
              "CombatAndroid/Assets/Anims/Player/Standing Melee Attack Backhand.fbx", kAttackClipDuration,
              // バトルアックスのみ、左クリック長押しの溜め攻撃に対応する
              true,
-             0.0f, nullptr, 1.0f},
+             0.0f, nullptr, 1.0f,
+             //-------------------------------------------------------------
+             // 溜め攻撃の解放で前方へ飛ばす斬撃弾。エフェクトは座標移動を持たないので
+             // 弾エンティティが運ぶ（ProjectileSystem）。再生速度は等倍
+             // （1未満にすると尺が伸びるぶん見た目が間延びする）。
+             // スケール100は1ユニット≒1cm規約への単位合わせ
+             //-------------------------------------------------------------
+             "CombatAndroid/Assets/Effect/battleaxeAttackEffect.efkefc",
+             /* Scale */ 100.0f, /* PlaySpeed */ 1.0f,
+             /* Speed */ 700.0f, /* Radius */ 70.0f,
+             /* Lifetime */ 1.2f, /* MaxDistance */ 1000.0f,
+             /* DamageMultiplier */ 1.0f,
+             // 1段階目（白）の弾は1体で止まり、2段階目（青）以上でのみ貫通する
+             /* PierceMinChargeStage */ 2,
+             /* SpawnDelay */ 0.25f, /* SpawnHeight */ 100.0f, /* SpawnForward */ 60.0f},
         };
 
         // 種類を足したのにテーブルへ書き忘れる事故を防ぐ（WeaponTable.cppと同じ作法）
@@ -172,6 +189,27 @@ namespace CombatAndroid::ECS {
         }
 
         weapon.chargeAttackEnabled = definition.chargeAttackEnabled;
+
+        //-------------------------------------------------------------
+        // 溜め攻撃の解放で飛ばす斬撃弾。エフェクトが未設定の武器は非対応なので何も設定しない
+        //-------------------------------------------------------------
+        if(definition.projectileEffectPath != nullptr) {
+            Tsukino::Core::Path projectileEffectPath(definition.projectileEffectPath);
+
+            weapon.projectileEffectAsset     = assetManager.Load(projectileEffectPath);
+            weapon.projectileEffectPath      = projectileEffectPath;
+            weapon.projectileEffectScale     = definition.projectileEffectScale;
+            weapon.projectileEffectPlaySpeed = definition.projectileEffectPlaySpeed;
+            weapon.projectileSpeed           = definition.projectileSpeed;
+            weapon.projectileRadius          = definition.projectileRadius;
+            weapon.projectileLifetime        = definition.projectileLifetime;
+            weapon.projectileMaxDistance     = definition.projectileMaxDistance;
+            weapon.projectileDamageMultiplier    = definition.projectileDamageMultiplier;
+            weapon.projectilePierceMinChargeStage = definition.projectilePierceMinChargeStage;
+            weapon.projectileSpawnDelay      = definition.projectileSpawnDelay;
+            weapon.projectileSpawnHeight     = definition.projectileSpawnHeight;
+            weapon.projectileSpawnForward    = definition.projectileSpawnForward;
+        }
     }
 
     //-------------------------------------------------------------

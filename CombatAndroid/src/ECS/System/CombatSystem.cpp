@@ -12,8 +12,10 @@
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Component/ProjectileComponent.hpp>
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerDamagedEvent.hpp>
+#include <CombatAndroid/ECS/Utility/CombatHit.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
@@ -21,6 +23,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/NodeWorldMatrixComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/EffectComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
@@ -32,6 +35,7 @@
 #include <Tsukino/Core/Math/MathHelper.hpp>
 #include <Tsukino/Engine/Physics/SpringBone/SpringBoneMath.hpp>
 #ifdef _DEBUG
+#include <CombatAndroid/ECS/Utility/CombatDebugDraw.hpp>
 #include <Tsukino/Renderer/Renderer.hpp>
 #include <Tsukino/GraphicsCommon/Vertex/DebugVertex.hpp>
 #include <fstream>
@@ -45,56 +49,29 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // ヒットストップの調整用定数（実機で見た目を確認しながら調整する）
-        //-------------------------------------------------------------
-        constexpr float kHitStopDuration = 0.08f;    //!< ヒット時にかかる減速の持続時間（実時間・秒）
-        constexpr float kHitStopScale    = 0.02f;    //!< 持続時間中のdeltaTimeへのスケール値（小さいほど強い停止）
-
-        // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき（上の2定数）より弱めにする。
+        // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき
+        // （CombatHit.hppのkHitStopDuration/kHitStopScale）より弱めにする。
         // プレイヤー操作が止まる時間を短くし、被弾直後にすぐ回避・反撃できるようにするため
+        //-------------------------------------------------------------
         constexpr float kPlayerHitStopDuration = 0.2f;
         constexpr float kPlayerHitStopScale    = 0.15f;
 
-        constexpr float kHpBarVisibleDuration = 3.0f;    //!< 被弾時に頭上HPバーを表示し続ける時間（秒）。HealthBarSystemが減算する
-
         //-------------------------------------------------------------
-        // スキル「嫉妬」が1回のアタックで吸収できるHPの上限（最大HPに対する割合）。
-        //
-        // 吸収量は与ダメージ比例なので、AoE対応武器（warhammerの3段目。damageMultiplier=2.0）で
-        // 群れを巻き込むとヒット数ぶん青天井に伸びてしまう。ヒット1発ずつに上限を付けても
-        // 巻き込み数で総量が伸びるのは変わらないため、アタック単位の総量で頭打ちにする
-        // （消費量はWeaponComponent::lifeStealHealedThisAttackが持つ）
+        //! @struct PendingProjectileSpawn
+        //! @brief  「この武器が斬撃弾を撃つ」と決まった内容を、実際に生成するまで保留しておく箱
+        //! @note   武器を回すループの最中にエンティティを作ると、コンポーネントのプールが
+        //!         再確保されてループが参照中のWeaponComponent/TransformComponentが宙に浮く。
+        //!         ExpOrbSystemがEnemyDiedEventをキューへ積んでからECSを触るのと同じ理由
         //-------------------------------------------------------------
-        constexpr float kLifeStealCapRatioPerAttack = 0.25f;
-
-        //-------------------------------------------------------------
-        //! @brief  1体のエンティティへヒットストップを要求/更新する。
-        //!         画面全体ではなく対象エンティティだけをHitStopSystemが減速させる
-        //! @param  entity   [in] 対象エンティティ（プレイヤーまたは敵）。entt::nullなら何もしない
-        //! @param  duration [in] 持続時間（実時間・秒）
-        //! @param  scale    [in] 持続時間中、対象エンティティのアニメーション/移動へ掛けるスケール値
-        //-------------------------------------------------------------
-        void ApplyHitStop(Tsukino::ECS::Registry& registry, entt::entity entity, float duration, float scale) {
-            if(entity == entt::null)
-                return;
-
-            bool  alreadyActive = registry.HasComponent<HitStopComponent>(entity);
-            auto& hitStop       = alreadyActive ? registry.GetComponent<HitStopComponent>(entity) : registry.AddComponent<HitStopComponent>(entity);
-
-            // 新規発動時のみ、その時点のplayback_speedを基準値として保存する。
-            // 既に発動中（同一攻撃の多段ヒット等）なら、HitStopSystemが既に減速させた後の
-            // 値を基準に取り直してしまわないよう、最初に保存した基準値を保ち続ける
-            if(!alreadyActive) {
-                if(auto* animPlayer = registry.try_get<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity))
-                    hitStop.baseAnimSpeed = animPlayer->playback_speed;
-                else
-                    hitStop.baseAnimSpeed = 1.0f;
-            }
-
-            // 同一フレームで複数回要求されても同じ値で上書きされるだけで問題ない
-            hitStop.remainingTime = duration;
-            hitStop.scale         = scale;
-        }
+        struct PendingProjectileSpawn {
+            entt::entity       weaponEntity;      //!< 発射元の武器（生成時に残りの設定値を引き直す）
+            hlslpp::float3     position;          //!< 発射位置
+            hlslpp::quaternion rotation;          //!< 発射時の姿勢（エフェクトの向き）
+            hlslpp::float3     direction;         //!< 進行方向（正規化済み・水平）
+            float              damage;            //!< 命中時に与える実ダメージ（倍率適用後の確定値）
+            float              lifeStealRatio;    //!< スキル「嫉妬」の吸収割合
+            bool               piercing;          //!< 貫通するか（falseなら1体で消滅する）
+        };
 
         //-------------------------------------------------------------
         //! @brief  エンティティのModelComponentが指すモデルに対し、名前でボーンのnodeIndexを解決する。
@@ -216,167 +193,22 @@ namespace CombatAndroid::ECS {
             return hlslpp::dot(diff, diff);
         }
 
-#ifdef _DEBUG
         //-------------------------------------------------------------
-        //! @brief  当たり判定範囲を目視確認できるよう、XZ平面上の円をワイヤーフレームで描画する
-        //-------------------------------------------------------------
-        void DrawWireCircleXZ(Tsukino::Renderer::Renderer* renderer, const hlslpp::float3& center, float radius, const hlslpp::float4& color) {
-            constexpr int segments = 24;
-            Tsukino::GraphicsCommon::DebugVertex prev{
-                {center.x + radius, center.y, center.z},
-                {color.x, color.y, color.z, color.w}
-            };
-            for(int i = 1; i <= segments; ++i) {
-                float angle = (2.0f * 3.14159265f) * (static_cast<float>(i) / static_cast<float>(segments));
-                Tsukino::GraphicsCommon::DebugVertex next{
-                    {center.x + std::cos(angle) * radius, center.y, center.z + std::sin(angle) * radius},
-                    {color.x, color.y, color.z, color.w}
-                };
-                renderer->DrawDebugLine(prev, next);
-                prev = next;
-            }
-        }
-
-        //-------------------------------------------------------------
-        //! @brief  任意軸のカプセル（halfHeightがほぼ0なら球）をワイヤーフレームで描画する。
-        //!         rotationはJolt/OverlapCapsuleと同じくローカルY軸をカプセルの軸として扱う
-        //-------------------------------------------------------------
-        void DrawWireCapsule(Tsukino::Renderer::Renderer* renderer, const hlslpp::float3& center,
-                             const hlslpp::quaternion& rotation, float radius, float halfHeight, const hlslpp::float4& color) {
-            constexpr float kPi = 3.14159265f;
-
-            hlslpp::float3 axisX = hlslpp::mul(hlslpp::float3(1.0f, 0.0f, 0.0f), rotation);
-            hlslpp::float3 axisY = hlslpp::mul(hlslpp::float3(0.0f, 1.0f, 0.0f), rotation);
-            hlslpp::float3 axisZ = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), rotation);
-
-            // 中心cから直交2軸u,v上に、startAngle〜endAngleの円弧をsegments分割で描く
-            auto drawArc = [&](const hlslpp::float3& c, const hlslpp::float3& u, const hlslpp::float3& v,
-                                float startAngle, float endAngle, int segments) {
-                hlslpp::float3 firstPos = c + u * (std::cos(startAngle) * radius) + v * (std::sin(startAngle) * radius);
-                Tsukino::GraphicsCommon::DebugVertex prev{
-                    {firstPos.x, firstPos.y, firstPos.z},
-                    {color.x, color.y, color.z, color.w}
-                };
-                for(int i = 1; i <= segments; ++i) {
-                    float          angle = startAngle + (endAngle - startAngle) * (static_cast<float>(i) / static_cast<float>(segments));
-                    hlslpp::float3 pos    = c + u * (std::cos(angle) * radius) + v * (std::sin(angle) * radius);
-                    Tsukino::GraphicsCommon::DebugVertex next{
-                        {pos.x, pos.y, pos.z},
-                        {color.x, color.y, color.z, color.w}
-                    };
-                    renderer->DrawDebugLine(prev, next);
-                    prev = next;
-                }
-            };
-
-            constexpr int kFullSegments = 24;
-
-            if(halfHeight <= 1e-4f) {
-                // 半径のみ＝球として3方向の円で簡易表現する
-                drawArc(center, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
-                drawArc(center, axisX, axisY, 0.0f, 2.0f * kPi, kFullSegments);
-                drawArc(center, axisZ, axisY, 0.0f, 2.0f * kPi, kFullSegments);
-                return;
-            }
-
-            hlslpp::float3 top    = center + axisY * halfHeight;
-            hlslpp::float3 bottom = center - axisY * halfHeight;
-
-            // 円柱側面の断面円（両端）
-            drawArc(top, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
-            drawArc(bottom, axisX, axisZ, 0.0f, 2.0f * kPi, kFullSegments);
-
-            // 半球キャップ（上下2端×2平面の円弧）
-            constexpr int kCapSegments = kFullSegments / 2;
-            drawArc(top, axisX, axisY, 0.0f, kPi, kCapSegments);
-            drawArc(top, axisZ, axisY, 0.0f, kPi, kCapSegments);
-            drawArc(bottom, axisX, axisY, 0.0f, -kPi, kCapSegments);
-            drawArc(bottom, axisZ, axisY, 0.0f, -kPi, kCapSegments);
-
-            // 円柱側面をつなぐ縦線（0°/90°/180°/270°）
-            for(int i = 0; i < 4; ++i) {
-                float          angle  = (kPi * 0.5f) * static_cast<float>(i);
-                hlslpp::float3 offset = axisX * (std::cos(angle) * radius) + axisZ * (std::sin(angle) * radius);
-                hlslpp::float3 a      = top + offset;
-                hlslpp::float3 b      = bottom + offset;
-                renderer->DrawDebugLine(
-                    Tsukino::GraphicsCommon::DebugVertex{{a.x, a.y, a.z}, {color.x, color.y, color.z, color.w}},
-                    Tsukino::GraphicsCommon::DebugVertex{{b.x, b.y, b.z}, {color.x, color.y, color.z, color.w}});
-            }
-        }
-#endif
-
-        //-------------------------------------------------------------
-        //! @brief  1体の敵への「武器ヒット」を確定させる共通処理。
-        //!         直線カプセル判定・AoE(範囲攻撃)判定の両方から呼ばれる（多重ヒット防止・ダメージ・
-        //!         ノックバック判定・WeaponHitEvent発火・ヒットストップ要求を一本化する）
+        //! @brief  1体の敵への「武器ヒット」を確定させる。
+        //!         直線カプセル判定・AoE(範囲攻撃)判定の両方から呼ばれる。
+        //!         実ダメージの組み立て（武器の基礎ダメージ×連撃段の倍率×スキル「憤怒」の倍率）だけを
+        //!         ここで行い、ヒットの確定そのものは斬撃弾と共有するApplyCombatHit（CombatHit.hpp）へ委ねる
         //! @param  hitPositionFallback [in] 対象にTransformComponentが無い場合に使う位置
         //-------------------------------------------------------------
         void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity,
                                     WeaponComponent& weapon, entt::entity hitEntity, const hlslpp::float3& hitPositionFallback,
                                     float skillAttackMultiplier, float skillLifeStealRatio) {
-            if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
-                return;
-
-            auto& enemy       = registry.GetComponent<EnemyComponent>(hitEntity);
-            auto& enemyHealth = registry.GetComponent<HealthComponent>(hitEntity);
-            if(enemyHealth.isDead)
-                return;
-
-            if(std::find(weapon.hitEnemiesThisAttack.begin(), weapon.hitEnemiesThisAttack.end(), hitEntity)
-               != weapon.hitEnemiesThisAttack.end())
-                return;
-
             // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
             //             ×スキル「憤怒」の攻撃力倍率
             float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
 
-            enemyHealth.currentHealth -= dealtDamage;
-            if(enemyHealth.currentHealth <= 0.0f) {
-                enemyHealth.currentHealth = 0.0f;
-                enemyHealth.isDead         = true;
-            }
-            enemyHealth.hpBarVisibleTimer = kHpBarVisibleDuration;    // 被弾した瞬間だけ頭上HPバーを表示する
-            weapon.hitEnemiesThisAttack.push_back(hitEntity);
-
-            // 一定以上の単発ダメージでノックバックを要求する（BTのPlayKnockbackが消費する）。
-            // 既に硬直中なら再要求しない＝連撃で仰け反り続けるハメを防ぐ
-            if(!enemy.isKnockedBack && dealtDamage >= enemy.knockbackDamageThreshold)
-                enemy.pendingKnockback = true;
-
-            //---------------------------------------------------------
-            // 嫉妬（スキル）：与えたダメージの一部を持ち主のHPへ変換する。
-            // AoEで群れを巻き込んだ一撃が全快を何周もしないよう、アタック単位で総量を頭打ちにする
-            //---------------------------------------------------------
-            if(skillLifeStealRatio > 0.0f && weapon.owner != entt::null) {
-                if(auto* ownerHealth = registry.try_get<HealthComponent>(weapon.owner)) {
-                    if(!ownerHealth->isDead) {
-                        const float capThisAttack = ownerHealth->maxHealth * kLifeStealCapRatioPerAttack;
-                        const float allowance     = std::max(capThisAttack - weapon.lifeStealHealedThisAttack, 0.0f);
-                        const float healAmount    = std::min(dealtDamage * skillLifeStealRatio, allowance);
-
-                        // 実際に増えた分だけを上限の消費として計上する
-                        // （HPが満タンで回復しきれなかった分まで消費すると、続くヒットが不当に吸収できなくなる）
-                        const float healthBefore   = ownerHealth->currentHealth;
-                        ownerHealth->currentHealth = std::min(ownerHealth->currentHealth + healAmount, ownerHealth->maxHealth);
-                        weapon.lifeStealHealedThisAttack += ownerHealth->currentHealth - healthBefore;
-                    }
-                }
-            }
-
-            hlslpp::float3 hitPosition = hitPositionFallback;
-            if(registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
-                hitPosition = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity).position;
-
-            // ヒット通知（エフェクト・SE等の副作用処理用）を発火する
-            if(eventBus) {
-                eventBus->Publish(WeaponHitEvent{weapon.owner, weaponEntity, hitEntity, hitPosition, dealtDamage});
-            }
-
-            // ヒットストップを要求する。画面全体ではなく、被弾した敵とプレイヤー（攻撃者）
-            // だけを止める
-            ApplyHitStop(registry, hitEntity, kHitStopDuration, kHitStopScale);
-            ApplyHitStop(registry, weapon.owner, kHitStopDuration, kHitStopScale);
+            ApplyCombatHit(registry, eventBus, weapon.owner, weaponEntity, hitEntity, dealtDamage, hitPositionFallback,
+                           weapon.hitEnemiesThisAttack, skillLifeStealRatio, weapon.lifeStealHealedThisAttack);
         }
     }    // namespace
 
@@ -386,6 +218,9 @@ namespace CombatAndroid::ECS {
     void CombatSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
         auto* ctx      = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>();
+
+        // このフレームに発射が確定した斬撃弾。生成は武器のループを抜けてから行う
+        std::vector<PendingProjectileSpawn> pendingProjectiles;
 
         //-------------------------------------------------------------
         // 武器：所有者への追従、タイマー更新、攻撃発生時のカプセルオーバーラップ判定によるダメージ
@@ -632,6 +467,16 @@ namespace CombatAndroid::ECS {
                     weapon.areaAttackArmed = false;
                 }
                 weapon.pendingAreaAttack = false;    // 一度きりの要求として消費する（nextActiveDurationOverrideと同じ作法）
+
+                // 斬撃弾の武装。溜め攻撃の解放（PlayerAnimationSystem）が要求していて、かつ
+                // 装備武器が斬撃弾に対応（エフェクトが設定済み。battleaxeのみ）の場合だけタイマーを仕込む
+                if(weapon.pendingProjectile && weapon.projectileEffectAsset.IsValid()) {
+                    weapon.projectileArmed = true;
+                    weapon.projectileTimer = std::max(weapon.projectileSpawnDelay, 0.0f);
+                } else {
+                    weapon.projectileArmed = false;
+                }
+                weapon.pendingProjectile = false;    // AoEと同じく一度きりの要求として消費する
             }
 
             //-------------------------------------------------------------
@@ -744,7 +589,95 @@ namespace CombatAndroid::ECS {
                     }
                 }
             }
+
+            //-------------------------------------------------------------
+            // 斬撃弾（溜め攻撃の解放）。AoEと同じく、振り下ろし開始から一定時間後に1回だけ発射する。
+            // ここでは発射内容を確定させてキューへ積むだけにし、エンティティの生成は
+            // このループを抜けてから行う：ループの最中に新しいエンティティへコンポーネントを
+            // 足すとプールが再確保され、いま参照しているweapon/transformが宙に浮きかねない
+            //-------------------------------------------------------------
+            if(weapon.projectileArmed) {
+                weapon.projectileTimer -= deltaTime;
+                if(weapon.projectileTimer <= 0.0f) {
+                    weapon.projectileArmed = false;
+
+                    if(weapon.owner != entt::null && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weapon.owner)) {
+                        const Tsukino::BuiltIn::ECS::TransformComponent& ownerTransform =
+                            registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weapon.owner);
+
+                        // 所有者の正面へ水平に飛ばす。プレイヤーの向きはrotation_y（yawのみ）で
+                        // 作られており、攻撃中は向き直りが止まるため、振り始めた方向へまっすぐ飛ぶ
+                        hlslpp::float3 forward     = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), ownerTransform.rotation);
+                        hlslpp::float3 flatForward = hlslpp::float3(forward.x, 0.0f, forward.z);
+                        float          flatLength  = hlslpp::length(flatForward);
+
+                        if(flatLength > 1e-4f) {
+                            flatForward = flatForward / flatLength;
+
+                            PendingProjectileSpawn spawn{};
+                            spawn.weaponEntity   = entity;
+                            spawn.position       = ownerTransform.position + flatForward * weapon.projectileSpawnForward
+                                                 + hlslpp::float3(0.0f, weapon.projectileSpawnHeight, 0.0f);
+                            spawn.rotation       = ownerTransform.rotation;    // エフェクトを進行方向へ向ける
+                            spawn.direction      = flatForward;
+                            // 溜め段階の倍率（damageMultiplier）とスキル「憤怒」を乗せた実値を焼き込む。
+                            // 飛翔中に武器を持ち替えても弾の威力が変わらないようにするため
+                            spawn.damage         = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier
+                                                 * weapon.projectileDamageMultiplier;
+                            spawn.lifeStealRatio = skillLifeStealRatio;
+                            // 溜めの浅い一撃で群れを薙ぎ払えないよう、深く溜めたときだけ貫通させる。
+                            // pendingProjectileChargeStageは要求を立てたとき（解放の瞬間）の値のままで、
+                            // 次の解放まで書き換わらないため、遅延して発射するここから読んでよい
+                            spawn.piercing       = weapon.pendingProjectileChargeStage >= weapon.projectilePierceMinChargeStage;
+
+                            pendingProjectiles.push_back(spawn);
+                        }
+                    }
+                }
+            }
         });
+
+        //-------------------------------------------------------------
+        // 積んでおいた斬撃弾を実際に生成する（上のループを抜けた後に行う理由は積む側のコメント参照）。
+        // 見た目はEffectComponentに任せ、EffectSystemがこのエンティティのTransformへ
+        // 位置と姿勢を毎フレーム追従させる。移動と当たり判定はProjectileSystemが担当する
+        //-------------------------------------------------------------
+        for(const PendingProjectileSpawn& spawn : pendingProjectiles) {
+            if(!registry.IsValid(spawn.weaponEntity) || !registry.HasComponent<WeaponComponent>(spawn.weaponEntity))
+                continue;    // 発射を予約した武器がこのフレームで消えていた場合
+
+            const WeaponComponent& sourceWeapon = registry.GetComponent<WeaponComponent>(spawn.weaponEntity);
+
+            entt::entity projectileEntity = registry.CreateEntity();
+
+            Tsukino::BuiltIn::ECS::TransformComponent& projectileTransform =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(projectileEntity);
+            projectileTransform.position = spawn.position;
+            projectileTransform.rotation = spawn.rotation;
+            projectileTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
+            projectileTransform.dirty    = true;
+            projectileTransform.parent   = entt::null;
+
+            ProjectileComponent& projectile = registry.AddComponent<ProjectileComponent>(projectileEntity);
+            projectile.owner              = sourceWeapon.owner;
+            projectile.direction          = spawn.direction;
+            projectile.speed              = sourceWeapon.projectileSpeed;
+            projectile.damage             = spawn.damage;
+            projectile.radius             = sourceWeapon.projectileRadius;
+            projectile.remainingLifetime  = sourceWeapon.projectileLifetime;
+            projectile.maxDistance        = sourceWeapon.projectileMaxDistance;
+            projectile.lifeStealRatio     = spawn.lifeStealRatio;
+            projectile.piercing           = spawn.piercing;
+
+            Tsukino::BuiltIn::ECS::EffectComponent& projectileEffect =
+                registry.AddComponent<Tsukino::BuiltIn::ECS::EffectComponent>(projectileEntity);
+            projectileEffect.effectAsset    = sourceWeapon.projectileEffectAsset;
+            projectileEffect.effectPath     = sourceWeapon.projectileEffectPath;
+            projectileEffect.scale          = sourceWeapon.projectileEffectScale;
+            projectileEffect.playSpeed      = sourceWeapon.projectileEffectPlaySpeed;
+            projectileEffect.followRotation = true;    // 斬撃波を進行方向へ向ける
+            projectileEffect.active         = true;    // 次のEffectSystem::Updateが再生ハンドルを作る
+        }
 
         //-------------------------------------------------------------
         // プレイヤーを特定する（単一プレイヤー前提）

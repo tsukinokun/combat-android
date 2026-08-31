@@ -65,6 +65,23 @@ namespace CombatAndroid::ECS {
         float       areaAttackRadius;
         const char* areaAttackEffectPath;
         float       areaAttackEffectScale;
+
+        //-------------------------------------------------------------
+        // 溜め攻撃の解放時に前方へ飛ばす斬撃弾。projectileEffectPathがnullptrなら非対応。
+        // chargeAttackEnabledがfalseの武器に値を入れても撃つ機会が無いので意味を持たない
+        //-------------------------------------------------------------
+        const char* projectileEffectPath;         //!< 弾の見た目に使うEffekseerエフェクト
+        float       projectileEffectScale;        //!< 上記の再生スケール（本作は1ユニット≒1cm規約のため100前後が要る）
+        float       projectileEffectPlaySpeed;    //!< 上記の再生速度（1.0未満でゆっくり再生される）
+        float       projectileSpeed;              //!< 飛翔速度（ユニット/秒）
+        float       projectileRadius;             //!< 当たり判定カプセルの半径
+        float       projectileLifetime;           //!< 寿命（秒）
+        float       projectileMaxDistance;        //!< 最大飛距離（ユニット）
+        float       projectileDamageMultiplier;   //!< 弾のダメージ倍率（武器の実ダメージへ更に掛ける）
+        int         projectilePierceMinChargeStage;    //!< この溜め段階（1=白/2=青/3=紫）以上でのみ弾が貫通する
+        float       projectileSpawnDelay;         //!< 解放から発射までの遅延（秒）。振り抜くタイミングに合わせる
+        float       projectileSpawnHeight;        //!< 発射位置の高さ（所有者の足元原点からの相対）
+        float       projectileSpawnForward;       //!< 発射位置を前方へずらす量（体に埋まって見えないようにする）
     };
 
     //-------------------------------------------------------------
