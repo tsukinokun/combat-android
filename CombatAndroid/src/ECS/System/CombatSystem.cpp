@@ -38,7 +38,6 @@
 #include <CombatAndroid/ECS/Utility/CombatDebugDraw.hpp>
 #include <Tsukino/Renderer/Renderer.hpp>
 #include <Tsukino/GraphicsCommon/Vertex/DebugVertex.hpp>
-#include <fstream>
 #endif
 
 #include <hlsl++.h>
@@ -876,18 +875,6 @@ namespace CombatAndroid::ECS {
             }
 
             bool isHit = distanceSq <= combinedRadius * combinedRadius;
-
-#ifdef _DEBUG
-            // 判定が当たらない不具合の切り分け用ログ。原因が特定でき次第このブロックごと削除する
-            {
-                std::ofstream diagFile("diag_enemyhit.txt", std::ios::app);
-                if(diagFile) {
-                    diagFile << "enemy=" << static_cast<u32>(enemyEntity) << " attackTimer=" << animSet.attackTimer
-                             << " distance=" << std::sqrt(distanceSq) << " threshold=" << combinedRadius << " hit=" << (isHit ? 1 : 0)
-                             << " invincible=" << (playerInvincible ? 1 : 0) << "\n";
-                }
-            }
-#endif
 
             hitbox.prevSweepPoint    = sweepPoint;
             hitbox.hasPrevSweepPoint = true;

@@ -5,6 +5,14 @@
 //-------------------------------------------------------------
 #pragma once
 #include <Tsukino/EngineIntegration/Scene/GameSceneBase.hpp>
+
+// 前方宣言（RegisterSystemsの引数にしか使わないため、ヘッダの依存を増やさない）
+namespace Tsukino::EngineIntegration {
+    struct EngineContext;
+}
+namespace Tsukino::ECS {
+    class EventBus;
+}
 // 名前空間 : CombatAndroid
 namespace CombatAndroid {
     //-------------------------------------------------------------
@@ -41,6 +49,15 @@ namespace CombatAndroid {
         //! @param  api [in] エンジンから提供されるAPIへの参照
         //-------------------------------------------------------------
         void OnInitialize(Tsukino::EngineIntegration::EngineAPI& api) override;
+
+        //-------------------------------------------------------------
+        //! @brief  シーンに全てのシステムを登録する
+        //! @detail 実装は CombatAndroidSceneSystems.cpp。実行順は
+        //!         CombatAndroid/ECS/SystemPriority.hpp を参照。
+        //! @param  context  [in] エンジンコンテキスト
+        //! @param  eventBus [in] シーンのイベントバス
+        //-------------------------------------------------------------
+        void RegisterSystems(Tsukino::EngineIntegration::EngineContext* context, Tsukino::ECS::EventBus& eventBus);
 
     private:
         //-------------------------------------------------------------

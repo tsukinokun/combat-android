@@ -1,3 +1,4 @@
+# ビルド生成物
 .build/
 bin/
 bin-int/
@@ -8,3 +9,9 @@ Cache/
 
 # 負荷試験（--stress-benchmark）の計測結果
 StressTestResult.csv
+
+# 実行時ログ・調査用の一時ファイル
+# 一時ログは Logs/ 配下に出すこと（リポジトリ直下に吐かない）
+Logs/
+*.log
+diag_*.txt

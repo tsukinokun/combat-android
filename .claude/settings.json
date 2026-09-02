@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./CombatAndroid/Assets/**/*.efkproj)",
+      "Read(./.build/**)",
+      "Read(./bin/**)",
+      "Read(./bin-int/**)",
+      "Read(./Cache/**)",
+      "Read(./External/TsukinoEngine/Docs/agent-manifest.json)",
+      "Read(./External/TsukinoEngine/Doxyfile)"
+    ],
+    "ask": [
+      "Read(./External/TsukinoEngine/External/**)"
+    ]
+  },
+  "deniedMcpServers": [
+    { "serverName": "unity-mcp" }
+  ]
+}

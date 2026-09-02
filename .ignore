@@ -1,0 +1,17 @@
+# ripgrep / Claude Code の Grep・Glob が走査しない場所。
+# .gitignore とは別物で、git の追跡は一切変えず「検索空間」だけを削る。
+# どうしても中を見たいときは rg --no-ignore、ファイル名の一覧は ls で取れる。
+
+# エフェクト定義。テキストXMLで101ファイル・約129万行あり、
+# ここを走査すると CombatAndroid/ 内の "Color" 検索が 78,000 行返る。
+# ディレクトリを丸ごとではなく拡張子で切っているのは、
+# Assets/ 配下のファイル名を Glob で引けるようにしておくため。
+*.efkproj
+
+# vendored 3rd party（Effekseer / JoltPhysics / entt / cereal / hlslpp / DirectXTex）。
+# 19,000ファイル以上ある。
+External/TsukinoEngine/External/
+
+# 自動生成ドキュメントの機械可読版（外部ツール用）。
+# 人／エージェントが読むのは Docs/api-index.md と Docs/api/*.md。
+External/TsukinoEngine/Docs/agent-manifest.json
