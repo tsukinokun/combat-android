@@ -40,9 +40,9 @@ namespace CombatAndroid::ECS {
         bool openedThisFrame = false;
 
         //! 決定した後、あと何フレーム入力の遮断を続けるか。
-        //! SkillSelectSystemはPlayerSystemより前の優先度で走るため、決定したフレームの
-        //! isActive=falseをそのままにするとPlayerSystemが同じフレームの後半で
-        //! 「決定に使ったスペース」を回避入力として拾ってしまう。それを潰すための1フレーム
+        //! SkillSelectSystemはPickupSystem等より前の優先度で走るため、決定したフレームの
+        //! isActive=falseをそのままにすると同じフレームの後半でPickupSystemが
+        //! 「決定に使ったF」を拾得入力として拾ってしまう。それを潰すための1フレーム
         int closingBlockFrames = 0;
 
         Tsukino::ECS::Entity backdropEntity  = entt::null;    //!< 画面全体を暗くする板（Sprite）

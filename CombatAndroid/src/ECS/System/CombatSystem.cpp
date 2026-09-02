@@ -748,7 +748,11 @@ namespace CombatAndroid::ECS {
             playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
             playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
             playerController = &registry.GetComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity);
-            playerInvincible = registry.GetComponent<PlayerComponent>(playerEntity).isInvincible;
+
+            // 回避の無敵に加えて、レベルアップ後無敵（SkillSelectSystemがタイマーを立てる。
+            // 戦闘中断からの再開直後に囲まれて一方的に被弾するのを防ぐ猶予時間）中も接触ダメージを無視する
+            const PlayerComponent& playerComp = registry.GetComponent<PlayerComponent>(playerEntity);
+            playerInvincible                   = playerComp.isInvincible || playerComp.levelUpInvincibleTimer > 0.0f;
 
             if(auto* playerSkills = registry.try_get<PlayerSkillComponent>(playerEntity))
                 playerDamageTakenMultiplier = playerSkills->damageTakenMultiplier;

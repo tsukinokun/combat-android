@@ -49,6 +49,16 @@ namespace CombatAndroid::ECS {
         bool isInvincible = false;    //!< 回避の無敵時間中か。PlayerAnimationSystemが確定させ、CombatSystem（後で走る）が接触ダメージのスキップに使う
 
         //-------------------------------------------------------------
+        // レベルアップ後無敵（スキル選択メニューで戦闘が中断された後、再開直後に
+        // 囲まれて一方的に被弾するのを防ぐ猶予時間）。SkillSelectSystemが
+        // 予約されていたレベルアップを全て消化した瞬間にタイマーを立てて実時間で
+        // 減衰させ、CombatSystemがisInvincibleと同様に接触ダメージのスキップに使う
+        //-------------------------------------------------------------
+        float levelUpInvincibleTimer      = 0.0f;    //!< 残り時間（秒）。0より大きい間だけレベルアップ後無敵が有効
+        float levelUpInvincibleDuration   = 3.0f;    //!< スキル選択が完全に終わった瞬間からこの秒数だけ無敵にする
+        float levelUpInvinciblePulseTime  = 0.0f;    //!< 発光の脈動用に経過時間を積算するだけの内部状態（SkillSelectSystemが使用）
+
+        //-------------------------------------------------------------
         // 左クリックの生入力。PlayerSystemが立て、PlayerAnimationSystemが消費してfalseへ戻す。
         // WeaponComponent::attackRequestedとは意味が異なる点に注意：こちらは「入力があったか」、
         // attackRequestedは「（コンボ受付を含めた判定の結果）攻撃スイングが実際に始まったか」を表す。

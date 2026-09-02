@@ -14,6 +14,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -29,6 +30,7 @@
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 // 名前空間 : CombatAndroid::ECS
@@ -59,6 +61,59 @@ namespace CombatAndroid::ECS {
         const hlslpp::float4 kDescColor      = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
 
         constexpr float kUnselectedPanelAlpha = 0.78f;    //!< 非選択カードは少し沈ませる
+
+        //-------------------------------------------------------------
+        // レベルアップ後無敵（PlayerComponent::levelUpInvincibleTimer）の間、
+        // プレイヤーモデルへ焼く発光のチューニング値。武器レベルアップの金色発光
+        // （PickupSystem）と似た色味にしつつ、脈動させて「拾得」ではなく
+        // 「無敵中」だと分かるようにしている
+        //-------------------------------------------------------------
+        constexpr float kLevelUpInvincibleFadeOutDuration = 0.5f;    //!< 無敵が切れる直前、この秒数かけて発光を落とす
+        constexpr float kLevelUpInvinciblePulseSpeed      = 6.0f;    //!< 脈動速度（rad/sec相当）
+        const hlslpp::float3 kLevelUpInvincibleRimColor   = hlslpp::float3(1.0f, 0.95f, 0.75f);    //!< 金〜白系のリムカラー
+        constexpr float kLevelUpInvincibleRimIntensityMax = 5.0f;
+        constexpr float kLevelUpInvincibleRimPower        = 2.5f;
+        constexpr float kLevelUpInvincibleGlowMin         = 0.15f;    //!< 白発光の脈動の下限
+        constexpr float kLevelUpInvincibleGlowMax         = 0.5f;     //!< 白発光の脈動の上限
+
+        //-------------------------------------------------------------
+        //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float SmoothStep01(float t) {
+            t = std::clamp(t, 0.0f, 1.0f);
+            return t * t * (3.0f - 2.0f * t);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief レベルアップ後無敵のタイマーを実時間で減衰させ、プレイヤーの
+        //!        HighlightComponentへ発光値を書き込む。0を切ったら消灯する
+        //-------------------------------------------------------------
+        void TickLevelUpInvincibility(Tsukino::ECS::Registry& registry, entt::entity entity, PlayerComponent& player, float deltaTime) {
+            player.levelUpInvincibleTimer     = std::max(player.levelUpInvincibleTimer - deltaTime, 0.0f);
+            player.levelUpInvinciblePulseTime += deltaTime;
+
+            auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::HighlightComponent>(entity);
+            if(!highlight)
+                return;
+
+            if(player.levelUpInvincibleTimer <= 0.0f) {
+                highlight->active = false;
+                return;
+            }
+
+            // 無敵終了間際だけイーズアウトさせ、それ以外は1.0（フル発光）のまま
+            float fadeEase = SmoothStep01(player.levelUpInvincibleTimer / kLevelUpInvincibleFadeOutDuration);
+
+            float wave  = std::sin(player.levelUpInvinciblePulseTime * kLevelUpInvinciblePulseSpeed);
+            float pulse = wave * wave;
+
+            highlight->active       = true;
+            highlight->rimColor     = kLevelUpInvincibleRimColor;
+            highlight->rimIntensity = kLevelUpInvincibleRimIntensityMax * fadeEase;
+            highlight->rimPower     = kLevelUpInvincibleRimPower;
+            highlight->glow         = (kLevelUpInvincibleGlowMin + (kLevelUpInvincibleGlowMax - kLevelUpInvincibleGlowMin) * pulse) * fadeEase;
+        }
 
         //-------------------------------------------------------------
         //! @brief  エンティティを非表示にする関数
@@ -320,9 +375,9 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void SkillSelectSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
-        // メニューはアニメーションを持たないため経過時間を使わない
-        //（そもそも表示中はシーンがdeltaTime=0を渡してくる）
-        (void)deltaTime;
+        // メニュー自体はアニメーションを持たないため表示中はdeltaTimeを使わない
+        //（そもそも表示中はシーンがdeltaTime=0を渡してくる）。メニューが閉じた後の
+        // レベルアップ後無敵演出（下記）だけは実時間で進行させるため、ここでは捨てない
 
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
@@ -336,9 +391,20 @@ namespace CombatAndroid::ECS {
 
             if(!select.isActive && select.pendingLevelUps <= 0) {
                 //-------------------------------------------------------------
+                // レベルアップ後無敵の消化と発光演出。全てのスキル選択が終わり切った
+                // 瞬間（下の決定処理でlevelUpInvincibleTimerを立てる）から実時間で
+                // 減衰させる。既存の溜め攻撃リムライト（PlayerAnimationSystem）と
+                // 同じHighlightComponentを流用するが、あちらは溜め中しか書き込まないため
+                // 通常時はこちらの書き込みがそのまま残る
+                //-------------------------------------------------------------
+                if(player.levelUpInvincibleTimer > 0.0f)
+                    TickLevelUpInvincibility(registry, entity, player, deltaTime);
+
+                //-------------------------------------------------------------
                 // 決定した次のフレーム。この1フレームだけ停止を延長して、
-                // 決定に使ったスペースの押し込みが完全に流れきるのを待つ
-                // （IsKeyPressedは立ち上がり検出なので、1フレーム挟めば消える）
+                // 決定に使ったFの押し込みが完全に流れきるのを待つ
+                // （IsKeyPressedは立ち上がり検出なので、1フレーム挟めば消える。
+                //   これを怠るとPickupSystemが同じF入力を拾得として拾ってしまう）
                 //-------------------------------------------------------------
                 if(select.closingBlockFrames > 0) {
                     --select.closingBlockFrames;
@@ -416,7 +482,7 @@ namespace CombatAndroid::ECS {
             // pendingLevelUpsがまだ残っていれば次のフレームで2回目のメニューが開く
             //（IsSkillSelectActiveはpendingLevelUpsも見ているので停止は続いたまま）
             //-------------------------------------------------------------
-            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Space)) {
+            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F)) {
                 const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];
@@ -437,6 +503,16 @@ namespace CombatAndroid::ECS {
                 --select.pendingLevelUps;
                 select.isActive = false;
                 HideUi(registry, select);
+
+                //-------------------------------------------------------------
+                // 予約されていたレベルアップを全て消化した（＝メニューがこの後
+                // 続けて開き直らない）タイミングでのみ、レベルアップ後無敵を開始する。
+                // 玉1個で複数レベル上がった場合は最後の1回の決定でだけ発生する
+                //-------------------------------------------------------------
+                if(select.pendingLevelUps <= 0) {
+                    player.levelUpInvincibleTimer = player.levelUpInvincibleDuration;
+                    player.levelUpInvinciblePulseTime = 0.0f;
+                }
 
                 // 次のレベルアップが残っていない場合、このフレームの後半でPlayerSystemが
                 // 走ってしまうため、あと1フレームだけ停止を延長する
