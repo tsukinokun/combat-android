@@ -13,7 +13,7 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
-#include <Tsukino/Engine/Physics/SpringBone/SpringBoneMath.hpp>
+#include <Tsukino/Physics/SpringBone/SpringBoneMath.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/Utility/CombatDebugDraw.hpp>
 #endif

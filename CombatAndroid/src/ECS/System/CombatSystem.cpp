@@ -33,7 +33,7 @@
 #include <Tsukino/GraphicsCommon/Model/ModelData.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Math/MathHelper.hpp>
-#include <Tsukino/Engine/Physics/SpringBone/SpringBoneMath.hpp>
+#include <Tsukino/Physics/SpringBone/SpringBoneMath.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/Utility/CombatDebugDraw.hpp>
 #include <Tsukino/Renderer/Renderer.hpp>
