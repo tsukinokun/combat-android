@@ -37,7 +37,7 @@ namespace CombatAndroid::ECS {
         //! @param  fadeTime       [in] クロスフェードにかける時間（秒）
         //-------------------------------------------------------------
         StateMachine<PlayerAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetHandle PlayerAnimationSetComponent::* clipMember,
-                                                                        u32                                                        animationIndex,
+                                                                        Tsukino::u32                                                        animationIndex,
                                                                         bool                                                       looping,
                                                                         float                                                      fadeTime = kAnimBlendTime,
                                                                         bool                                                       inPlace  = false) {
@@ -69,7 +69,7 @@ namespace CombatAndroid::ECS {
         //! @param  armAttack  [in] 当たり判定をアームするか。falseの場合はクリップ再生のみ行い、
         //!                          WeaponComponent::attackRequested等は一切変更しない（Chargeステートで使う）
         //-------------------------------------------------------------
-        StateMachine<PlayerAnimState>::Callback MakeAttackStepEnterCallback(u32 stepIndex, bool armAttack = true) {
+        StateMachine<PlayerAnimState>::Callback MakeAttackStepEnterCallback(Tsukino::u32 stepIndex, bool armAttack = true) {
             return [stepIndex, armAttack](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 auto&       animSet = registry.GetComponent<PlayerAnimationSetComponent>(entity);
                 const auto& step    = animSet.attackSteps[stepIndex];
@@ -81,7 +81,7 @@ namespace CombatAndroid::ECS {
                 // areaAttack等と同じくWeaponComponent側のオプトインフィールドで判定する）
                 //-------------------------------------------------------------
                 Tsukino::Asset::AssetHandle clip           = step.clip;
-                u32                          animationIndex = step.animationIndex;
+                Tsukino::u32                          animationIndex = step.animationIndex;
                 float                        startTime      = step.startTime;
                 float                        endTime        = step.endTime;
 
@@ -197,7 +197,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         //! @brief  0-basedの段インデックスを対応するPlayerAnimStateへ変換する
         //-------------------------------------------------------------
-        PlayerAnimState AttackStateFromIndex(u32 index) {
+        PlayerAnimState AttackStateFromIndex(Tsukino::u32 index) {
             switch(index) {
             case 0: return PlayerAnimState::Attack1;
             case 1: return PlayerAnimState::Attack2;
@@ -475,7 +475,7 @@ namespace CombatAndroid::ECS {
                 } else if(animSet.bufferedInput == BufferedInput::Attack && !isLastStep) {
                     // 先行入力があれば次段へ連撃継続する
                     animSet.bufferedInput = BufferedInput::None;
-                    u32 nextComboIndex     = animSet.attackComboIndex + 1;
+                    Tsukino::u32 nextComboIndex     = animSet.attackComboIndex + 1;
                     desiredState           = AttackStateFromIndex(nextComboIndex);
                 } else {
                     // コンボをリセットする。desiredStateは上で計算した移動判定のまま使う。

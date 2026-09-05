@@ -48,7 +48,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // マウスの移動量を取得（このフレームの旋回入力）
         //-------------------------------------------------------------
-        i32 rawMouseDx = 0, rawMouseDy = 0;
+        Tsukino::i32 rawMouseDx = 0, rawMouseDy = 0;
         inputSystem->GetMouseDelta(&rawMouseDx, &rawMouseDy);
 
         //-------------------------------------------------------------
@@ -88,8 +88,8 @@ namespace CombatAndroid::ECS {
             if(ctx->window)
                 ctx->window->SetCursorVisible(!shouldCapture);
 
-            i32 mouseDx = rawMouseDx;
-            i32 mouseDy = rawMouseDy;
+            Tsukino::i32 mouseDx = rawMouseDx;
+            Tsukino::i32 mouseDy = rawMouseDy;
 
             if(shouldCapture) {
                 // 直前フレームまでキャプチャが外れていた場合、カーソルがどこにあったか分からないため
@@ -114,8 +114,8 @@ namespace CombatAndroid::ECS {
                 if(ctx->window) {
                     ctx->window->CenterCursor();
 
-                    i32 centerX = ctx->window->GetWidth() / 2;
-                    i32 centerY = ctx->window->GetHeight() / 2;
+                    Tsukino::i32 centerX = ctx->window->GetWidth() / 2;
+                    Tsukino::i32 centerY = ctx->window->GetHeight() / 2;
                     inputSystem->SetMousePosition(centerX, centerY);
                 }
             }

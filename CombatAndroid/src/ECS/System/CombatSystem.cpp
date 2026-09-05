@@ -84,7 +84,7 @@ namespace CombatAndroid::ECS {
         //! @param  outNodeIndex         [in,out] 解決結果のnodeIndex（見つからなければUINT32_MAXのまま）
         //-------------------------------------------------------------
         void ResolveBoneNodeIndex(Tsukino::EngineIntegration::EngineContext* ctx, Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity modelEntity,
-                                  const std::string& boneName, Tsukino::Asset::AssetHandle& resolvedAgainstModel, u32& outNodeIndex) {
+                                  const std::string& boneName, Tsukino::Asset::AssetHandle& resolvedAgainstModel, Tsukino::u32& outNodeIndex) {
             if(!ctx || !ctx->assetManager || !registry.HasComponent<Tsukino::BuiltIn::ECS::ModelComponent>(modelEntity))
                 return;
 
@@ -98,7 +98,7 @@ namespace CombatAndroid::ECS {
 
             auto modelAsset = std::static_pointer_cast<Tsukino::Asset::ModelAsset>(asset);
             outNodeIndex     = UINT32_MAX;
-            for(u32 i = 0; i < modelAsset->modelData.nodes.size(); ++i) {
+            for(Tsukino::u32 i = 0; i < modelAsset->modelData.nodes.size(); ++i) {
                 if(modelAsset->modelData.nodes[i].name == boneName) {
                     outNodeIndex = i;
                     break;

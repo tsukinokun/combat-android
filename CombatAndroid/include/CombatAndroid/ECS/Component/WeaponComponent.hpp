@@ -43,7 +43,7 @@ namespace CombatAndroid::ECS {
         float levelUpFlashTimer = 0.0f;    //!< レベルアップ発光演出の残り時間（秒）。0以下で非発光
 
         std::string handBoneName      = "mixamorig:RightHand";    //!< アタッチ対象ボーン名
-        u32          handBoneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
+        Tsukino::u32          handBoneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
 
         //-------------------------------------------------------------
         // ボーン解決は「どのモデルのnode配列に対して行ったか」をキャッシュする。
@@ -207,7 +207,7 @@ namespace CombatAndroid::ECS {
         // 設定する（great swordのスポーン箇所のみ設定）
         //-------------------------------------------------------------
         Tsukino::Asset::AssetHandle attackClip;    //!< 未設定ならこの武器は既定クリップ（Hammer Attack）を使う
-        u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
+        Tsukino::u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
         float attackStepStartTime[PlayerAnimationSetComponent::kAttackComboCount] = {};    //!< 各段の再生開始時刻（秒）
         float attackStepEndTime[PlayerAnimationSetComponent::kAttackComboCount]   = {};    //!< 各段の再生終了時刻（秒）
 

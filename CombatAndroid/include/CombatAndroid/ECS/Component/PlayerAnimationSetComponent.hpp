@@ -45,7 +45,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     struct AttackStep {
         Tsukino::Asset::AssetHandle clip;
-        u32   animationIndex   = 1;      //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
+        Tsukino::u32   animationIndex   = 1;      //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
         float startTime        = 0.0f;   //!< クリップ内の開始時刻（秒）
         float endTime          = 0.0f;   //!< クリップ内の終了時刻（秒）
         float comboWindowStart = 0.5f;   //!< 現在未使用（将来のチューニング用に残置）。連撃は段の再生完了後にのみ進行する
@@ -71,12 +71,12 @@ namespace CombatAndroid::ECS {
         Tsukino::Asset::AssetHandle dodgeClip;       //!< 回避（前転）
         Tsukino::Asset::AssetHandle deathClip;       //!< 死亡（Falling Back Death）
 
-        static constexpr u32 kAttackComboCount = 3;    //!< 連撃の段数
+        static constexpr Tsukino::u32 kAttackComboCount = 3;    //!< 連撃の段数
         AttackStep            attackSteps[kAttackComboCount];    //!< 各段の再生範囲
 
         PlayerAnimState currentState = PlayerAnimState::Idle;    //!< 現在のステート（クリップの重複要求を避けるため保持）
 
-        u32           attackComboIndex = 0;                        //!< 現在再生中の段（0..kAttackComboCount-1）
+        Tsukino::u32           attackComboIndex = 0;                        //!< 現在再生中の段（0..kAttackComboCount-1）
         BufferedInput bufferedInput    = BufferedInput::None;    //!< 先行入力を1つだけ保持する（連打しても2段先へは飛ばない）。攻撃中のスペースはここへ入り、段の再生完了後に回避として消費される
 
         //-------------------------------------------------------------

@@ -30,7 +30,7 @@ namespace CombatAndroid::ECS {
         Tsukino::Asset::AssetHandle attackClip;      //!< Mutant Swiping / Zombie Attack
         Tsukino::Asset::AssetHandle knockbackClip;    //!< Zombie Reaction Hit
         Tsukino::Asset::AssetHandle deathClip;        //!< Stunned
-        u32   animationIndex = 1;                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
+        Tsukino::u32   animationIndex = 1;                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
 
         EnemyAnimState currentState = EnemyAnimState::Idle;    //!< 現在のステート（EnemyAnimationSystemが管理）
         EnemyAnimState desiredState = EnemyAnimState::Idle;    //!< 今フレームであるべきステート（EnemyBehaviorSystemが書き込む）

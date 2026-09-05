@@ -90,7 +90,7 @@ namespace CombatAndroid::ECS {
                     Tsukino::Core::Math::matrix::translate(hlslpp::float3(node.translation.x, node.translation.y, node.translation.z));
                 Tsukino::Core::Math::matrix nodeLocal = hlslpp::mul(hlslpp::mul(scaleMat, rotMat), transMat);
 
-                for(u32 meshIdx : node.meshIndices) {
+                for(Tsukino::u32 meshIdx : node.meshIndices) {
                     if(meshIdx >= modelData.meshes.size())
                         continue;
                     const auto& bounds = modelData.meshes[meshIdx].bounds;

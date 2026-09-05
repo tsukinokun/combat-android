@@ -26,7 +26,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     struct EnemyAttackHitboxComponent {
         std::string boneName      = "mixamorig:RightHand";    //!< 判定の始点（球モードでは中心）を出すボーン名
-        u32          boneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
+        Tsukino::u32          boneNodeIndex = UINT32_MAX;                //!< 解決済みノードindex（未解決/見つからない場合はUINT32_MAX）
         Tsukino::Asset::AssetHandle resolvedAgainstModel;       //!< 最後にboneNameの解決を行った時点のモデル（比較して再解決要否を判定する）
 
         hlslpp::float3 boneLocalOffset{0.0f, 0.0f, 0.0f};    //!< 始点ボーンローカル空間での判定中心オフセット
@@ -37,7 +37,7 @@ namespace CombatAndroid::ECS {
         //   芯線とするカプセルで判定する。CombatSystem::Update参照）
         //-------------------------------------------------------------
         std::string    endBoneName      = "";                  //!< 判定の終点（カプセルモード時のみ使用）を出すボーン名。空なら球モード
-        u32            endBoneNodeIndex = UINT32_MAX;           //!< 解決済みノードindex
+        Tsukino::u32            endBoneNodeIndex = UINT32_MAX;           //!< 解決済みノードindex
         hlslpp::float3 endBoneLocalOffset{0.0f, 0.0f, 0.0f};    //!< 終点ボーンローカル空間での判定終端オフセット
         Tsukino::Asset::AssetHandle resolvedAgainstModelEnd;    //!< 最後にendBoneNameの解決を行った時点のモデル
         //!< （boneName用resolvedAgainstModelとは別に持つ。同じハンドルを共有すると、
