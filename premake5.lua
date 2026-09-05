@@ -59,6 +59,13 @@ project "CombatAndroid"
             -- (Debug時はTSUKINO_ENGINE_ROOTでエンジンのソースツリーを直接参照するため不要)
             "{COPYDIR} %{wks.location}/../External/TsukinoEngine/Tsukino.BuiltIn/Assets %{cfg.targetdir}/Tsukino.BuiltIn/Assets",
             "{COPYDIR} %{wks.location}/../External/TsukinoEngine/Tools %{cfg.targetdir}/Tools",
+            -- ライセンス条文をexeの隣へ置く。
+            -- cerealやhlslppはヘッダオンリーでexeにコードが取り込まれるため、
+            -- exeを配った時点でMIT/BSD-3のバイナリ再配布に当たる。どちらも
+            -- 著作権表示の同梱を求めており、リポジトリに置いてあるだけでは
+            -- この配布経路では条件を満たさない
+            "{COPYFILE} %{wks.location}/../External/TsukinoEngine/LICENSE %{cfg.targetdir}/LICENSE",
+            "{COPYFILE} %{wks.location}/../External/TsukinoEngine/THIRD_PARTY_NOTICES.md %{cfg.targetdir}/THIRD_PARTY_NOTICES.md",
         }
     filter {}
 
