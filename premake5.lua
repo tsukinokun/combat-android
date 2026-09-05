@@ -1,33 +1,13 @@
+-- TsukinoEngine のヘルパーを先に読み込む（workspace 宣言より前）。
+-- include/link/配布物の定義はエンジン側の1箇所にあり、ここへは書き写さない
+include "External/TsukinoEngine/Tools/premake/tsukino.lua"
+
 workspace "CombatAndroid"
-    architecture "x64"
-    configurations { "Debug", "Release" }
     startproject "CombatAndroid"
     location ".build"
-    multiprocessorcompile "On"
-    exceptionhandling "On"
 
-    filter "configurations:*"
-        defines { "JPH_DEBUG_RENDERER" }
-    filter {}
-
-    filter "configurations:Debug"
-        optimize "Off"
-        symbols "On"
-    filter {}
-
-    filter "action:vs*"
-        buildoptions { "/utf-8" }
-    filter {}
-
-    filter "configurations:Release"
-        optimize "Full"
-        symbols "On"
-        defines { "NDEBUG" }
-    filter {}
-
-    filter "configurations:*"
-        linkoptions { "/IGNORE:4006" }
-    filter {}
+    -- アーキテクチャ・構成・警告まわりはエンジンと共通の設定を使う
+    tsukino_workspace_defaults()
 
 include "External/TsukinoEngine"
 
@@ -48,71 +28,24 @@ project "CombatAndroid"
     targetdir ("bin/%{cfg.buildcfg}")
     objdir ("bin-int/%{cfg.buildcfg}")
 
-    filter "configurations:Debug"
-        debugdir "%{wks.location}/.."
-    filter "configurations:Release"
-        debugdir "%{cfg.targetdir}"
-        postbuildcommands {
-            "{COPYDIR} %{wks.location}/../CombatAndroid/Assets %{cfg.targetdir}/CombatAndroid/Assets",
-            -- Tsukino::Core::FileSystem::GetAssetRootPath/GetEngineAssetRootPath はRelease時
-            -- exeの場所を基準にするため、エンジン組み込みアセットとツールもexeの隣へコピーする
-            -- (Debug時はTSUKINO_ENGINE_ROOTでエンジンのソースツリーを直接参照するため不要)
-            "{COPYDIR} %{wks.location}/../External/TsukinoEngine/Tsukino.BuiltIn/Assets %{cfg.targetdir}/Tsukino.BuiltIn/Assets",
-            "{COPYDIR} %{wks.location}/../External/TsukinoEngine/Tools %{cfg.targetdir}/Tools",
-            -- ライセンス条文をexeの隣へ置く。
-            -- cerealやhlslppはヘッダオンリーでexeにコードが取り込まれるため、
-            -- exeを配った時点でMIT/BSD-3のバイナリ再配布に当たる。どちらも
-            -- 著作権表示の同梱を求めており、リポジトリに置いてあるだけでは
-            -- この配布経路では条件を満たさない
-            "{COPYFILE} %{wks.location}/../External/TsukinoEngine/LICENSE %{cfg.targetdir}/LICENSE",
-            "{COPYFILE} %{wks.location}/../External/TsukinoEngine/THIRD_PARTY_NOTICES.md %{cfg.targetdir}/THIRD_PARTY_NOTICES.md",
-        }
-    filter {}
-
     files {
         "CombatAndroid/src/**.cpp",
         "CombatAndroid/include/**.hpp",
         "CombatAndroid/pch.cpp",
     }
 
-    includedirs {
-        "CombatAndroid/include",
-        "External/TsukinoEngine/Tsukino.Audio/include",
-        "External/TsukinoEngine/Tsukino.GraphicsCommon/include",
-        "External/TsukinoEngine/Tsukino.Engine/include",
-        "External/TsukinoEngine/Tsukino.Renderer/include",
-        "External/TsukinoEngine/Tsukino.BuiltIn/include",
-        "External/TsukinoEngine/Tsukino.EngineIntegration/include",
-        "External/TsukinoEngine/Tsukino.Core/include",
-        "External/TsukinoEngine/Tsukino.Physics/include",
-        "External/TsukinoEngine/External/cereal/include",
-        "External/TsukinoEngine/External/hlslpp/include",
-        "External/TsukinoEngine/External/entt/single_include",
-        "External/TsukinoEngine/External/Effekseer/Dev/Cpp",
-        "External/TsukinoEngine/External/Effekseer/Dev/Cpp/Effekseer",
-        "External/TsukinoEngine/External/Effekseer/Dev/Cpp/EffekseerRendererDX11",
-        "External/TsukinoEngine/External/Effekseer/Dev/Cpp/EffekseerRendererCommon",
-        "External/TsukinoEngine/External/Effekseer/Dev/Cpp/3rdParty",
-    }
+    includedirs { "CombatAndroid/include" }
 
-    links {
-        "Tsukino.Engine",
-        "Tsukino.Renderer",
-        "Tsukino.GraphicsCommon",
-        "Tsukino.Audio",
-        "Tsukino.BuiltIn",
-        "Tsukino.EngineIntegration",
-        "Tsukino.Physics",
-        "Tsukino.Core",
-        "EffekseerRendererDX11",
-        "EffekseerRendererCommon",
-        "Effekseer",
-        "d3d11",
-        "dxgi",
-        "d3dcompiler",
-        "dwrite",
-    }
+    -- エンジンの include・lib・NuGet
+    tsukino_link()
 
-    nuget { "directxtk_desktop_win10:2026.4.1.1",
-            "AssimpCpp:5.0.1.6",
-    }
+    -- 実行時の基準ディレクトリと、エンジンが持ち込む Release 配布物
+    -- （組み込み Assets / Tools / ライセンス条文）
+    tsukino_release_payload()
+
+    -- ゲーム自身の Assets は自分でコピーする
+    filter "configurations:Release"
+        postbuildcommands {
+            "{COPYDIR} %{wks.location}/../CombatAndroid/Assets %{cfg.targetdir}/CombatAndroid/Assets",
+        }
+    filter {}
