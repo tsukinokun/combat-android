@@ -272,6 +272,9 @@ namespace CombatAndroid::ECS {
         weapon.level            = 1;
         ApplyDefaultCarryPose(weapon);
         weapon.floatEnabled = false;    // 浮遊演出が要る場合は呼び出し側で立てる
+        // ばね追従の状態は次のCombatSystem更新で所有者の定位置へ置き直させる
+        // （ここではまだownerも位置も決まっていないため）
+        weapon.hasFollowSpringState = false;
 
         // 武器種ごとの性能（攻撃力・専用モーション・AoE・溜め攻撃）を焼き込む
         ConfigureWeapon(registry, context, weaponEntity, weaponId);
@@ -307,6 +310,9 @@ namespace CombatAndroid::ECS {
         weapon.floatEnabled = false;
         weapon.isSnapped    = false;
         weapon.attackBlend  = 0.0f;
+        // 次に拾われたとき、地面に落ちていた位置からばねで引っ張り上げられるのではなく
+        // 浮遊の定位置から始まるように状態を捨てる
+        weapon.hasFollowSpringState = false;
         // 追従が止まる以上、前フレーム姿勢からのスイープ判定も無効にしておく
         weapon.hasPrevAttackPose = false;
 

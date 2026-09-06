@@ -75,11 +75,11 @@ namespace CombatAndroid::ECS {
         // （旋回はしない。姿勢はgripRotationOffsetを基準にわずかに揺れるだけ）
         //-------------------------------------------------------------
         bool  floatEnabled        = false;    //!< trueで浮遊演出（ふわふわ漂う動き）を有効化する
-        float floatBobAmplitude  = 6.0f;      //!< 上下に漂う振れ幅
-        float floatBobSpeed      = 1.6f;      //!< 上下の漂いの角速度（rad/sec）
+        float floatBobAmplitude  = 16.0f;     //!< 上下に漂う振れ幅
+        float floatBobSpeed      = 2.2f;      //!< 上下の漂いの角速度（rad/sec）
         float floatDriftAmplitude = 4.0f;      //!< 左右・前後に漂う振れ幅（上下と別周期でゆっくり揺れて円を描くように漂う）
         float floatDriftSpeed    = 0.9f;      //!< 左右・前後の漂いの角速度（rad/sec）
-        float floatSwayAngle      = 0.12f;     //!< 姿勢が前後に傾く最大角度（ラジアン）。小さく保つことで縦向きをほぼ維持する
+        float floatSwayAngle      = 0.18f;     //!< 姿勢が前後に傾く最大角度（ラジアン）。小さく保つことで縦向きをほぼ維持する
         float floatSwaySpeed      = 1.1f;      //!< 姿勢の揺れの角速度（rad/sec）
         float floatTime            = 0.0f;      //!< 浮遊演出用の経過時間（CombatSystemが毎フレーム加算する）
 
@@ -150,6 +150,22 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         float attachPositionLerpSpeed = 18.0f;    //!< 目標位置への追従速度
         float attachRotationLerpSpeed = 18.0f;    //!< 目標姿勢への追従速度
+
+        //-------------------------------------------------------------
+        // 浮遊中（floatEnabled）の追従は、上の指数減衰ではなくばね・ダンパー（減衰調和振動子）で行う。
+        // 指数減衰は目標へ単調に近づくだけなので、どれだけ速度を落としても「行き過ぎて揺り戻る」
+        // 動きにはならない（遅くすると鈍くなるだけ）。速度を状態として持つことで、プレイヤーが
+        // 急停止した瞬間に武器が定位置を一度通り過ぎてから収束する＝ばねで引っ張られている手触りになる。
+        // 攻撃中は当たり判定カプセルの位置精度が要るので使わず、attackBlendで上の指数減衰＋
+        // ビタ置き（isSnapped）へ連続的に引き継ぐ（attackBlend=1で完全に従来の追従へ戻る）
+        //-------------------------------------------------------------
+        float followSpringFrequency = 1.6f;     //!< ばねの固有振動数（Hz）。小さいほど大きく遅れてゆったり追う
+        float followSpringDamping   = 0.55f;    //!< 減衰比。1.0で行き過ぎ無し（臨界減衰）、小さいほど何度も揺り戻す
+
+        hlslpp::float3 followSpringPosition = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< ばね追従中の位置（transform.positionとは別に持つ状態）
+        hlslpp::float3 followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 上記の速度。これを持ち越すからオーバーシュートが表現できる
+        bool           hasFollowSpringState = false;    //!< 上記2つが有効か。falseなら次の更新で目標位置へ置き直す
+                                                          //!< （スポーン・持ち替え直後に遠方から飛んでこないように）
 
         //-------------------------------------------------------------
         // 「手のひらのどこに柄を重ねるか」を武器メッシュ側のローカル空間で指定する握り点。

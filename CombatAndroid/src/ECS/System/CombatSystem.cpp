@@ -56,6 +56,14 @@ namespace CombatAndroid::ECS {
         constexpr float kPlayerHitStopScale    = 0.15f;
 
         //-------------------------------------------------------------
+        // 浮遊武器のばね追従（WeaponComponent::followSpring*）を目標位置へ強制的に
+        // 置き直す距離。所有者のテレポート・リスポーンで目標が大きく飛んだとき、
+        // ばねのまま追わせるとマップを横切って武器が飛んでくるため打ち切る。
+        // 通常の移動で開く追従の遅れ（速くても100ユニット程度）とは桁が違う値にしてある
+        //-------------------------------------------------------------
+        constexpr float kFollowSpringResetDistance = 1500.0f;
+
+        //-------------------------------------------------------------
         //! @struct PendingProjectileSpawn
         //! @brief  「この武器が斬撃弾を撃つ」と決まった内容を、実際に生成するまで保留しておく箱
         //! @note   武器を回すループの最中にエンティティを作ると、コンポーネントのプールが
@@ -399,6 +407,37 @@ namespace CombatAndroid::ECS {
                 // 攻撃中のみ効かせたいのでattackBlendで重み付けする（浮遊演出時は影響しない）
                 targetPosition -= hlslpp::mul(weapon.gripPointLocal * transform.scale, targetRotation) * weapon.attackBlend;
 
+                // 浮遊中の位置追従（ばね・ダンパー）。transform.positionとは別に状態を持つ。
+                // 攻撃中は下の指数減衰・ビタ置きがtransform.positionを支配するため、
+                // ばね側も毎フレームそこへ寄せておかないと、攻撃が終わってattackBlendが0へ
+                // 戻った瞬間に攻撃前の位置へ戻ろうとして武器が飛ぶ（ブロック末尾で行う）
+                float followSpringGap = hlslpp::length(targetPosition - weapon.followSpringPosition);
+                if(!weapon.hasFollowSpringState || followSpringGap > kFollowSpringResetDistance) {
+                    // 初回、および所有者のテレポート・リスポーン等で目標が大きく飛んだとき
+                    weapon.followSpringPosition = targetPosition;
+                    weapon.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                    weapon.hasFollowSpringState = true;
+                } else {
+                    // 減衰調和振動子を陰的（後退）オイラーで積分する。
+                    // 陽的オイラーは振動数が高い・フレームが落ちるとすぐ発散するが、
+                    // この形は無条件安定なのでdeltaTimeが暴れても壊れない。
+                    // 減衰比zetaが1未満だと目標を行き過ぎてから戻る＝ばねで引っ張られる手触りになる
+                    float omega  = 6.28318531f * weapon.followSpringFrequency;    // Hz → 角周波数(rad/s)
+                    float zeta   = weapon.followSpringDamping;
+                    float f      = 1.0f + 2.0f * deltaTime * zeta * omega;
+                    float hoo    = deltaTime * omega * omega;
+                    float hhoo   = deltaTime * hoo;
+                    float detInv = 1.0f / (f + hhoo);
+
+                    hlslpp::float3 detX = weapon.followSpringPosition * f + weapon.followSpringVelocity * deltaTime
+                                          + targetPosition * hhoo;
+                    hlslpp::float3 detV = weapon.followSpringVelocity
+                                          + (targetPosition - weapon.followSpringPosition) * hoo;
+
+                    weapon.followSpringPosition = detX * detInv;
+                    weapon.followSpringVelocity = detV * detInv;
+                }
+
                 // 攻撃中、目標へ十分近づいたら指数減衰をやめて目標へ直接スナップする（ビタ置き）。
                 // 指数減衰は原理上どれだけ速くしても定常的な遅れが残り（速度/lerpSpeed相当）、
                 // 速い振りでは「手から遅れて武器がついてくる」ように見えてしまうため、
@@ -421,9 +460,11 @@ namespace CombatAndroid::ECS {
                     }
                 }
 
+                // 攻撃側の追従が出す位置。姿勢（transform.rotation）はばねを使わずここで確定させる
+                hlslpp::float3 attachedPosition;
                 if(weapon.isSnapped) {
                     // ビタ置き：手のひらの動きにそのまま一致させる（遅れなし）
-                    transform.position = targetPosition;
+                    attachedPosition   = targetPosition;
                     transform.rotation = targetRotation;
                 } else {
                     // スナップに至るまでは指数減衰で目標へ追従させる。攻撃モーションへの出入りや
@@ -437,9 +478,22 @@ namespace CombatAndroid::ECS {
                                            + (weapon.attackApproachLerpSpeed - weapon.attachRotationLerpSpeed) * weapon.attackBlend;
                     float positionLerpT = 1.0f - std::exp(-positionSpeed * deltaTime);
                     float rotationLerpT = 1.0f - std::exp(-rotationSpeed * deltaTime);
-                    transform.position   = hlslpp::lerp(transform.position, targetPosition, positionLerpT);
+                    attachedPosition     = hlslpp::lerp(transform.position, targetPosition, positionLerpT);
                     transform.rotation   = Tsukino::Core::Math::SlerpShortestPath(transform.rotation, targetRotation, rotationLerpT);
                 }
+
+                // ばねを効かせる重み。浮遊中（attackBlend=0）は1でばね、攻撃中（=1）は0で
+                // 従来の指数減衰・ビタ置き。間はattackBlendで連続に混ざるので攻撃の入り／抜けで
+                // カクッと飛ばない。浮遊しない武器（手に持たせるだけの使い方）は常に0で、
+                // 重み0のとき結果は従来のコードと完全に一致する＝当たり判定の位置は変わらない
+                float springWeight = weapon.floatEnabled ? (1.0f - weapon.attackBlend) : 0.0f;
+
+                transform.position = hlslpp::lerp(attachedPosition, weapon.followSpringPosition, springWeight);
+
+                // 重みが下がっている間はばね側を実位置へ引き寄せ、溜まった速度も殺しておく
+                // （これが無いと攻撃終了時にばねが攻撃前の位置・速度から再開して武器が飛ぶ）
+                weapon.followSpringPosition = hlslpp::lerp(transform.position, weapon.followSpringPosition, springWeight);
+                weapon.followSpringVelocity = weapon.followSpringVelocity * springWeight;
                 transform.dirty = true;
 
 #ifdef _DEBUG

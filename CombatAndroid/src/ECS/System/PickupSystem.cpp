@@ -331,6 +331,9 @@ namespace CombatAndroid::ECS {
                     // 拾った武器は「所有者つきの浮遊武器」へ昇格させる
                     pickedWeapon.owner        = playerEntity;
                     pickedWeapon.floatEnabled = true;
+                    // 拾った瞬間は足元にあるので、ばね追従は浮遊の定位置から始めさせる
+                    // （地面から引っ張り上げられる動きが毎回入ると拾得感がぼやける）
+                    pickedWeapon.hasFollowSpringState = false;
 
                     player->weaponInventory.push_back(nearest);
 
