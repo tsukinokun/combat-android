@@ -76,6 +76,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/SpotLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/AmbientParticleComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/MotionBlurComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpringBoneComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DebugCameraComponent.hpp>
@@ -1072,6 +1073,42 @@ namespace CombatAndroid {
             fog.noiseIntensity = 0.50f;
             fog.windDirection  = hlslpp::float3(1.0f, 0.0f, 0.3f);
             fog.windSpeed      = 60.0f;
+        }
+
+        //--------------------------------------------------------------
+        // 環境パーティクル（火の粉・灰）エンティティの生成
+        //
+        // 粒子はカメラを中心としたボリュームで折り返されるので、この1エンティティ
+        // だけでプレイヤーがどこへ動いても空間全体が埋まり続ける。
+        // ボリュームはTPSカメラの視界（farZ = 2000）に収まる大きさにし、
+        // フォグの開始距離（500）を跨がせて「奥の粒ほど霞んで消える」ようにしている
+        //--------------------------------------------------------------
+        {
+            Tsukino::ECS::Entity particleEntity = m_scene.CreateEntity();
+            auto&                particles      = registry.AddComponent<Tsukino::BuiltIn::ECS::AmbientParticleComponent>(particleEntity);
+
+            particles.count      = 3000;
+            particles.volumeSize = hlslpp::float3(2400.0f, 900.0f, 2400.0f);
+
+            // 暖色の火の粉。HDRバッファへ加算するので、明るい芯はトーンマップで白へ寄る
+            particles.color         = hlslpp::float3(1.0f, 0.32f, 0.06f);
+            particles.intensity     = 1.0f;
+            particles.minSize       = 0.8f;
+            particles.maxSize       = 3.5f;
+            particles.minBrightness = 0.15f;
+            particles.maxBrightness = 1.6f;
+            particles.twinkle       = 0.6f;
+
+            // 上昇させるのが火の粉らしさの肝。横方向はフォグの風（+X）と揃えて
+            // 空気全体が同じ向きに流れて見えるようにする
+            particles.driftVelocity = hlslpp::float3(10.0f, 20.0f, 3.0f);
+            particles.swayAmplitude = 14.0f;
+            particles.swayFrequency = 0.8f;
+            particles.minSpeedScale = 0.35f;
+            particles.maxSpeedScale = 1.7f;
+
+            particles.edgeFadeStart    = 0.65f;
+            particles.nearFadeDistance = 60.0f;
         }
     }
 

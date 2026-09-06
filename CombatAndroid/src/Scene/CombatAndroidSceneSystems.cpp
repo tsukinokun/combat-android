@@ -58,6 +58,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/AmbientParticleSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionBlurSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionVectorSnapshotSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/DebugCameraSystem.hpp>
@@ -190,5 +191,6 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::LightSystem>(), (int)ECS::SystemPriority::Light);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SkyAtmosphereSystem>(), (int)ECS::SystemPriority::SkyAtmosphere);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FogSystem>(), (int)ECS::SystemPriority::Fog);
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AmbientParticleSystem>(), (int)ECS::SystemPriority::AmbientParticle);
     }
 }    // namespace CombatAndroid

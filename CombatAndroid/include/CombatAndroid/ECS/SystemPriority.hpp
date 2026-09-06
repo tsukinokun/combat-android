@@ -83,5 +83,7 @@ namespace CombatAndroid::ECS {
                     // worldMatrixから位置を取るのでTransform系より後である必要がある
         SkyAtmosphere,
         Fog,    // フォグはカメラ位置と太陽方向を使うため、Camera / Light より後に置く
+        AmbientParticle,    // 環境パーティクル。カメラ位置も行列も頂点シェーダーがb0から直接読むため
+                            // 実質どこに置いてもよいが、同じ大気の演出であるSkyAtmosphere / Fogと並べておく
     };
 }    // namespace CombatAndroid::ECS
