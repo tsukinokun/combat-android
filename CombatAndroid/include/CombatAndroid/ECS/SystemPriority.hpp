@@ -55,6 +55,11 @@ namespace CombatAndroid::ECS {
                             // 購読するだけなので、ExpOrbと同じ並びでよい
         PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                           // （ExpOrbが確定）の両方より後に置く
+        InputPrompt,      // 操作を促すUI（キーキャップ・長押しゲージ）の表示判断と値の反映。
+                          // 拾得対象（PlayerComponent::pickupTarget）と溜め状態（PlayerAnimationSetComponent::
+                          // chargeTimer）はどちらもGameplayで確定するのでその後に置き、
+                          // かつWorldAnchorSystemが座標を確定させる前でなければならない
+                          // （プロンプトは部品ごとのtarget/screenOffsetをここで書くため）
         TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
                           // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                           // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分

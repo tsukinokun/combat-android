@@ -58,10 +58,8 @@ namespace CombatAndroid::ECS {
                     if(auto* titleFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(gameOver.titleTextEntity))
                         titleFont->text = L"GAME OVER";
                 }
-                if(gameOver.retryTextEntity != entt::null) {
-                    if(auto* retryFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(gameOver.retryTextEntity))
-                        retryFont->text = L"Press SPACE to Retry";
-                }
+                // リトライの案内は文字ではなく[SPACE]のキーキャップで出す（InputPromptSystemが
+                // overlayShownを見て表示する）ので、ここではテキストを書かない
 
                 continue;    // 表示した直後のフレームでそのままリトライ入力を拾わない
             }

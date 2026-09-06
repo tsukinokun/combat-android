@@ -6,7 +6,6 @@
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
-#include <CombatAndroid/ECS/Component/PickupPromptComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponAbsorbComponent.hpp>
@@ -275,29 +274,6 @@ namespace CombatAndroid::ECS {
                 highlight->rimPower     = kRimPower;
                 highlight->glow         = (kGlowMin + (kGlowMax - kGlowMin) * pulse) * pickup.highlightBlend;
             }
-        });
-
-        //-------------------------------------------------------------
-        // 「Fキーで拾う」UIラベルの更新（対象がいるときだけ表示する）。
-        // 座標計算そのものはWorldAnchorSystemに任せ、ここではtarget/worldOffsetの
-        // 設定とテキストの更新だけを行う
-        //-------------------------------------------------------------
-        auto promptView =
-            registry.View<PickupPromptComponent, Tsukino::BuiltIn::ECS::FontComponent, Tsukino::BuiltIn::ECS::WorldAnchorComponent>();
-        promptView.each([&](entt::entity, PickupPromptComponent& prompt, Tsukino::BuiltIn::ECS::FontComponent& promptFont,
-                            Tsukino::BuiltIn::ECS::WorldAnchorComponent& promptAnchor) {
-            if(nearest == entt::null || !registry.HasComponent<PickupComponent>(nearest)) {
-                promptAnchor.target = entt::null;
-                promptFont.text.clear();    // 空文字ならFontRendererSystemが描画をスキップする
-                return;
-            }
-
-            const auto& pickup = registry.GetComponent<PickupComponent>(nearest);
-
-            promptAnchor.target       = nearest;
-            promptAnchor.worldOffset  = hlslpp::float3(0.0f, pickup.labelHeight, 0.0f);
-            promptAnchor.screenOffset = hlslpp::float2(0.0f, prompt.screenOffsetY);
-            promptFont.text           = L"F : " + pickup.displayName + L" を拾う";
         });
 
         //-------------------------------------------------------------

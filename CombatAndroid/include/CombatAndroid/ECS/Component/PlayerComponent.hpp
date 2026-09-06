@@ -87,4 +87,22 @@ namespace CombatAndroid::ECS {
 
         bool isCharging = false;    //!< 溜め攻撃中か。PlayerAnimationSystemが毎フレーム確定させ、PlayerSystemが向き直り・武器切り替え抑制に参照する
     };
+
+    //-------------------------------------------------------------
+    //! @brief  溜め時間から現在の溜め段階（1=白, 2=青, 3=紫）を求める
+    //! @param  chargeTimer [in] Chargeステートに入ってからの経過時間（PlayerAnimationSetComponent::chargeTimer）
+    //! @param  player      [in] 閾値を持つプレイヤー
+    //! @return 溜め段階（1〜3）
+    //! @note   ダメージ倍率とリムライトの色を決めるPlayerAnimationSystemと、
+    //!         同じ色でゲージを塗るInputPromptSystemの両方が呼ぶ。片方だけ閾値を
+    //!         書き換えると「ゲージは紫なのに威力は青」というズレになるためここへ集約する
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    inline int ResolveChargeStage(float chargeTimer, const PlayerComponent& player) {
+        if(chargeTimer >= player.chargeStage3Threshold)
+            return 3;
+        if(chargeTimer >= player.chargeStage2Threshold)
+            return 2;
+        return 1;
+    }
 }    // namespace CombatAndroid::ECS

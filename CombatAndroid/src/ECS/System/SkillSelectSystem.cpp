@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -135,77 +136,6 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  スプライトを指定のピクセル矩形いっぱいに広げる関数
-        //! @param  registry  [in] ECSレジストリ
-        //! @param  context   [in] エンジンコンテキスト（テクスチャの実寸を引くのに使う）
-        //! @param  entity    [in] 対象のエンティティ
-        //! @param  centerX   [in] 矩形中心のスクリーンX
-        //! @param  centerY   [in] 矩形中心のスクリーンY
-        //! @param  width     [in] 矩形の幅（ピクセル）
-        //! @param  height    [in] 矩形の高さ（ピクセル）
-        //! @param  tintColor [in] スプライトに乗算する色
-        //! @note   SpriteRenderSystemは「テクスチャの実ピクセル数 × transform.scale」を
-        //!         最終的な大きさとして使うため、テクスチャサイズで割った値をscaleへ入れる。
-        //!         HPバーのようにWhitePixel.png（4x4）決め打ちにせずアセットから実寸を
-        //!         引いているので、スキル専用の背景画像へ差し替えてもレイアウトが崩れない
-        //-------------------------------------------------------------
-        void StretchSprite(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, Tsukino::ECS::Entity entity,
-                           float centerX, float centerY, float width, float height, const hlslpp::float4& tintColor) {
-            if(entity == entt::null)
-                return;
-
-            auto* transform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-            auto* sprite    = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(entity);
-            if(!transform || !sprite)
-                return;
-
-            float textureWidth  = 1.0f;
-            float textureHeight = 1.0f;
-            if(context.assetManager) {
-                std::shared_ptr<Tsukino::Asset::TextureAsset> textureAsset =
-                    std::static_pointer_cast<Tsukino::Asset::TextureAsset>(context.assetManager->Get(sprite->textureHandle));
-                if(textureAsset && textureAsset->width > 0 && textureAsset->height > 0) {
-                    textureWidth  = static_cast<float>(textureAsset->width);
-                    textureHeight = static_cast<float>(textureAsset->height);
-                }
-            }
-
-            transform->position = hlslpp::float3(centerX, centerY, 0.0f);
-            transform->scale    = hlslpp::float3(width / textureWidth, height / textureHeight, 1.0f);
-            transform->dirty    = true;
-
-            sprite->tintColor = tintColor;
-        }
-
-        //-------------------------------------------------------------
-        //! @brief  文字エンティティの位置・大きさ・内容を書く関数
-        //! @param  registry  [in] ECSレジストリ
-        //! @param  entity    [in] 対象のエンティティ
-        //! @param  x         [in] スクリーンX
-        //! @param  y         [in] スクリーンY
-        //! @param  fontScale [in] フォントの拡大率（TransformComponent::scale.xがそのまま文字サイズになる）
-        //! @param  text      [in] 表示する文字列
-        //! @param  color     [in] 文字色
-        //-------------------------------------------------------------
-        void PlaceText(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float x, float y, float fontScale,
-                       const std::wstring& text, const hlslpp::float4& color) {
-            if(entity == entt::null)
-                return;
-
-            auto* transform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-            auto* font      = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(entity);
-            if(!transform || !font)
-                return;
-
-            transform->position = hlslpp::float3(x, y, 0.0f);
-            transform->scale    = hlslpp::float3(fontScale, fontScale, 1.0f);
-            transform->dirty    = true;
-
-            font->text  = text;
-            font->color = color;
-        }
-
-        //-------------------------------------------------------------
         //! @brief  index枚目のカードの中心Yを求める関数
         //! @param  screenCenterY  [in] 画面中央のY
         //! @param  index          [in] 何枚目か（0始まり）
@@ -238,7 +168,7 @@ namespace CombatAndroid::ECS {
             // 画面全体の暗転とタイトル
             //-------------------------------------------------------------
             StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
-            PlaceText(registry, select.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"LEVEL UP!", kTitleColor);
+            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"LEVEL UP!", kTitleColor);
 
             //-------------------------------------------------------------
             // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
@@ -296,8 +226,8 @@ namespace CombatAndroid::ECS {
                 nameText += L" / ";
                 nameText += std::to_wstring(kMaxSkillLevel);
 
-                PlaceText(registry, card.nameEntity, textLeftX, centerY + kNameOffsetY, kNameFontScale, nameText, kNameColor);
-                PlaceText(registry, card.descEntity, textLeftX, centerY + kDescOffsetY, kDescFontScale,
+                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + kNameOffsetY, kNameFontScale, nameText, kNameColor);
+                PlaceUiText(registry, card.descEntity, textLeftX, centerY + kDescOffsetY, kDescFontScale,
                           entry.levels[static_cast<size_t>(level)].description, kDescColor);
             }
         }

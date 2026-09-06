@@ -164,15 +164,6 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  溜め時間から現在の溜め段階（1=白, 2=青, 3=紫）を求める
-        //-------------------------------------------------------------
-        int ResolveChargeStage(float chargeTimer, const PlayerComponent& player) {
-            if(chargeTimer >= player.chargeStage3Threshold) return 3;
-            if(chargeTimer >= player.chargeStage2Threshold) return 2;
-            return 1;
-        }
-
-        //-------------------------------------------------------------
         //! @brief  溜め段階から解放時のダメージ倍率を求める
         //-------------------------------------------------------------
         float ResolveChargeDamageMultiplier(int stage, const PlayerComponent& player) {

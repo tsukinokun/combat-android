@@ -20,8 +20,20 @@ namespace CombatAndroid::UI {
     constexpr int kEnemyHpBarBackground = 100;    //!< 敵の頭上HPバー・背景
     constexpr int kEnemyHpBarFill       = 101;    //!< 敵の頭上HPバー・残量
     constexpr int kDamageNumber         = 110;    //!< ダメージ数値
-    constexpr int kPickupPrompt         = 120;    //!< 「Fキーで拾う」。操作の案内なので
+    constexpr int kPickupPrompt         = 120;    //!< 拾得プロンプト。操作の案内なので
                                                    //!< 飛び交うダメージ数値に隠されないよう最前面に置く
+
+    //-------------------------------------------------------------
+    //! 操作プロンプト（キーキャップ・マウス・矢印・長押しゲージ）の帯。
+    //! 1つのプロンプトが ベース+0 〜 +4 の5層を内側で使い分ける：
+    //!   +0 長押しゲージのセグメント（未点灯・点灯とも同じ層で、色だけ変える）
+    //!   +1 予備
+    //!   +2 キーキャップの外枠 / マウス本体
+    //!   +3 キーキャップの面 / マウスの左ボタン / 矢印
+    //!   +4 キーの文字・対象名
+    //! InputPromptWidgetがこのオフセットを前提にしているので、間隔を詰めないこと
+    //-------------------------------------------------------------
+    constexpr int kInputPromptBase = 121;    //!< ワールド追従のプロンプト（拾う・溜め攻撃）
 
     //! 画面固定のHUD
     constexpr int kHudBarBackground = 200;    //!< HP/EXPバーの背景
@@ -43,6 +55,10 @@ namespace CombatAndroid::UI {
     constexpr int kSkillSelectHighlight = 410;    //!< 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
     constexpr int kSkillSelectCard      = 420;    //!< カードの背景パネル
     constexpr int kSkillSelectText      = 430;    //!< タイトル・スキル名・説明文
+
+    //! モーダルの上に重ねる操作プロンプト。カード(420)・説明文(430)より手前に置かないと
+    //! 暗転板ではなくカード自身の下に沈む。kInputPromptBaseと同じく+4までの5層を使う
+    constexpr int kModalInputPromptBase = 440;
 
     //! モーダル：GAME OVER
     //! スキル選択より手前に置く。レベルアップの予約と死亡が同じフレームに重なると

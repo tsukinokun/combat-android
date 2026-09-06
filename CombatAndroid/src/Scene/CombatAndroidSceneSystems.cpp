@@ -28,6 +28,7 @@
 #include <CombatAndroid/ECS/System/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/InputPromptSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
@@ -137,6 +138,7 @@ namespace CombatAndroid {
             enemyWeaponDropSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptSystem>(), (int)ECS::SystemPriority::InputPrompt);
         // EXPバーの下に並べる取得済みスキル一覧。取得段階はSkillSelectSystem（ECS::SystemPriority::SkillSelect）が
         // 同じフレームの手前で確定させているため、選んだ内容がその回のフレームから一覧へ載る
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSkillHudSystem>(), (int)ECS::SystemPriority::PlayerHud);

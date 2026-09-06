@@ -15,7 +15,7 @@
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
-#include <CombatAndroid/ECS/Component/PickupPromptComponent.hpp>
+#include <CombatAndroid/ECS/Component/InputPromptHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/DamageNumberComponent.hpp>
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
@@ -435,29 +435,61 @@ namespace CombatAndroid {
         camera2D.isPrimary                               = false;      // これをメインカメラにしない
 
         //--------------------------------------------------------------
-        // 「Fキーで拾う」UIラベル用エンティティの生成。
-        // 毎フレーム生成せず1つを使い回し、PickupSystemがWorldAnchorComponent.target/textを書き換え、
-        // 実際の座標変換（position書き込み）はWorldAnchorSystemが行う
+        // 操作を促すUI（キーキャップ・マウス・矢印・長押しゲージ）一式の生成。
+        // ダメージ数値やHPバーと同じく毎フレーム生成せず、ここで作った束を
+        // InputPromptSystemが表示/非表示と値の更新だけで使い回す。
+        // 実際に付くコンポーネントはプレイヤーエンティティの生成後（下のAddComponent）
         //--------------------------------------------------------------
-        Tsukino::ECS::Entity pickupPromptEntity = m_scene.CreateEntity();
+        CombatAndroid::ECS::InputPromptHudComponent inputPromptHud;
+        {
+            // 拾う：[F] ＋ 拾い上げる向きの矢印 ＋ 対象名。対象の頭上へワールド追従
+            CombatAndroid::ECS::InputPromptDesc pickupDesc;
+            pickupDesc.keyLabel      = L"F";
+            pickupDesc.chevron       = CombatAndroid::ECS::PromptChevron::Up;
+            pickupDesc.useCaption    = true;
+            pickupDesc.worldAnchored = true;
+            pickupDesc.sortOrderBase = CombatAndroid::UI::kInputPromptBase;
+            inputPromptHud.pickupPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, pickupDesc);
 
-        Tsukino::BuiltIn::ECS::TransformComponent& promptTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(pickupPromptEntity);
-        promptTransform.position                                    = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 以後WorldAnchorSystemが毎フレーム上書きする
-        promptTransform.scale                                       = hlslpp::float3(1.0f, 1.0f, 1.0f);
-        promptTransform.dirty                                       = true;
+            // 溜め攻撃：マウスの絵を長押しゲージが囲む。プレイヤーの頭上へワールド追従
+            CombatAndroid::ECS::InputPromptDesc chargeDesc;
+            chargeDesc.useMouse      = true;
+            chargeDesc.useHoldRing   = true;
+            chargeDesc.worldAnchored = true;
+            chargeDesc.sortOrderBase = CombatAndroid::UI::kInputPromptBase;
+            inputPromptHud.chargePrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, chargeDesc);
 
-        Tsukino::BuiltIn::ECS::WorldAnchorComponent& promptAnchor = registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(pickupPromptEntity);
-        promptAnchor.target                                        = entt::null;    // 以後PickupSystemが毎フレーム更新する
+            //--------------------------------------------------------------
+            // 以下3つはスキル選択メニューの上に重ねるので画面固定＋モーダル用の層を使う
+            //--------------------------------------------------------------
+            CombatAndroid::ECS::InputPromptDesc skillUpDesc;
+            skillUpDesc.keyLabel      = L"W";
+            skillUpDesc.chevron       = CombatAndroid::ECS::PromptChevron::Up;
+            skillUpDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
+            inputPromptHud.skillUpPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillUpDesc);
 
-        Tsukino::BuiltIn::ECS::FontComponent& promptFont = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(pickupPromptEntity);
-        promptFont.text                                   = L"";    // 空文字の間はFontRendererSystemが描画しない
-        promptFont.color                                  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        promptFont.origin                                 = hlslpp::float2(0.0f, 0.0f);
-        promptFont.sortOrder                              = CombatAndroid::UI::kPickupPrompt;    // 操作の案内なのでダメージ数値より手前に置く
-        // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont、動的フォントアトラス経路）が使われるため
-        // 日本語をそのまま渡してよい（旧Arial.spritefontはASCII専用でDirectXTKが例外を投げる）
+            CombatAndroid::ECS::InputPromptDesc skillDownDesc;
+            skillDownDesc.keyLabel      = L"S";
+            skillDownDesc.chevron       = CombatAndroid::ECS::PromptChevron::Down;
+            skillDownDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
+            inputPromptHud.skillDownPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillDownDesc);
 
-        registry.AddComponent<CombatAndroid::ECS::PickupPromptComponent>(pickupPromptEntity);
+            CombatAndroid::ECS::InputPromptDesc skillConfirmDesc;
+            skillConfirmDesc.keyLabel      = L"F";
+            skillConfirmDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
+            skillConfirmDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
+            inputPromptHud.skillConfirmPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillConfirmDesc);
+
+            // リトライ：GAME OVERより手前に出したいのでモーダル用の層を使う
+            CombatAndroid::ECS::InputPromptDesc retryDesc;
+            retryDesc.keyLabel      = L"SPACE";
+            retryDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
+            retryDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
+            inputPromptHud.retryPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, retryDesc);
+        }
+
+        // InputPromptSystemはPlayerComponentと同じエンティティに付いた束を引く
+        registry.AddComponent<CombatAndroid::ECS::InputPromptHudComponent>(playerEntity, inputPromptHud);
 
         //--------------------------------------------------------------
         // ダメージ数値用エンティティのプール。「Fキーで拾う」ラベルと同じく毎フレーム生成せず
