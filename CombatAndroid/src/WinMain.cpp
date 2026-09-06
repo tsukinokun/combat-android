@@ -44,7 +44,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In
 #else
     (void)lpCmdLine;
 #endif
+    //--------------------------------------------------------------
     // ログの初期化
+    // これを呼ばないとLogはOutputDebugStringAにしか出ず、アセットの
+    // インポート失敗のような致命的な警告がデバッガの外から見えなくなる
+    //--------------------------------------------------------------
+    Tsukino::Core::Log::SetLogFile("Logs/Tsukino.log");
+
     Tsukino::EngineIntegration::EngineIntegration engineIntegration;
     // 初期化
     if(!engineIntegration.Initialize(1700, 1000)) {
