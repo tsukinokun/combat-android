@@ -30,17 +30,17 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         //! 溜めゲージをプレイヤーのどれだけ上に出すか。頭（約170ユニット）より上で、
         //! かつ画面上端に逃げない高さ。1ユニット≒1cm規約
-        constexpr float kChargePromptWorldHeight = 235.0f;
+        constexpr float kChargePromptWorldHeight = 250.0f;
 
         //! スキル選択のカード（幅760を画面中央に置く）の右端から、プロンプト列までの間隔
         constexpr float kSkillPromptCardHalfWidth = 380.0f;
-        constexpr float kSkillPromptGapFromCard   = 78.0f;
+        constexpr float kSkillPromptGapFromCard   = 95.0f;
 
-        constexpr float kSkillPromptUpOffsetY      = -60.0f;    //!< 画面中心から見た[W]のY
-        constexpr float kSkillPromptDownOffsetY    = 24.0f;     //!< 同じく[S]のY
-        constexpr float kSkillPromptConfirmOffsetY = 140.0f;    //!< 同じく決定[F]のY
+        constexpr float kSkillPromptUpOffsetY      = -75.0f;    //!< 画面中心から見た[W]のY
+        constexpr float kSkillPromptDownOffsetY    = 20.0f;     //!< 同じく[S]のY
+        constexpr float kSkillPromptConfirmOffsetY = 165.0f;    //!< 同じく決定[F]のY
 
-        constexpr float kRetryPromptOffsetY = 96.0f;    //!< 画面中心から見たリトライ[SPACE]のY（GAME OVERの下）
+        constexpr float kRetryPromptOffsetY = 110.0f;    //!< 画面中心から見たリトライ[SPACE]のY（GAME OVERの下）
 
         constexpr float kModalPromptScale = 1.15f;    //!< モーダル上のプロンプトは少し大きく見せる
 

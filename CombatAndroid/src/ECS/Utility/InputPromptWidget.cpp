@@ -28,29 +28,29 @@ namespace CombatAndroid::ECS {
         // 部品の寸法（全て画面ピクセル単位。InputPromptStyle::scaleで一律に拡縮する）。
         // 実機で見ながら調整する値なので、意味のある名前を付けて1箇所に集めてある
         //-------------------------------------------------------------
-        constexpr float kCapHeight       = 30.0f;    //!< キーキャップの高さ
-        constexpr float kCapMinWidth     = 30.0f;    //!< キーキャップの最小幅（1文字ぶん。正方形に見せる）
-        constexpr float kCapWidthPerChar = 15.0f;    //!< 文字数に応じて広げる量（"SPACE"のような複数文字キー用）
-        constexpr float kCapBorder       = 3.0f;     //!< 外枠が面からはみ出す量（この2倍だけ外枠が大きい）
-        constexpr float kGlyphScale      = 0.34f;    //!< キーの文字の拡大率（TransformComponent::scale.xがそのまま文字サイズ）
+        constexpr float kCapHeight       = 42.0f;    //!< キーキャップの高さ
+        constexpr float kCapMinWidth     = 42.0f;    //!< キーキャップの最小幅（1文字ぶん。正方形に見せる）
+        constexpr float kCapWidthPerChar = 19.0f;    //!< 文字数に応じて広げる量（"SPACE"のような複数文字キー用）
+        constexpr float kCapBorder       = 5.0f;     //!< 外枠が面からはみ出す量（この2倍だけ外枠が大きい）
+        constexpr float kGlyphScale      = 0.46f;    //!< キーの文字の拡大率（TransformComponent::scale.xがそのまま文字サイズ）
 
-        constexpr float kMouseWidth        = 24.0f;    //!< マウス本体の幅
-        constexpr float kMouseHeight       = 34.0f;    //!< マウス本体の高さ
-        constexpr float kMouseButtonWidth  = 9.0f;     //!< 左ボタンの幅
-        constexpr float kMouseButtonHeight = 14.0f;    //!< 左ボタンの高さ
-        constexpr float kMouseButtonInset  = 2.5f;     //!< 左ボタンを本体の左上角から内側へ入れる量
+        constexpr float kMouseWidth        = 34.0f;    //!< マウス本体の幅
+        constexpr float kMouseHeight       = 48.0f;    //!< マウス本体の高さ
+        constexpr float kMouseButtonWidth  = 13.0f;     //!< 左ボタンの幅
+        constexpr float kMouseButtonHeight = 20.0f;    //!< 左ボタンの高さ
+        constexpr float kMouseButtonInset  = 3.5f;     //!< 左ボタンを本体の左上角から内側へ入れる量
 
-        constexpr float kChevronArmLength = 14.0f;    //!< 矢印の腕1本の長さ
-        constexpr float kChevronArmWidth  = 4.0f;     //!< 矢印の腕1本の太さ
-        constexpr float kChevronGap       = 12.0f;    //!< キーキャップと矢印の間隔
-        constexpr float kChevronArmSpread = 4.5f;     //!< 2本の腕をハの字に開くときの中心からのずらし量
+        constexpr float kChevronArmLength = 19.0f;    //!< 矢印の腕1本の長さ
+        constexpr float kChevronArmWidth  = 6.0f;     //!< 矢印の腕1本の太さ
+        constexpr float kChevronGap       = 16.0f;    //!< キーキャップと矢印の間隔
+        constexpr float kChevronArmSpread = 6.0f;     //!< 2本の腕をハの字に開くときの中心からのずらし量
 
-        constexpr float kCaptionGap   = 14.0f;    //!< キーキャップと下のテキストの間隔
-        constexpr float kCaptionScale = 0.30f;    //!< 下のテキストの拡大率
+        constexpr float kCaptionGap   = 18.0f;    //!< キーキャップと下のテキストの間隔
+        constexpr float kCaptionScale = 0.40f;    //!< 下のテキストの拡大率
 
-        constexpr float kRingRadius        = 34.0f;    //!< 長押しゲージの半径
-        constexpr float kRingSegmentLength = 10.0f;    //!< セグメント1枚の長さ（半径方向）
-        constexpr float kRingSegmentWidth  = 5.0f;     //!< セグメント1枚の太さ（円周方向）
+        constexpr float kRingRadius        = 46.0f;    //!< 長押しゲージの半径
+        constexpr float kRingSegmentLength = 14.0f;    //!< セグメント1枚の長さ（半径方向）
+        constexpr float kRingSegmentWidth  = 7.5f;     //!< セグメント1枚の太さ（円周方向）
 
         //-------------------------------------------------------------
         // 色。キーキャップは「明るい面に濃い文字」にして、暗い背景でも明るい背景でも
@@ -124,7 +124,7 @@ namespace CombatAndroid::ECS {
 
             // 明るい面の上に濃い文字を置くため、縁取りは明るい色にして輪郭を立てる
             font.outlineColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 0.85f);
-            font.outlineWidth = 1.0f;
+            font.outlineWidth = 1.5f;
 
             if(worldAnchored)
                 registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(entity);
@@ -438,7 +438,7 @@ namespace CombatAndroid::ECS {
             // 対象名は背景がワールドなので、濃い縁取りで抜く（キーの文字とは逆）
             if(auto* captionFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(widget.captionEntity)) {
                 captionFont->outlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.9f);
-                captionFont->outlineWidth = 2.0f;
+                captionFont->outlineWidth = 2.5f;
             }
         }
 
