@@ -38,7 +38,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // レベルアップ演出。同種武器を拾って吸い寄せられてきた個体がこの武器に重なった瞬間、
         // PickupSystemがこの値をkLevelUpFlashDurationにセットする。0より大きい間だけ
-        // PickupSystemがHighlightComponentへリムライト発光値を書き込み、0秒に向けて減衰させる
+        // PickupSystemがRimGlowComponentへリムライト発光値を書き込み、0秒に向けて減衰させる
         //-------------------------------------------------------------
         float levelUpFlashTimer = 0.0f;    //!< レベルアップ発光演出の残り時間（秒）。0以下で非発光
 

@@ -15,7 +15,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Log.hpp>
@@ -158,8 +158,8 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         StateMachine<PlayerAnimState>::Callback MakeChargeExitCallback() {
             return [](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
-                if(registry.HasComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity))
-                    registry.GetComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity).active = false;
+                if(registry.HasComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity))
+                    registry.GetComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity).active = false;
             };
         }
 
@@ -572,8 +572,8 @@ namespace CombatAndroid::ECS {
             // 溜め攻撃中のリムライト点灯（白→青→紫）。消灯はChargeのOnExitコールバックが担当するため、
             // ここでは点灯中の値の書き込みのみ行う
             //-------------------------------------------------------------
-            if(willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity)) {
-                auto& highlight         = registry.GetComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(entity);
+            if(willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
+                auto& highlight         = registry.GetComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
                 highlight.active       = true;
                 highlight.rimColor     = ResolveChargeRimColor(ResolveChargeStage(animSet.chargeTimer, player));
                 highlight.rimIntensity = 5.0f;

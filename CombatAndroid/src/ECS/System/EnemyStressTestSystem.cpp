@@ -427,7 +427,7 @@ namespace CombatAndroid::ECS {
                                      stats.gbufferDrawCalls,
                                      stats.shadowDrawCalls,
                                      stats.overlayDrawCalls,
-                                     stats.worldDrawCalls + stats.transparentDrawCalls + stats.waterDrawCalls,
+                                     stats.worldDrawCalls + stats.transparentDrawCalls,
                                      stats.commandCount,
                                      stats.skinnedDrawCalls,
                                      static_cast<double>(stats.triangleCount) / 1000000.0,

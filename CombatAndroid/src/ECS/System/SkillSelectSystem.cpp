@@ -15,7 +15,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -88,13 +88,13 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief レベルアップ後無敵のタイマーを実時間で減衰させ、プレイヤーの
-        //!        HighlightComponentへ発光値を書き込む。0を切ったら消灯する
+        //!        RimGlowComponentへ発光値を書き込む。0を切ったら消灯する
         //-------------------------------------------------------------
         void TickLevelUpInvincibility(Tsukino::ECS::Registry& registry, entt::entity entity, PlayerComponent& player, float deltaTime) {
             player.levelUpInvincibleTimer     = std::max(player.levelUpInvincibleTimer - deltaTime, 0.0f);
             player.levelUpInvinciblePulseTime += deltaTime;
 
-            auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::HighlightComponent>(entity);
+            auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
             if(!highlight)
                 return;
 
@@ -324,7 +324,7 @@ namespace CombatAndroid::ECS {
                 // レベルアップ後無敵の消化と発光演出。全てのスキル選択が終わり切った
                 // 瞬間（下の決定処理でlevelUpInvincibleTimerを立てる）から実時間で
                 // 減衰させる。既存の溜め攻撃リムライト（PlayerAnimationSystem）と
-                // 同じHighlightComponentを流用するが、あちらは溜め中しか書き込まないため
+                // 同じRimGlowComponentを流用するが、あちらは溜め中しか書き込まないため
                 // 通常時はこちらの書き込みがそのまま残る
                 //-------------------------------------------------------------
                 if(player.levelUpInvincibleTimer > 0.0f)

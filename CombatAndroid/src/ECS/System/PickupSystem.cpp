@@ -14,7 +14,7 @@
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 
@@ -189,11 +189,11 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         // レベルアップ発光の減衰。levelUpFlashTimerが立っている武器だけを対象に、
-        // イーズアウトさせながらHighlightComponentへ発光値を書き込む
+        // イーズアウトさせながらRimGlowComponentへ発光値を書き込む
         //-------------------------------------------------------------
         {
-            auto flashView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::HighlightComponent>();
-            flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::HighlightComponent& highlight) {
+            auto flashView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::RimGlowComponent>();
+            flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::RimGlowComponent& highlight) {
                 if(weapon.levelUpFlashTimer <= 0.0f)
                     return;
 
@@ -267,7 +267,7 @@ namespace CombatAndroid::ECS {
             float wave  = std::sin(pickup.pulseTime * kPulseSpeed);
             float pulse = wave * wave;
 
-            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::HighlightComponent>(entity)) {
+            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
                 highlight->active       = pickup.highlightBlend > 0.001f;
                 highlight->rimColor     = hlslpp::float3(kRimColorR, kRimColorG, kRimColorB);
                 highlight->rimIntensity = kRimIntensityMax * pickup.highlightBlend;
@@ -322,7 +322,7 @@ namespace CombatAndroid::ECS {
             }
 
             // 演出とワールド判定を止める（PickupComponentを外すのでこれ以降候補に上がらない）
-            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::HighlightComponent>(nearest)) {
+            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(nearest)) {
                 highlight->active = false;
             }
             registry.RemoveComponent<PickupComponent>(nearest);

@@ -11,7 +11,7 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 
-#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -287,7 +287,7 @@ namespace CombatAndroid::ECS {
 
         // レベルアップ時・ピックアップ対象時のリムライト発光演出（PickupSystem）の土台。
         // active既定falseのため通常時の見た目には影響しない
-        registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(weaponEntity);
+        registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(weaponEntity);
 
         return weaponEntity;
     }

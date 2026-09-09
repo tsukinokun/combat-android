@@ -76,13 +76,14 @@
 #include <Tsukino/BuiltIn/ECS/Component/SpotLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
+#include <CombatAndroid/ECS/Component/GrassFieldComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AmbientParticleComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/MotionBlurComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpringBoneComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DebugCameraComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DebugCameraTag.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/EffectComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/HighlightComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 
 #include <entt/entt.hpp>
 #include <hlsl++.h>
@@ -240,7 +241,7 @@ namespace CombatAndroid {
 
         // 溜め攻撃の段階表示（白→青→紫のリムライト）用。既定はactive=falseなので、溜めていない間は
         // 通常のモデル描画に一切影響しない（PlayerAnimationSystemが溜め中のみ書き込む）
-        registry.AddComponent<Tsukino::BuiltIn::ECS::HighlightComponent>(playerEntity);
+        registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(playerEntity);
 
         // アニメーションを再生・制御するコンポーネント（初期状態はIdle。以後はPlayerAnimationSystemが管理する）
         Tsukino::BuiltIn::ECS::AnimationPlayerComponent& animPlayer = registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(playerEntity);
@@ -1122,7 +1123,14 @@ namespace CombatAndroid {
             particles.count      = 3000;
             particles.volumeSize = hlslpp::float3(2400.0f, 900.0f, 2400.0f);
 
-            // 暖色の火の粉。HDRバッファへ加算するので、明るい芯はトーンマップで白へ寄る
+            //--------------------------------------------------------------
+            // ここから下が「火の粉に見せる」ための値。
+            // エンジンが持っているのは「GPUで大量の板を漂わせる仕組み」までで、
+            // 何に見えるかはこのブロックが決めている（既定値は無色の白なので、
+            // 色と速度を変えれば塵にも雪にも胞子にもなる）。
+            //
+            // 暖色。HDRバッファへ加算するので、明るい芯はトーンマップで白へ寄る
+            //--------------------------------------------------------------
             particles.color         = hlslpp::float3(1.0f, 0.32f, 0.06f);
             particles.intensity     = 1.0f;
             particles.minSize       = 0.8f;
@@ -1141,6 +1149,56 @@ namespace CombatAndroid {
 
             particles.edgeFadeStart    = 0.65f;
             particles.nearFadeDistance = 60.0f;
+        }
+
+        //--------------------------------------------------------------
+        // 地面の草。
+        // カメラを中心にした正方形の中だけへ生やし、カメラが動くと格子が
+        // 追従する。1本ごとの位置はワールド座標のハッシュから決まるので、
+        // 追従しても草は地面に固定されたまま見える。
+        //
+        // フィールドの一辺はTPSカメラの視界（farZ = 2000）より内側に収め、
+        // 外周のフェードとフォグ（開始500）で境界を隠す
+        //--------------------------------------------------------------
+        {
+            Tsukino::ECS::Entity grassEntity = m_scene.CreateEntity();
+            auto&                grass       = registry.AddComponent<CombatAndroid::ECS::GrassFieldComponent>(grassEntity);
+
+            // カメラのfarZが2000なので、一辺3600（＝中心から1800）にして
+            // 視界の端まで草で埋まるようにする。同じ本数のままだと密度が
+            // 落ちるので本数も上げ、さらに遠くの草を太らせて隙間を埋める
+            grass.bladeCount = 55000;
+            grass.fieldSize  = 3600.0f;
+
+            // プレイヤーの身長が210ユニットなので、膝下くらいの丈になる
+            grass.bladeHeight       = 34.0f;
+            grass.bladeWidth        = 3.5f;
+            grass.heightVariance    = 0.35f;
+            grass.groundHeight      = 0.0f;    // 地面コライダーの上面
+            grass.distantWidthBoost = 2.5f;    // 外周では幅3.5倍。遠景の隙間を埋める
+
+            // 根元を暗く先端を明るくして、草の間に光が届かない様子を出す
+            grass.rootColor = hlslpp::float3(0.10f, 0.22f, 0.06f);
+            grass.tipColor  = hlslpp::float3(0.42f, 0.62f, 0.20f);
+
+            // 風向きはフォグのノイズ（下のwindDirection）と揃える。
+            // ここがずれると、霧と草が別々の風になびいて世界が壊れる
+            grass.windDirection = hlslpp::float3(1.0f, 0.0f, 0.3f);
+            grass.windStrength  = 0.25f;
+
+            // 9m間隔の突風の波が秒速2.6mで草原を走っていく
+            grass.gustWavelength = 900.0f;
+            grass.gustSpeed      = 260.0f;
+            grass.gustStrength   = 0.35f;
+
+            grass.swaySpeed    = 2.2f;
+            grass.swayStrength = 0.08f;
+
+            // プレイヤーのカプセル半径が35なので、体の周りが押し広げられる余裕を持たせる
+            grass.playerPushRadius   = 90.0f;
+            grass.playerPushStrength = 1.2f;
+
+            grass.fadeStartRatio = 0.70f;
         }
     }
 

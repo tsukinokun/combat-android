@@ -90,5 +90,9 @@ namespace CombatAndroid::ECS {
         Fog,    // フォグはカメラ位置と太陽方向を使うため、Camera / Light より後に置く
         AmbientParticle,    // 環境パーティクル。カメラ位置も行列も頂点シェーダーがb0から直接読むため
                             // 実質どこに置いてもよいが、同じ大気の演出であるSkyAtmosphere / Fogと並べておく
+        GrassField,         // 地面の草。カメラ位置は頂点シェーダーがb0から読むが、かき分け用の
+                            // プレイヤー位置は定数バッファへ載せるため、Movementでプレイヤーの
+                            // position が確定した後に置く必要がある。描画コマンドはGBufferパスへ
+                            // 積まれるだけなので、Renderとの前後は問わない
     };
 }    // namespace CombatAndroid::ECS
