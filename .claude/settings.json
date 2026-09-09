@@ -7,7 +7,13 @@
       "Read(./bin-int/**)",
       "Read(./Cache/**)",
       "Read(./External/TsukinoEngine/Docs/agent-manifest.json)",
-      "Read(./External/TsukinoEngine/Doxyfile)"
+      "Read(./External/TsukinoEngine/Doxyfile)",
+      "Read(./.claude/worktrees/**)",
+      "Read(./External/TsukinoEngine/bin/**)",
+      "Read(./External/TsukinoEngine/bin-int/**)",
+      "Read(./External/TsukinoEngine/.build/**)",
+      "Read(./External/TsukinoEngine/html/**)",
+      "Read(./External/TsukinoEngine/xml/**)"
     ],
     "ask": [
       "Read(./External/TsukinoEngine/External/**)"

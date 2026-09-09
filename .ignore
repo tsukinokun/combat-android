@@ -15,3 +15,11 @@ External/TsukinoEngine/External/
 # 自動生成ドキュメントの機械可読版（外部ツール用）。
 # 人／エージェントが読むのは Docs/api-index.md と Docs/api/*.md。
 External/TsukinoEngine/Docs/agent-manifest.json
+
+# 孤立した git worktree。丸ごとの複製チェックアウト（External/ や .build/ ごと約4.5GB）で、
+# 既存の除外パターン（リポジトリ直下基準）が届かない。
+.claude/worktrees/
+
+# 実行時ログ。中身を見たいときは意図的に Read する（CLAUDE.md のデバッグ手順）が、
+# 23MB超の単一ファイルなので無差別な grep には含めない。
+Logs/

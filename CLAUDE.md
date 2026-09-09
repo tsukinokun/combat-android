@@ -29,8 +29,10 @@
 | 場所 | 理由 |
 |---|---|
 | `CombatAndroid/Assets/**/*.efkproj` | テキストXML。101ファイルで約129万行あり、grep の結果が壊れる |
-| `External/TsukinoEngine/External/` | vendored 3rd party 19,000ファイル（Effekseer / Jolt / entt ほか） |
+| `External/TsukinoEngine/External/` | vendored 3rd party 約4,600ファイル・180MB（Effekseer / Jolt / entt ほか） |
 | `.build/` `bin/` `bin-int/` `Cache/` | ビルド生成物 |
+| `.claude/worktrees/` | 孤立した git worktree。丸ごとの複製チェックアウト（約4.5GB）で、上記の除外パターンはリポジトリ直下基準のためここには届かない |
+| `Logs/` | 実行ログ。デバッグ時に意図的に Read するのは正規の手順だが、23MB超あるので grep 対象からは外す |
 
 `.fbx` などアセットのファイル名は Glob で普通に引ける。`.efkproj` の一覧だけは
 除外に入っているので `ls CombatAndroid/Assets/Effect` で取ること（中身は開かない）。
