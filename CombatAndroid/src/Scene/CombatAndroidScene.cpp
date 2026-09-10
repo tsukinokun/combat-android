@@ -301,6 +301,12 @@ namespace CombatAndroid {
         animSet.attackSteps[0].playbackSpeed  = kAttackPlaybackSpeed;
         // 攻撃モーションのルート前進を殺す（コリジョンから離れる/戻る瞬間に吸い寄せられる問題への対処）
         animSet.attackSteps[0].inPlace        = true;
+        // 1段目は実時間で約0.785秒（kAttackStepLength(≈1.178秒)/playbackSpeed(1.5)）ある一方、
+        // hitWindowDurationを未設定のままだとWeaponComponent::activeDurationの既定値0.25秒に
+        // フォールバックし、振りの3割程度で判定窓が閉じてしまう（3段目と同じ問題。3段目は
+        // 下でhitWindowDurationを設定済みだが1段目は直し忘れていた）。暫定的に長めの値を
+        // 設定する。最終値は実機でF10/F11 + ATTACKログ（PlayerAnimationSystem）を見ながら詰めること
+        animSet.attackSteps[0].hitWindowDuration = 0.7f;
 
         animSet.attackSteps[1].clip           = hammerAttackAnimHandle;
         animSet.attackSteps[1].animationIndex = 1;
