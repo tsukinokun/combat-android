@@ -1170,29 +1170,37 @@ namespace CombatAndroid {
             grass.bladeCount = 55000;
             grass.fieldSize  = 3600.0f;
 
-            // プレイヤーの身長が210ユニットなので、膝下くらいの丈になる
-            grass.bladeHeight       = 34.0f;
-            grass.bladeWidth        = 3.5f;
+            // プレイヤーの身長が210ユニットなので、標準種で膝下くらいの丈になる
+            grass.bladeWidth        = 3.5f;    // 種のwidthScaleが掛かる基準幅
             grass.heightVariance    = 0.35f;
             grass.groundHeight      = 0.0f;    // 地面コライダーの上面
             grass.distantWidthBoost = 2.5f;    // 外周では幅3.5倍。遠景の隙間を埋める
 
-            // 根元を暗く先端を明るくして、草の間に光が届かない様子を出す
-            grass.rootColor = hlslpp::float3(0.10f, 0.22f, 0.06f);
-            grass.tipColor  = hlslpp::float3(0.42f, 0.62f, 0.20f);
+            // 3種の草を塊で生やす。根元を暗く先端を明るくして、草の間に
+            // 光が届かない様子（疑似アンビエントオクルージョン）を各種で出す
+            grass.species[0] = {34.0f, 1.00f, hlslpp::float3(0.10f, 0.22f, 0.06f),
+                                hlslpp::float3(0.42f, 0.62f, 0.20f)};    // 標準の緑
+            grass.species[1] = {22.0f, 0.85f, hlslpp::float3(0.16f, 0.17f, 0.05f),
+                                hlslpp::float3(0.55f, 0.52f, 0.16f)};    // 丈の低い、乾いた黄金色
+            grass.species[2] = {46.0f, 1.15f, hlslpp::float3(0.05f, 0.13f, 0.05f),
+                                hlslpp::float3(0.18f, 0.42f, 0.20f)};    // 丈の高い、濃い緑
+
+            // 4m四方くらいの塊で種が切り替わる。プレイヤーの移動速度に対して
+            // 「今と少し先で種が違う」と分かる程度の大きさを狙う
+            grass.patchSize = 400.0f;
 
             // 風向きはフォグのノイズ（下のwindDirection）と揃える。
             // ここがずれると、霧と草が別々の風になびいて世界が壊れる
             grass.windDirection = hlslpp::float3(1.0f, 0.0f, 0.3f);
-            grass.windStrength  = 0.25f;
+            grass.windStrength  = 0.4f;
 
-            // 9m間隔の突風の波が秒速2.6mで草原を走っていく
-            grass.gustWavelength = 900.0f;
-            grass.gustSpeed      = 260.0f;
-            grass.gustStrength   = 0.35f;
+            // 6.5m間隔の突風の波が秒速3.2mで草原を走っていく
+            grass.gustWavelength = 650.0f;
+            grass.gustSpeed      = 320.0f;
+            grass.gustStrength   = 0.55f;
 
-            grass.swaySpeed    = 2.2f;
-            grass.swayStrength = 0.08f;
+            grass.swaySpeed    = 3.0f;
+            grass.swayStrength = 0.15f;
 
             // プレイヤーのカプセル半径が35なので、体の周りが押し広げられる余裕を持たせる
             grass.playerPushRadius   = 90.0f;

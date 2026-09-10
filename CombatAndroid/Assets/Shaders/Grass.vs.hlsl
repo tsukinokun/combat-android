@@ -48,14 +48,23 @@ cbuffer CBufferScene : register(b0)
 cbuffer CBufferGrass : register(b12)
 {
     float4 fieldParams;        // x: フィールドの一辺, y: 1辺のセル数, z: セルあたりの本数, w: 経過時間（秒）
-    float4 bladeParams;        // x: 高さ, y: 根元の幅, z: 高さのばらつき, w: 地面の高さ(Y)
+    float4 bladeParams;        // x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 種の切替パッチの大きさ
     float4 windParams;         // xyz: 風向き（正規化済み）, w: 常時なびく強さ
     float4 gustParams;         // x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: そよぎの角速度
-    float4 rootColorParams;    // xyz: 根元の色, w: そよぎの強さ
-    float4 tipColorParams;     // xyz: 先端の色, w: 乱数シード
+    float4 swayParams;         // x: そよぎの強さ, y: 乱数シード, zw: 予約
+    float4 speciesHeight;      // xyz: 種0/1/2の高さ, w: 予約
+    float4 speciesWidthScale;  // xyz: 種0/1/2の幅倍率, w: 予約
     float4 playerParams;       // xyz: プレイヤー座標, w: かき分け半径
     float4 fadeParams;         // x: 境界フェード開始比率, y: かき分けの強さ, z: 予約, w: 予約
 };
+
+//--------------------------------------------------------------
+// 草の種類数。CombatAndroid/ECS/System/GrassFieldSystem.cpp の
+// kSpeciesCount、GetGradientSRVが作るグラデーションテクスチャの段数と
+// 一致させること
+//--------------------------------------------------------------
+static const uint  kSpeciesCount  = 3;
+static const float kGradientRows  = 32.0f;    // GrassFieldSystem.cpp の kGradientHeight と一致させること
 
 //--------------------------------------------------------------
 // 入力（刃メッシュの頂点）
@@ -128,9 +137,32 @@ uint MakeCellSeed(int cellX, int cellZ, uint slot)
 {
     uint hx = HashU32(asuint(cellX) * 0x9e3779b9u);
     uint hz = HashU32(asuint(cellZ) * 0x85ebca6bu);
-    uint hs = HashU32(slot * 0xc2b2ae35u + (uint)tipColorParams.w);
+    uint hs = HashU32(slot * 0xc2b2ae35u + (uint)swayParams.y);
 
     return HashU32(hx ^ (hz * 0x27d4eb2fu) ^ hs);
+}
+
+//--------------------------------------------------------------
+//! 草が生えているパッチ（patchSize四方の区画）から種を選びます。
+//! @param  [in] worldXZ ワールド座標
+//! @return 0〜kSpeciesCount-1 の種番号
+//! @note   草1本ごとにバラバラに選ぶと砂嵐のようなノイズに見えるため、
+//!         セルより一回り大きいパッチ単位でまとめて同じ種を選ぶ。
+//!         MakeCellSeedと同じ「ワールド座標のハッシュ」方式なので、
+//!         こちらもカメラが動いても同じ場所には同じ種が生え続ける
+//--------------------------------------------------------------
+uint MakeSpeciesIndex(float2 worldXZ)
+{
+    const float patchSize = max(bladeParams.w, 1.0f);
+
+    const int patchX = (int)floor(worldXZ.x / patchSize);
+    const int patchZ = (int)floor(worldXZ.y / patchSize);
+
+    const uint hx = HashU32(asuint(patchX) * 0x27d4eb2fu);
+    const uint hz = HashU32(asuint(patchZ) * 0xb492b66fu);
+    const uint hs = HashU32((uint)swayParams.y * 0x68e31da4u);
+
+    return HashU32(hx ^ (hz * 0x9e3779b9u) ^ hs) % kSpeciesCount;
 }
 
 //--------------------------------------------------------------
@@ -185,6 +217,15 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float2 rootXZ    = (float2((float)cellX, (float)cellZ) + jitter) * cellSize;
 
     //----------------------------------------------------------
+    // 種の抽選。1本ごとではなくパッチ単位でまとまって選ぶので、
+    // 群生のような塊で生える。xyzがそれぞれ種0/1/2に対応するので、
+    // one-hotのマスクをdotで掛けて選んだ種の値だけを取り出す
+    //----------------------------------------------------------
+    const uint   speciesIndex = MakeSpeciesIndex(rootXZ);
+    const float3 speciesMask  = float3(speciesIndex == 0u ? 1.0f : 0.0f, speciesIndex == 1u ? 1.0f : 0.0f,
+                                       speciesIndex == 2u ? 1.0f : 0.0f);
+
+    //----------------------------------------------------------
     // 境界フェード。カメラからの距離がフィールド半径に近いほど
     // 背を低くして消す。高さ0の草は面積ゼロで1ピクセルも塗らない
     //----------------------------------------------------------
@@ -196,8 +237,9 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     // 草ごとの個性
     //----------------------------------------------------------
+    const float baseHeight = dot(speciesHeight.xyz, speciesMask);
     const float heightRand = Rand01(seed + 3u) * 2.0f - 1.0f;                       // -1〜1
-    const float height     = bladeParams.x * (1.0f + heightRand * bladeParams.z) * edgeFade;
+    const float height     = baseHeight * (1.0f + heightRand * bladeParams.y) * edgeFade;
     const float yaw        = Rand01(seed + 4u) * TWO_PI;                            // 刃の向き
     const float phase      = Rand01(seed + 5u) * TWO_PI;                            // 揺れの位相
 
@@ -212,7 +254,7 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float gust      = sin(gustPhase) * 0.5f + 0.5f;
 
     // 草ごとの細かい震え
-    const float sway = sin(time * gustParams.w + phase) * rootColorParams.w;
+    const float sway = sin(time * gustParams.w + phase) * swayParams.x;
 
     float  bendAmount = windParams.w + gust * gustParams.z + sway;
     float2 bendDir    = windDirXZ;
@@ -262,14 +304,15 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     // 隙間が埋まって草原が途切れずに続いて見える。
     // 二乗で効かせるので、手前の草の細さはそのまま保たれる
     //----------------------------------------------------------
-    const float distNorm   = saturate(distFromCam / max(halfField, 1.0f));
-    const float widthScale = 1.0f + distNorm * distNorm * bladeParams.y;
+    const float distNorm      = saturate(distFromCam / max(halfField, 1.0f));
+    const float speciesWidth  = dot(speciesWidthScale.xyz, speciesMask);
+    const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x);
 
-    // 幅は刃メッシュの頂点に焼き込み済みなので、ここで掛けるのは距離による倍率だけ
+    // 幅は刃メッシュの頂点に焼き込み済みの基準幅に、種の倍率と距離による倍率を掛ける
     worldPos.xz = rootXZ + sideDir * (input.position.x * widthScale) + bendDir * (bendCurve * height);
 
     // 曲がったぶんだけ背が縮む（弧長を保つ近似）
-    worldPos.y = bladeParams.w + t * height * (1.0f - bendCurve * bendCurve * 0.35f);
+    worldPos.y = bladeParams.z + t * height * (1.0f - bendCurve * bendCurve * 0.35f);
 
     //----------------------------------------------------------
     // 法線。刃の面向きを基準に、曲がりに合わせて前へ倒す。
@@ -280,9 +323,14 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float3 bendNormal = normalize(faceNormal + float3(0.0f, bendCurve, 0.0f));
     const float3 roundOut   = float3(sideDir.x, 0.0f, sideDir.y) * (input.uv.x * 2.0f - 1.0f) * 0.5f;
 
+    // アルベドのグラデーションテクスチャは種ごとの帯が縦に並んでいるので、
+    // vを自分の帯（speciesIndex番目）の中へ押し込む。texel中心をサンプルする
+    // ようにすると、t=0/1でも隣の帯の色とブレンドされずに済む
+    const float gradientV = (speciesIndex * kGradientRows + t * (kGradientRows - 1.0f) + 0.5f) / (kGradientRows * (float)kSpeciesCount);
+
     output.normal   = normalize(bendNormal + roundOut);
     output.worldPos = worldPos;
-    output.uv       = input.uv;
+    output.uv       = float2(input.uv.x, gradientV);
 
     const float4 clipPos = mul(float4(worldPos, 1.0f), viewProj);
 

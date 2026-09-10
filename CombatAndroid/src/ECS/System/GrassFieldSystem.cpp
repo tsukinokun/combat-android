@@ -49,12 +49,18 @@ namespace CombatAndroid::ECS {
         //--------------------------------------------------------------
         constexpr Tsukino::u32 kBladeSegments = 4;
 
-        //! 根元→先端のグラデーションテクスチャの高さ（ピクセル）
+        //! 根元→先端のグラデーションテクスチャの高さ（ピクセル）。種1つぶん
+        //! @note Grass.vs.hlsl 側でも同じ値を前提にUVを計算しているため、
+        //!       変えるならそちらも直すこと
         constexpr Tsukino::u32 kGradientHeight = 32;
 
         //! 同じく幅。1pxでも足りるが、行あたりのバイト数が極端に小さいと
         //! ドライバによっては扱いが不安定なので4pxにしておく
         constexpr Tsukino::u32 kGradientWidth = 4;
+
+        //! 草の種類数。CBufferGrass（GrassFieldSystem.hpp）と
+        //! Grass.vs.hlsl の kSpeciesCount にも同じ値を決め打ちしている
+        constexpr Tsukino::u32 kSpeciesCount = 3;
 
         //--------------------------------------------------------------
         //! 草1本ぶんの刃メッシュを組み立てます。
@@ -142,32 +148,35 @@ namespace CombatAndroid::ECS {
         }
 
         //--------------------------------------------------------------
-        //! 根元→先端のグラデーションテクスチャを取得します。
-        //! @param  [in,out] context   エンジンコンテキスト
-        //! @param  [in]     rootColor 根元の色（linear）
-        //! @param  [in]     tipColor  先端の色（linear）
+        //! 種ごとの根元→先端グラデーションを縦に並べたテクスチャを取得します。
+        //! @param  [in,out] context エンジンコンテキスト
+        //! @param  [in]     species 種の配列（各要素の rootColor/tipColor を使う）
         //! @return グラデーションのSRV。作れなければ nullptr
         //! @note   ピクセルシェーダー（GBuffer.ps.hlsl）を書き換えずに
-        //!         根元→先端の色の変化を出すための手。刃メッシュのUVのvが
-        //!         そのまま根元→先端の比率なので、縦1列のグラデーションを
-        //!         アルベドに差すだけで狙いの絵になる。
+        //!         種ごとの色分けを出すための手。テクスチャは縦に
+        //!         種の数ぶんの帯（各 kGradientHeight px）を並べたもので、
+        //!         種0の帯が根元→先端で rootColor→tipColor、種1の帯が
+        //!         続けて同じ変化…という並び。頂点シェーダーが
+        //!         speciesIndexから自分の帯のV座標を計算してサンプルする。
         //!         色をキーに含めるので、色を変えれば別のテクスチャが作られる
         //--------------------------------------------------------------
-        ID3D11ShaderResourceView* GetGradientSRV(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& rootColor,
-                                                 const hlslpp::float3& tipColor) {
+        ID3D11ShaderResourceView* GetGradientSRV(Tsukino::EngineIntegration::EngineContext& context,
+                                                 const std::array<GrassSpecies, kSpeciesCount>& species) {
             if(!context.assetManager || !context.renderer)
                 return nullptr;
 
             //----------------------------------------------------------
-            // 色から一意なキーを作る。AssetManagerはハンドルでキャッシュするので、
-            // 同じ色なら2回目以降は生成せずキャッシュが返る
+            // 全種の色から一意なキーを作る。AssetManagerはハンドルでキャッシュ
+            // するので、同じ組み合わせなら2回目以降は生成せずキャッシュが返る
             //----------------------------------------------------------
             auto toByte = [](float v) { return static_cast<int>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
 
-            const std::string key = "procedural|grass|gradient|" + std::to_string(toByte(rootColor.x)) + "_"
-                                    + std::to_string(toByte(rootColor.y)) + "_" + std::to_string(toByte(rootColor.z)) + "|"
-                                    + std::to_string(toByte(tipColor.x)) + "_" + std::to_string(toByte(tipColor.y)) + "_"
-                                    + std::to_string(toByte(tipColor.z));
+            std::string key = "procedural|grass|gradient";
+            for(const GrassSpecies& s : species) {
+                key += "|" + std::to_string(toByte(s.rootColor.x)) + "_" + std::to_string(toByte(s.rootColor.y)) + "_"
+                      + std::to_string(toByte(s.rootColor.z)) + "_" + std::to_string(toByte(s.tipColor.x)) + "_"
+                      + std::to_string(toByte(s.tipColor.y)) + "_" + std::to_string(toByte(s.tipColor.z));
+            }
 
             const Tsukino::Asset::AssetHandle handle = Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key);
 
@@ -180,31 +189,41 @@ namespace CombatAndroid::ECS {
             }
 
             //----------------------------------------------------------
-            // ピクセルを作る。vが0（根元）の行が先頭に来るので、
+            // ピクセルを作る。種ごとに kGradientHeight 行の帯を積む。
+            // 各帯の中はvが0（根元）の行が先頭に来るので、
             // 上から下へ rootColor → tipColor で埋める
             //----------------------------------------------------------
+            const Tsukino::u32 totalHeight = kGradientHeight * kSpeciesCount;
+
             auto texture    = std::make_shared<Tsukino::Asset::TextureAsset>();
             texture->width  = kGradientWidth;
-            texture->height = kGradientHeight;
+            texture->height = totalHeight;
             texture->format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            texture->pixels.resize(static_cast<size_t>(kGradientWidth) * kGradientHeight * 4);
+            texture->pixels.resize(static_cast<size_t>(kGradientWidth) * totalHeight * 4);
 
-            for(Tsukino::u32 y = 0; y < kGradientHeight; ++y) {
-                const float t = static_cast<float>(y) / static_cast<float>(kGradientHeight - 1);
+            for(Tsukino::u32 speciesIndex = 0; speciesIndex < kSpeciesCount; ++speciesIndex) {
+                const hlslpp::float3& rootColor = species[speciesIndex].rootColor;
+                const hlslpp::float3& tipColor  = species[speciesIndex].tipColor;
 
-                const hlslpp::float3 color = rootColor + (tipColor - rootColor) * t;
+                for(Tsukino::u32 row = 0; row < kGradientHeight; ++row) {
+                    const float t = static_cast<float>(row) / static_cast<float>(kGradientHeight - 1);
 
-                const Tsukino::u8 r = static_cast<Tsukino::u8>(toByte(color.x));
-                const Tsukino::u8 g = static_cast<Tsukino::u8>(toByte(color.y));
-                const Tsukino::u8 b = static_cast<Tsukino::u8>(toByte(color.z));
+                    const hlslpp::float3 color = rootColor + (tipColor - rootColor) * t;
 
-                for(Tsukino::u32 x = 0; x < kGradientWidth; ++x) {
-                    const size_t offset = (static_cast<size_t>(y) * kGradientWidth + x) * 4;
+                    const Tsukino::u8 r = static_cast<Tsukino::u8>(toByte(color.x));
+                    const Tsukino::u8 g = static_cast<Tsukino::u8>(toByte(color.y));
+                    const Tsukino::u8 b = static_cast<Tsukino::u8>(toByte(color.z));
 
-                    texture->pixels[offset + 0] = r;
-                    texture->pixels[offset + 1] = g;
-                    texture->pixels[offset + 2] = b;
-                    texture->pixels[offset + 3] = 255;
+                    const Tsukino::u32 y = speciesIndex * kGradientHeight + row;
+
+                    for(Tsukino::u32 x = 0; x < kGradientWidth; ++x) {
+                        const size_t offset = (static_cast<size_t>(y) * kGradientWidth + x) * 4;
+
+                        texture->pixels[offset + 0] = r;
+                        texture->pixels[offset + 1] = g;
+                        texture->pixels[offset + 2] = b;
+                        texture->pixels[offset + 3] = 255;
+                    }
                 }
             }
 
@@ -336,18 +355,19 @@ namespace CombatAndroid::ECS {
             windDir = windDir / windHorizontal;
 
         CBufferGrass params{};
-        params.fieldParams     = hlslpp::float4(activeField->fieldSize, gridDim, static_cast<float>(perCell), m_time);
-        params.bladeParams     = hlslpp::float4(activeField->bladeHeight, activeField->distantWidthBoost, activeField->heightVariance,
-                                                activeField->groundHeight);
-        params.windParams      = hlslpp::float4(windDir.x, windDir.y, windDir.z, activeField->windStrength);
-        params.gustParams      = hlslpp::float4(activeField->gustWavelength, activeField->gustSpeed, activeField->gustStrength,
-                                                activeField->swaySpeed);
-        params.rootColorParams = hlslpp::float4(activeField->rootColor.x, activeField->rootColor.y, activeField->rootColor.z,
-                                                activeField->swayStrength);
-        params.tipColorParams  = hlslpp::float4(activeField->tipColor.x, activeField->tipColor.y, activeField->tipColor.z,
-                                                static_cast<float>(activeField->seed & 0x00ffffffu));
-        params.playerParams    = hlslpp::float4(playerPos.x, playerPos.y, playerPos.z, pushRadius);
-        params.fadeParams      = hlslpp::float4(activeField->fadeStartRatio, activeField->playerPushStrength, 0.0f, 0.0f);
+        params.fieldParams       = hlslpp::float4(activeField->fieldSize, gridDim, static_cast<float>(perCell), m_time);
+        params.bladeParams       = hlslpp::float4(activeField->distantWidthBoost, activeField->heightVariance, activeField->groundHeight,
+                                                  activeField->patchSize);
+        params.windParams        = hlslpp::float4(windDir.x, windDir.y, windDir.z, activeField->windStrength);
+        params.gustParams        = hlslpp::float4(activeField->gustWavelength, activeField->gustSpeed, activeField->gustStrength,
+                                                  activeField->swaySpeed);
+        params.swayParams        = hlslpp::float4(activeField->swayStrength, static_cast<float>(activeField->seed & 0x00ffffffu), 0.0f, 0.0f);
+        params.speciesHeight     = hlslpp::float4(activeField->species[0].height, activeField->species[1].height,
+                                                  activeField->species[2].height, 0.0f);
+        params.speciesWidthScale = hlslpp::float4(activeField->species[0].widthScale, activeField->species[1].widthScale,
+                                                  activeField->species[2].widthScale, 0.0f);
+        params.playerParams      = hlslpp::float4(playerPos.x, playerPos.y, playerPos.z, pushRadius);
+        params.fadeParams        = hlslpp::float4(activeField->fadeStartRatio, activeField->playerPushStrength, 0.0f, 0.0f);
 
         //--------------------------------------------------------------
         // パラメータをゲーム所有の定数バッファへ流し込む。
@@ -391,9 +411,10 @@ namespace CombatAndroid::ECS {
         material.SetPipeline(pipeline.get());
         material.SetSampler(ctx->renderer->GetSampler(Tsukino::GraphicsCommon::SamplerType::LinearClamp));
 
-        // アルベドに根元→先端のグラデーションを差す。刃メッシュのUVのvが
-        // そのまま参照位置になるので、これだけで色の変化が出る
-        ID3D11ShaderResourceView* gradientSRV = GetGradientSRV(*ctx, activeField->rootColor, activeField->tipColor);
+        // アルベドに種ごとの根元→先端グラデーションを差す。頂点シェーダーが
+        // 選んだ種に応じてUVのvを自分の帯へずらして出すので、これだけで
+        // 種ごとの色分けが出る
+        ID3D11ShaderResourceView* gradientSRV = GetGradientSRV(*ctx, activeField->species);
         material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, gradientSRV ? gradientSRV : ctx->renderer->GetWhiteTextureSRV());
 
         // ノーマルマップは使わない。フラット法線を入れると頂点法線がそのまま残る

@@ -22,7 +22,11 @@ namespace CombatAndroid::ECS {
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で128バイト）。
+    //!         （全メンバfloat4で144バイト）。種の数（3）は両ファイルで
+    //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
+    //!         それぞれの種に対応する。種を増やす場合はここと
+    //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
+    //!         グラデーションテクスチャの段数を合わせて直すこと。
     //!
     //!         エンジンの定数バッファ（b0〜b9）ではなく、ゲーム予約枠の
     //!         CBSlot::User0（b12）へバインドされる。エンジンは草という
@@ -32,14 +36,15 @@ namespace CombatAndroid::ECS {
     //!         全シェーダーへ配っているため、ここには持たせない
     //--------------------------------------------------------------
     struct CBufferGrass {
-        hlslpp::float4 fieldParams;        //!< x: フィールドの一辺, y: 1辺のセル数, z: セルあたりの本数, w: 予約
-        hlslpp::float4 bladeParams;        //!< x: 高さ, y: 遠くの草の幅の増し分, z: 高さのばらつき, w: 地面の高さ(Y)
-        hlslpp::float4 windParams;         //!< xyz: 風向き（正規化済み）, w: 常時なびく強さ
-        hlslpp::float4 gustParams;         //!< x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: そよぎの角速度
-        hlslpp::float4 rootColorParams;    //!< xyz: 根元の色（linear）, w: そよぎの強さ
-        hlslpp::float4 tipColorParams;     //!< xyz: 先端の色（linear）, w: 乱数シード
-        hlslpp::float4 playerParams;       //!< xyz: プレイヤーのワールド座標, w: かき分け半径（0で無効）
-        hlslpp::float4 fadeParams;         //!< x: 境界フェード開始比率, y: かき分けの強さ, zw: 予約
+        hlslpp::float4 fieldParams;         //!< x: フィールドの一辺, y: 1辺のセル数, z: セルあたりの本数, w: 経過時間（秒）
+        hlslpp::float4 bladeParams;         //!< x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 種の切替パッチの大きさ
+        hlslpp::float4 windParams;          //!< xyz: 風向き（正規化済み）, w: 常時なびく強さ
+        hlslpp::float4 gustParams;          //!< x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: そよぎの角速度
+        hlslpp::float4 swayParams;          //!< x: そよぎの強さ, y: 乱数シード, zw: 予約
+        hlslpp::float4 speciesHeight;       //!< xyz: 種0/1/2の高さ, w: 予約
+        hlslpp::float4 speciesWidthScale;   //!< xyz: 種0/1/2の幅倍率, w: 予約
+        hlslpp::float4 playerParams;        //!< xyz: プレイヤーのワールド座標, w: かき分け半径（0で無効）
+        hlslpp::float4 fadeParams;          //!< x: 境界フェード開始比率, y: かき分けの強さ, zw: 予約
     };
 
     //--------------------------------------------------------------

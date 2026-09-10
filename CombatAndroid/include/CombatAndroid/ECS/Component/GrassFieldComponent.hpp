@@ -4,9 +4,25 @@
 //! @author 山﨑愛
 //--------------------------------------------------------------
 #pragma once
+#include <array>
 #include <hlsl++.h>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    //--------------------------------------------------------------
+    //! 草の種類ごとの見た目
+    //! @note 位置の抽選と同じく、頂点シェーダーが「その草が生えている
+    //!       パッチ（GrassFieldComponent::patchSize四方の区画）」の
+    //!       ハッシュから種を選ぶ。CPU側はこの配列を種ごとの見た目として
+    //!       渡すだけで、どの草がどの種になるかは関知しない
+    //--------------------------------------------------------------
+    struct GrassSpecies {
+        float height     = 34.0f;    // この種の高さ
+        float widthScale = 1.0f;     // GrassFieldComponent::bladeWidth に掛ける倍率
+
+        hlslpp::float3 rootColor = hlslpp::float3(0.10f, 0.22f, 0.06f);    // 根元の色（linear）
+        hlslpp::float3 tipColor  = hlslpp::float3(0.42f, 0.62f, 0.20f);    // 先端の色（linear）
+    };
+
     //--------------------------------------------------------------
     //! 地面に生える草の設定
     //! @note AmbientParticleComponent / FogComponent と同じく
@@ -29,8 +45,9 @@ namespace CombatAndroid::ECS {
     //!       ポイントライト・影・フォグはすべて自動で乗る。
     //!
     //!       既定値は「1ユニット = 1cm」のシーンを想定している。長さの次元を
-    //!       持つ値（fieldSize / bladeHeight / bladeWidth / gustWavelength /
-    //!       gustSpeed / playerPushRadius）はワールドスケールに合わせて入れ直すこと。
+    //!       持つ値（fieldSize / species[].height / bladeWidth / patchSize /
+    //!       gustWavelength / gustSpeed / playerPushRadius）はワールドスケールに
+    //!       合わせて入れ直すこと。
     //--------------------------------------------------------------
     struct GrassFieldComponent {
         //----------------------------------------------------------
@@ -51,9 +68,20 @@ namespace CombatAndroid::ECS {
         //----------------------------------------------------------
         // 刃の形
         //----------------------------------------------------------
-        float bladeHeight    = 34.0f;    // 草の高さ
-        float bladeWidth     = 3.5f;     // 根元の幅。先端に向かって細くなる
-        float heightVariance = 0.35f;    // 高さのばらつき（0で全部同じ高さ、1で0〜2倍の範囲）
+        //! 草の種類。高さ・幅の倍率・色をここで3種ぶん持つ
+        //! @note 種を増やすには GrassSpecies 配列を伸ばすだけでは足りない。
+        //!       CBufferGrass（GrassFieldSystem.hpp）・Grass.vs.hlsl・
+        //!       GetGradientSRV（GrassFieldSystem.cpp）がいずれも「3種」を
+        //!       前提に float4.xyz / グラデーションテクスチャの3段を
+        //!       決め打ちしているため、そちらも合わせて直すこと
+        std::array<GrassSpecies, 3> species = {{
+            {34.0f, 1.00f, hlslpp::float3(0.10f, 0.22f, 0.06f), hlslpp::float3(0.42f, 0.62f, 0.20f)},    // 標準の緑
+            {22.0f, 0.85f, hlslpp::float3(0.16f, 0.17f, 0.05f), hlslpp::float3(0.55f, 0.52f, 0.16f)},    // 丈の低い、乾いた黄金色
+            {46.0f, 1.15f, hlslpp::float3(0.05f, 0.13f, 0.05f), hlslpp::float3(0.18f, 0.42f, 0.20f)},    // 丈の高い、濃い緑
+        }};
+
+        float bladeWidth     = 3.5f;     // 根元の幅の基準値。各種の widthScale がこれに掛かる
+        float heightVariance = 0.35f;    // 高さのばらつき（種ごとの高さに対して。0で一定、1で0〜2倍の範囲）
         float groundHeight   = 0.0f;     // 草が生える地面の高さ（Y）
 
         //! フィールドの外周で草の幅を何倍まで太らせるか（0で一定）
@@ -63,13 +91,11 @@ namespace CombatAndroid::ECS {
         //!       手前では効かないよう距離の二乗で掛かる
         float distantWidthBoost = 2.5f;
 
-        //----------------------------------------------------------
-        // 色
-        //----------------------------------------------------------
-        //! @note 根元を暗く先端を明るくすると、草の間に光が届かない様子
-        //!       （疑似アンビエントオクルージョン）が出て密度感が増す。
-        hlslpp::float3 rootColor = hlslpp::float3(0.10f, 0.22f, 0.06f);    // 根元の色（linear）
-        hlslpp::float3 tipColor  = hlslpp::float3(0.42f, 0.62f, 0.20f);    // 先端の色（linear）
+        //! 種が切り替わる塊のおおよその大きさ（一辺）
+        //! @note 草1本ごとにバラバラに種を選ぶと砂嵐のようなノイズに見えるため、
+        //!       この大きさの正方形パッチ単位でワールド座標をハッシュし、
+        //!       パッチごとにまとめて同じ種を選ぶ。群生っぽい塊で生える
+        float patchSize = 400.0f;
 
         //----------------------------------------------------------
         // 風
