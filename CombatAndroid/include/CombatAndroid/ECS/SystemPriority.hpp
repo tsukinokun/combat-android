@@ -33,6 +33,11 @@ namespace CombatAndroid::ECS {
                           // PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップするため、
                           // シーン側でdeltaTime=0にするだけではキャラクタが滑り続けてしまう
         Movement,         // プレイヤー入力・敵AIの移動をTransformの後、Physicsの前に反映する
+        GroundFollow,     // 地面（Kinematicボディ）をプレイヤーへ追従させる。Movementでその回の
+                          // プレイヤー位置が確定した直後に行う。Kinematicボディの物理側への同期は
+                          // Physicsが担うため、ここで書いたTransformをその同じフレームのPhysicsが
+                          // 読めるよう、必ずPhysicsより前に置くこと（後ろだと1フレーム遅れて
+                          // 地面が追いついてくる）。それ以外の処理とは依存関係が無い
         Gameplay,         // ダメージ処理・アニメーション更新は移動確定後に行う
         WeaponGripDebug,  // （デバッグビルドのみ）握り位置調整はisAttackingを上書きするため、
                           // PlayerAnimationSystem（Gameplay）が今フレームのisAttackingを確定させた後、

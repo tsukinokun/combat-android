@@ -9,6 +9,7 @@
 #include <Tsukino/Core/DebugTools/DebugFeatures.hpp>
 
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/GroundFollowComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
@@ -171,15 +172,24 @@ namespace CombatAndroid {
             groundTransform.dirty                                      = true;          // 初回計算のためフラグを立てる
             groundTransform.parent                                     = entt::null;    // 親なし
 
-            // コリジョンをつける（一辺1000 x 厚さ10の床）
+            // コリジョンをつける（一辺4000 x 厚さ10の床。extentは半径=half-extentの流儀）。
+            // 草原（GrassFieldSystem）の可視半径1800に余裕を持たせた半径2000にしてある。
+            // 地面自体がGroundFollowSystemでプレイヤーへ追従するため、これより大きくする必要はない
             Tsukino::BuiltIn::ECS::CollisionComponent& collision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(groundEntity);
-            collision.extent                                     = {5000.0f, 5.0f, 5000.0f};
+            collision.extent                                     = {2000.0f, 5.0f, 2000.0f};
             collision.type                                       = Tsukino::BuiltIn::ECS::ColliderType::Box;
             collision.isSensor                                   = false;    // 明示的にソリッド判定にする（デフォルトも今はfalse）
 
-            // RBをつける
+            // RBをつける。プレイヤーへ追従させて動かす（GroundFollowSystem）ため、
+            // 「プログラムから座標を直接制御する」Kinematicにする（Staticのままだと
+            // 位置を書き換えても物理側へ反映されない）
             Tsukino::BuiltIn::ECS::RigidbodyComponent& rb = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(groundEntity);
-            rb.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Static;
+            rb.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
+
+            // 草原と同じく「見た目は無限に続く」を実現するため、地面自体をプレイヤーへ追従させる。
+            // 追従処理の詳細はGroundFollowSystem/GroundFollowComponent参照
+            CombatAndroid::ECS::GroundFollowComponent& groundFollow = registry.AddComponent<CombatAndroid::ECS::GroundFollowComponent>(groundEntity);
+            groundFollow.groundHeight                                = groundTransform.position.y;
         }
 
         //--------------------------------------------------------------

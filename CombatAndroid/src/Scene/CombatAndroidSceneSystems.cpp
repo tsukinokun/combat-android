@@ -37,6 +37,7 @@
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
+#include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -97,6 +98,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSystem>(), (int)ECS::SystemPriority::Movement);
         // 敵は全てBehaviorTreeComponentを持つBT駆動（歩いて近づき、射程内で攻撃・被弾でノックバック・死亡演出）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyBehaviorSystem>(), (int)ECS::SystemPriority::Movement);
+        // 地面をプレイヤーへ追従させる。草原と同じく「見た目は無限に続く」を実現するため
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GroundFollowSystem>(), (int)ECS::SystemPriority::GroundFollow);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerAnimationSystem>(), (int)ECS::SystemPriority::Gameplay);
         // EnemyAnimationSystemが書いたAnimationControllerComponent::nextを同フレームでAnimationSystemが
         // 消費するため、PlayerAnimationSystemと同じくAnimationSystemより前に登録する
