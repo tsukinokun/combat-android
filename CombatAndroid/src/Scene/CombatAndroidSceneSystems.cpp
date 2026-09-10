@@ -36,6 +36,7 @@
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
+#include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -182,6 +183,12 @@ namespace CombatAndroid {
             context->effectSystem = effectSystem.get();
         }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AudioSystem>(), (int)ECS::SystemPriority::Audio);
+        {
+            // WeaponHitEventを購読してプロシージャル生成のヒット音を鳴らす
+            auto hitSoundSystem = std::make_shared<CombatAndroid::ECS::HitSoundSystem>();
+            m_scene.AddSystem(hitSoundSystem, (int)ECS::SystemPriority::Audio);
+            hitSoundSystem->Initialize(eventBus);
+        }
         {
             auto physicsSystem = std::make_shared<Tsukino::BuiltIn::ECS::PhysicsSystem>(eventBus);
 #ifdef TSUKINO_DEBUG_COLLISION_DRAW

@@ -34,6 +34,7 @@
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
+#include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 // スキル選択中かどうかの問い合わせ（OnUpdateで使う）
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #ifdef _DEBUG
@@ -118,6 +119,12 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         // アセットのロード
         //--------------------------------------------------------------
+
+        // 武器・敵・スキル・システム単体の各種アセットをここでまとめて読み込んでおく。
+        // AssetManager::Load はパスでキャッシュされるため、以降の「使う瞬間に遅延ロードする」
+        // 既存コードはキャッシュヒットになり、戦闘中や初回表示のタイミングで
+        // 重いインポート処理が走らなくなる（詳細はAssetPreloader.hppのコメント参照）
+        CombatAndroid::ECS::PreloadAssets(*context);
 
         Tsukino::Asset::AssetHandle modelHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Player.fbx"));
