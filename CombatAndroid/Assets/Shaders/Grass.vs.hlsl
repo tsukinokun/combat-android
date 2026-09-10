@@ -69,10 +69,17 @@ static const float kGradientRows  = 32.0f;    // GrassFieldSystem.cpp の kGradi
 //--------------------------------------------------------------
 // 入力（刃メッシュの頂点）
 //--------------------------------------------------------------
+// 刃はクロスビルボード（根元の中心線で直交する板2枚）。真横に近い角度から
+// 見たときに板が厚み0の線へ潰れて奥の地面が素通しに見えるのを防ぐための構成
+// （GrassFieldSystem.cpp の BuildBladeMeshData 参照）。
+// 面0はpositionのx（幅）とnormal=(0,0,1)、面1はz（幅）とnormal=(1,0,0)を持ち、
+// 頂点1つはどちらか片方の面にしか属さない（もう一方の幅成分は必ず0）
 struct VSInput
 {
-    float3 position : POSITION;    // x: -0.5〜0.5 の幅方向, y: 0〜1 の根元→先端, z: 未使用
-    float3 normal   : NORMAL;      // 刃の面法線（ローカル）
+    float3 position : POSITION;    // x: 面0の幅方向(-0.5〜0.5、面1では常に0)
+                                    // y: 0〜1 の根元→先端
+                                    // z: 面1の幅方向(-0.5〜0.5、面0では常に0)
+    float3 normal   : NORMAL;      // 刃の面法線（ローカル）。x=1なら面1、z=1なら面0
     float2 uv       : TEXCOORD0;   // u: 幅方向 0〜1, v: 根元→先端 0〜1
 };
 
@@ -308,8 +315,12 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float speciesWidth  = dot(speciesWidthScale.xyz, speciesMask);
     const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x);
 
-    // 幅は刃メッシュの頂点に焼き込み済みの基準幅に、種の倍率と距離による倍率を掛ける
-    worldPos.xz = rootXZ + sideDir * (input.position.x * widthScale) + bendDir * (bendCurve * height);
+    // 幅は刃メッシュの頂点に焼き込み済みの基準幅に、種の倍率と距離による倍率を掛ける。
+    // クロスビルボードなので面0(幅はinput.position.x、sideDir方向)と
+    // 面1(幅はinput.position.z、facingDir方向)の両方を足す。1頂点につき
+    // どちらか片方は必ず0なので、実質的にどちらか一方だけが効く
+    worldPos.xz = rootXZ + sideDir * (input.position.x * widthScale) + facingDir * (input.position.z * widthScale)
+                + bendDir * (bendCurve * height);
 
     // 曲がったぶんだけ背が縮む（弧長を保つ近似）
     worldPos.y = bladeParams.z + t * height * (1.0f - bendCurve * bendCurve * 0.35f);
@@ -317,11 +328,19 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     // 法線。刃の面向きを基準に、曲がりに合わせて前へ倒す。
     // 平らな板のままだと全部の草が同じ明るさになって書き割りに見えるので、
-    // 幅方向に沿って法線を少し外へ開き（丸め）、1本の中に陰影を作る
+    // 幅方向に沿って法線を少し外へ開き（丸め）、1本の中に陰影を作る。
+    //
+    // クロスビルボードなので、頂点がどちらの面に属すかをinput.normalのx/z成分
+    // （どちらかが1、もう片方が0のone-hot）で読み分ける。面0(normal.z=1)は
+    // 従来通りfacingDir向き・幅方向sideDir、面1(normal.x=1)はその90度回転版
+    // （sideDir向き・幅方向facingDir）になる
     //----------------------------------------------------------
-    const float3 faceNormal = float3(facingDir.x, 0.0f, facingDir.y);
+    const float2 faceNormalXZ = input.normal.x * sideDir + input.normal.z * facingDir;
+    const float2 widthAxisXZ  = input.normal.z * sideDir + input.normal.x * facingDir;
+
+    const float3 faceNormal = float3(faceNormalXZ.x, 0.0f, faceNormalXZ.y);
     const float3 bendNormal = normalize(faceNormal + float3(0.0f, bendCurve, 0.0f));
-    const float3 roundOut   = float3(sideDir.x, 0.0f, sideDir.y) * (input.uv.x * 2.0f - 1.0f) * 0.5f;
+    const float3 roundOut   = float3(widthAxisXZ.x, 0.0f, widthAxisXZ.y) * (input.uv.x * 2.0f - 1.0f) * 0.5f;
 
     // アルベドのグラデーションテクスチャは種ごとの帯が縦に並んでいるので、
     // vを自分の帯（speciesIndex番目）の中へ押し込む。texel中心をサンプルする

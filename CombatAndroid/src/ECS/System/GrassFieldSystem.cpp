@@ -62,6 +62,9 @@ namespace CombatAndroid::ECS {
         //! Grass.vs.hlsl の kSpeciesCount にも同じ値を決め打ちしている
         constexpr Tsukino::u32 kSpeciesCount = 3;
 
+        //! 1本の刃を構成する面の数（クロスビルボード。下のBuildBladeMeshData参照）
+        constexpr Tsukino::u32 kBladeFaceCount = 2;
+
         //--------------------------------------------------------------
         //! 草1本ぶんの刃メッシュを組み立てます。
         //! @param  [in] bladeWidth 根元の幅
@@ -70,72 +73,98 @@ namespace CombatAndroid::ECS {
         //!         こうしておくと草ごとに高さがばらついてもメッシュは1本で済む。
         //!         UVのvに根元→先端の比率をそのまま入れてあり、
         //!         頂点シェーダーはこれをしなりの重み、ピクセルシェーダーは
-        //!         グラデーションテクスチャの参照位置として使う
+        //!         グラデーションテクスチャの参照位置として使う。
+        //!
+        //!         板を1枚だけにすると、真横に近い角度から見たときに厚み0の
+        //!         線へ潰れて奥の地面が素通しに見えてしまう。根元の中心線で
+        //!         直交する板をもう1枚足した「クロスビルボード」にすることで、
+        //!         どの向きから見ても必ずどちらか一方が正面〜斜めに近い角度で
+        //!         見え、地肌が透けにくくなる（多くのゲームで使われる定番の
+        //!         草表現）。面0はローカルX方向に幅を持ち法線はZ向き、
+        //!         面1はその90度回転版（Z方向に幅、法線はX向き）。
+        //!         Grass.vs.hlslは法線のx/z成分で頂点がどちらの面のものかを
+        //!         読み分け、幅を出す軸（sideDir/facingDir）を切り替える
         //--------------------------------------------------------------
         Tsukino::GraphicsCommon::MeshData BuildBladeMeshData(float bladeWidth) {
             Tsukino::GraphicsCommon::MeshData mesh;
             mesh.format       = Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV;
             mesh.vertexStride = sizeof(Tsukino::GraphicsCommon::VertexPNUV);
 
+            const Tsukino::u32 verticesPerFace = kBladeSegments * 2 + 1;
+
             std::vector<Tsukino::GraphicsCommon::VertexPNUV> vertices;
-            vertices.reserve(kBladeSegments * 2 + 1);
+            vertices.reserve(verticesPerFace * kBladeFaceCount);
 
             //----------------------------------------------------------
-            // 根元から先端へ向かって、幅を細らせながら2頂点ずつ積む。
-            // 最上段だけは1頂点に潰して尖らせる
+            // 面を1枚ぶん積む。根元から先端へ向かって、幅を細らせながら
+            // 2頂点ずつ積み、最上段だけは1頂点に潰して尖らせる
             //----------------------------------------------------------
-            for(Tsukino::u32 row = 0; row <= kBladeSegments; ++row) {
-                const float t = static_cast<float>(row) / static_cast<float>(kBladeSegments);
+            auto appendFace = [&](bool widthAlongZ) {
+                for(Tsukino::u32 row = 0; row <= kBladeSegments; ++row) {
+                    const float t = static_cast<float>(row) / static_cast<float>(kBladeSegments);
 
-                // 先細りの曲線。1 - t^2 にすると根元側の太さが保たれたまま
-                // 先端だけが急に細くなり、草らしいシルエットになる
-                const float halfWidth = bladeWidth * 0.5f * (1.0f - t * t);
+                    // 先細りの曲線。1 - t^2 にすると根元側の太さが保たれたまま
+                    // 先端だけが急に細くなり、草らしいシルエットになる
+                    const float halfWidth = bladeWidth * 0.5f * (1.0f - t * t);
 
-                if(row == kBladeSegments) {
-                    // 先端は1点
-                    Tsukino::GraphicsCommon::VertexPNUV tip{};
-                    tip.position = {0.0f, t, 0.0f};
-                    tip.normal   = {0.0f, 0.0f, 1.0f};
-                    tip.uv       = {0.5f, t};
-                    vertices.push_back(tip);
-                    continue;
+                    if(row == kBladeSegments) {
+                        // 先端は1点
+                        Tsukino::GraphicsCommon::VertexPNUV tip{};
+                        tip.position = {0.0f, t, 0.0f};
+                        tip.normal   = widthAlongZ ? DirectX::XMFLOAT3{1.0f, 0.0f, 0.0f} : DirectX::XMFLOAT3{0.0f, 0.0f, 1.0f};
+                        tip.uv       = {0.5f, t};
+                        vertices.push_back(tip);
+                        continue;
+                    }
+
+                    Tsukino::GraphicsCommon::VertexPNUV a{};
+                    Tsukino::GraphicsCommon::VertexPNUV b{};
+                    if(widthAlongZ) {
+                        a.position = {0.0f, t, -halfWidth};
+                        b.position = {0.0f, t, halfWidth};
+                        a.normal = b.normal = DirectX::XMFLOAT3{1.0f, 0.0f, 0.0f};
+                    } else {
+                        a.position = {-halfWidth, t, 0.0f};
+                        b.position = {halfWidth, t, 0.0f};
+                        a.normal = b.normal = DirectX::XMFLOAT3{0.0f, 0.0f, 1.0f};
+                    }
+                    a.uv = {0.0f, t};
+                    b.uv = {1.0f, t};
+                    vertices.push_back(a);
+                    vertices.push_back(b);
                 }
+            };
 
-                Tsukino::GraphicsCommon::VertexPNUV left{};
-                left.position = {-halfWidth, t, 0.0f};
-                left.normal   = {0.0f, 0.0f, 1.0f};
-                left.uv       = {0.0f, t};
-                vertices.push_back(left);
-
-                Tsukino::GraphicsCommon::VertexPNUV right{};
-                right.position = {halfWidth, t, 0.0f};
-                right.normal   = {0.0f, 0.0f, 1.0f};
-                right.uv       = {1.0f, t};
-                vertices.push_back(right);
-            }
+            appendFace(false);    // 面0：幅はX方向
+            appendFace(true);     // 面1：幅はZ方向（90度回転）
 
             //----------------------------------------------------------
-            // インデックス。最上段以外は四角形、最上段だけ三角形。
+            // インデックス。面ごとに頂点の開始位置をずらして同じ並びを積む。
+            // 最上段以外は四角形、最上段だけ三角形。
             // カリングは無効（エンジン全体がCullNone）なので巻き方向は問わない
             //----------------------------------------------------------
-            for(Tsukino::u32 seg = 0; seg < kBladeSegments; ++seg) {
-                const Tsukino::u32 base = seg * 2;
+            for(Tsukino::u32 face = 0; face < kBladeFaceCount; ++face) {
+                const Tsukino::u32 faceBase = face * verticesPerFace;
 
-                if(seg == kBladeSegments - 1) {
-                    // 先端の三角形（左・右・頂点）
+                for(Tsukino::u32 seg = 0; seg < kBladeSegments; ++seg) {
+                    const Tsukino::u32 base = faceBase + seg * 2;
+
+                    if(seg == kBladeSegments - 1) {
+                        // 先端の三角形（左・右・頂点）
+                        mesh.indices.push_back(base);
+                        mesh.indices.push_back(base + 1);
+                        mesh.indices.push_back(base + 2);
+                        continue;
+                    }
+
                     mesh.indices.push_back(base);
                     mesh.indices.push_back(base + 1);
                     mesh.indices.push_back(base + 2);
-                    continue;
+
+                    mesh.indices.push_back(base + 1);
+                    mesh.indices.push_back(base + 3);
+                    mesh.indices.push_back(base + 2);
                 }
-
-                mesh.indices.push_back(base);
-                mesh.indices.push_back(base + 1);
-                mesh.indices.push_back(base + 2);
-
-                mesh.indices.push_back(base + 1);
-                mesh.indices.push_back(base + 3);
-                mesh.indices.push_back(base + 2);
             }
 
             mesh.vertexCount = static_cast<Tsukino::u32>(vertices.size());

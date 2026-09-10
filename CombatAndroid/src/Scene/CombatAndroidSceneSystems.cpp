@@ -38,6 +38,7 @@
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
+#include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -179,6 +180,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::MotionBlurSystem>(), (int)ECS::SystemPriority::MotionBlur);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SpriteRenderSystem>(), (int)ECS::SystemPriority::Render);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::ModelSystem>(), (int)ECS::SystemPriority::Render);
+        // 地面（GroundFollowComponentを持つエンティティ）へ土テクスチャの板を描く
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GroundVisualSystem>(), (int)ECS::SystemPriority::Render);
         {
             auto effectSystem = std::make_shared<Tsukino::BuiltIn::ECS::EffectSystem>();
             m_scene.AddSystem(effectSystem, (int)ECS::SystemPriority::Render);

@@ -28,6 +28,7 @@ namespace CombatAndroid::ECS {
             "CombatAndroid/Assets/Shaders/Grass.vs.hlsl",
             "CombatAndroid/Assets/Audio/HitImpactBlunt.wav",
             "CombatAndroid/Assets/Audio/HitImpactSharp.wav",
+            "CombatAndroid/Assets/Textures/Ground/DirtGround.bmp",
         };
 
         //-------------------------------------------------------------

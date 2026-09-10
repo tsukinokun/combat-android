@@ -1189,12 +1189,15 @@ namespace CombatAndroid {
 
             // カメラのfarZが2000なので、一辺3600（＝中心から1800）にして
             // 視界の端まで草で埋まるようにする。同じ本数のままだと密度が
-            // 落ちるので本数も上げ、さらに遠くの草を太らせて隙間を埋める
-            grass.bladeCount = 55000;
+            // 落ちるので本数も上げ、さらに遠くの草を太らせて隙間を埋める。
+            // 本数はkMaxGrassBlades(65536)近くまで積んだ上で、地肌が見えないよう
+            // 手前の草そのものも太くする（本数だけでは1本あたりの footprint が
+            // 細いままなので、隣接する株の間に隙間が残ってしまう）
+            grass.bladeCount = 65000;
             grass.fieldSize  = 3600.0f;
 
             // プレイヤーの身長が210ユニットなので、標準種で膝下くらいの丈になる
-            grass.bladeWidth        = 3.5f;    // 種のwidthScaleが掛かる基準幅
+            grass.bladeWidth        = 5.5f;    // 種のwidthScaleが掛かる基準幅。地肌が見えないよう3.5→5.5に増やした
             grass.heightVariance    = 0.35f;
             grass.groundHeight      = 0.0f;    // 地面コライダーの上面
             grass.distantWidthBoost = 2.5f;    // 外周では幅3.5倍。遠景の隙間を埋める
