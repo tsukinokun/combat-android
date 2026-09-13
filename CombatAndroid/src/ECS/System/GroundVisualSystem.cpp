@@ -34,8 +34,8 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! 板の半径（一辺の半分）。地面コライダーの半径2000・草原の可視半径1800より
-        //! 一回り広くして、板の端が画面に映り込まないようにする
+        //! 板の半径（一辺の半分）。地面コライダーの半径2000より一回り広くして、
+        //! 板の端が画面に映り込まないようにする
         constexpr float kGroundHalfSize = 2500.0f;
 
         //! タイル1枚ぶんのワールド距離。Ground.vs.hlslがUVをワールド座標から

@@ -33,6 +33,7 @@
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -261,6 +262,72 @@ namespace CombatAndroid::ECS {
 
             return context.renderer->GetTextureSRV(*texture);
         }
+
+        //--------------------------------------------------------------
+        //! 草を並べる格子の分け方
+        //--------------------------------------------------------------
+        struct GrassGrid {
+            float        gridDim   = 0.0f;    //!< 1辺のセル数
+            Tsukino::u32 perCell   = 0;       //!< 1セルあたりの本数
+            Tsukino::u32 drawCount = 0;       //!< 実際に描く本数（格子をちょうど埋める本数）
+        };
+
+        //--------------------------------------------------------------
+        //! 近景・遠景それぞれの描き方
+        //--------------------------------------------------------------
+        struct GrassLayer {
+            float     fieldSize         = 0.0f;    //!< カメラを中心に草を敷く正方形の一辺
+            GrassGrid grid;                        //!< 格子の分け方
+            float     lodStart          = 0.0f;    //!< 近景→遠景の切替を始める距離
+            float     lodEnd            = 0.0f;    //!< 切替を終える距離
+            float     layerIndex        = 0.0f;    //!< 0: 近景（奥ほど間引く）, 1: 遠景（手前ほど間引く）
+            float     fadeStart         = 0.0f;    //!< 外周で背を縮め始める距離
+            float     widthCompensation = 1.0f;    //!< 本数の少なさを補う幅の倍率
+        };
+
+        //--------------------------------------------------------------
+        //! 要求された本数から、草を並べる格子の分け方を決めます。
+        //! @param  [in] bladeCount 要求された本数（kMaxGrassBlades以下に丸め済みであること）
+        //! @return 格子の分け方。bladeCountが0ならdrawCountも0
+        //--------------------------------------------------------------
+        GrassGrid ComputeGrassGrid(Tsukino::u32 bladeCount) {
+            GrassGrid grid;
+            if(bladeCount == 0)
+                return grid;
+
+            //--------------------------------------------------------------
+            // 格子の分割数を決める。
+            // セルが細かすぎると1セルに1本も入らず配置が偏るので、
+            // 「1セルあたり4本前後」になるところを狙って分割数を決める
+            //--------------------------------------------------------------
+            constexpr float kTargetBladesPerCell = 4.0f;
+
+            const float gridDimF   = std::floor(std::sqrt(static_cast<float>(bladeCount) / kTargetBladesPerCell));
+            const float gridDim    = std::max(gridDimF, 1.0f);
+            const float cellCountF = gridDim * gridDim;
+
+            const Tsukino::u32 cellCount = static_cast<Tsukino::u32>(cellCountF);
+
+            //--------------------------------------------------------------
+            // 1セルあたりの本数は切り捨てる。
+            // 切り上げると gridDim^2 * perCell が要求本数を上回り、あぶれたセルには
+            // インスタンス番号が割り当たらないまま残る。頂点シェーダーは
+            // 「インスタンス番号 → セル番号」の順で格子を埋めていくので、
+            // 埋まらなかったぶんは格子の後ろ側の行にまとまって現れ、
+            // 「+Z方向だけ草が近くで途切れる」という形で見える
+            //--------------------------------------------------------------
+            const Tsukino::u32 perCell = std::max(1u, bladeCount / cellCount);
+
+            //--------------------------------------------------------------
+            // 実際に描くのは格子をちょうど埋める本数。
+            // 要求本数をそのまま渡すと端数のぶんだけ格子の一部が空く。
+            // perCellが切り捨てなので、この値が要求本数を超えることはない
+            //--------------------------------------------------------------
+            grid.gridDim   = gridDim;
+            grid.perCell   = perCell;
+            grid.drawCount = cellCount * perCell;
+            return grid;
+        }
     }    // namespace
 
     //--------------------------------------------------------------
@@ -292,19 +359,66 @@ namespace CombatAndroid::ECS {
         m_time += deltaTime;
 
         //--------------------------------------------------------------
-        // 本数の上限チェック（超過分は切り捨て、初回のみ警告する）
+        // 本数の上限チェック（超過分は切り捨て、初回のみ警告する）。
+        // 上限は1回の描画あたりなので、近景と遠景で別々に丸める
         //--------------------------------------------------------------
-        Tsukino::u32 bladeCount = activeField->bladeCount;
-        if(bladeCount > kMaxGrassBlades) {
+        auto clampBladeCount = [&](Tsukino::u32 requested) {
+            if(requested <= kMaxGrassBlades)
+                return requested;
+
             if(!m_countOverflowWarned) {
-                Tsukino::Core::Log::Error("GrassFieldSystem - blade count (" + std::to_string(bladeCount) + ") exceeds kMaxGrassBlades ("
+                Tsukino::Core::Log::Error("GrassFieldSystem - blade count (" + std::to_string(requested) + ") exceeds kMaxGrassBlades ("
                                           + std::to_string(kMaxGrassBlades) + "). Extra blades are dropped.");
                 m_countOverflowWarned = true;
             }
-            bladeCount = kMaxGrassBlades;
+            return kMaxGrassBlades;
+        };
+
+        //--------------------------------------------------------------
+        // 近景と遠景の受け持ちを決める。
+        // 近景（fieldSize）は密で細い草、遠景（farFieldSize）は本数を抑えて幅で補った草で、
+        // TPSカメラの視界の端まで敷く。1回で地平線まで敷くと、画面上で数ピクセルにしか
+        // ならない遠くの草にまで近景と同じ密度を割くことになり、本数が何倍にも膨らむ。
+        // 切替の距離帯では頂点シェーダーが1本ごとの乱数で本数を入れ替える。
+        //
+        // 遠景を描かない設定（farFieldSize が fieldSize 以下、または farBladeCount が0）なら、
+        // 近景が外周で背を縮めて消える（遠景を足す前と同じ挙動）
+        //--------------------------------------------------------------
+        const float nearFieldSize = std::max(activeField->fieldSize, 1.0f);
+        const float nearHalf      = nearFieldSize * 0.5f;
+        const float fadeRatio     = std::clamp(activeField->fadeStartRatio, 0.0f, 0.99f);
+
+        const GrassGrid nearGrid = ComputeGrassGrid(clampBladeCount(activeField->bladeCount));
+        const GrassGrid farGrid =
+            (activeField->farFieldSize > nearFieldSize) ? ComputeGrassGrid(clampBladeCount(activeField->farBladeCount)) : GrassGrid{};
+
+        std::array<GrassLayer, kGrassLayerCount> layers{};
+        Tsukino::u32                             layerCount = 0;
+
+        if(farGrid.drawCount > 0) {
+            const float farFieldSize = activeField->farFieldSize;
+
+            // 切替は近景の格子の内側で終わらせる。外にはみ出すと、近景がもう無い距離で
+            // 遠景がまだ間引かれていて、帯状に草が薄くなる
+            const float blendEnd   = std::clamp(activeField->lodBlendEnd, 0.0f, nearHalf);
+            const float blendStart = std::clamp(activeField->lodBlendStart, 0.0f, blendEnd);
+
+            // 面積あたりの本数の比だけ遠景の草を太らせ、画面を覆う割合を近景と揃える。
+            // 太らせすぎると1本1本が板に見えるので4倍で頭打ちにする
+            const float nearDensity          = static_cast<float>(nearGrid.drawCount) / (nearFieldSize * nearFieldSize);
+            const float farDensity           = static_cast<float>(farGrid.drawCount) / (farFieldSize * farFieldSize);
+            const float farWidthCompensation = std::clamp(nearDensity / farDensity, 1.0f, 4.0f);
+
+            if(nearGrid.drawCount > 0)
+                layers[layerCount++] = {nearFieldSize, nearGrid, blendStart, blendEnd, 0.0f, nearHalf, 1.0f};
+
+            layers[layerCount++] = {farFieldSize, farGrid, blendStart, blendEnd, 1.0f, farFieldSize * 0.5f * fadeRatio, farWidthCompensation};
+        } else if(nearGrid.drawCount > 0) {
+            // 近景だけ。フィールドの外周より外でだけ間引き、外周で背を縮めて消す
+            layers[layerCount++] = {nearFieldSize, nearGrid, nearHalf, nearHalf + 1.0f, 0.0f, nearHalf * fadeRatio, 1.0f};
         }
 
-        if(bladeCount == 0)
+        if(layerCount == 0)
             return;
 
         //--------------------------------------------------------------
@@ -321,36 +435,6 @@ namespace CombatAndroid::ECS {
                 return;
             }
         }
-
-        //--------------------------------------------------------------
-        // 格子の分割数を決める。
-        // セルが細かすぎると1セルに1本も入らず配置が偏るので、
-        // 「1セルあたり4本前後」になるところを狙って分割数を決める
-        //--------------------------------------------------------------
-        constexpr float kTargetBladesPerCell = 4.0f;
-
-        const float gridDimF   = std::floor(std::sqrt(static_cast<float>(bladeCount) / kTargetBladesPerCell));
-        const float gridDim    = std::max(gridDimF, 1.0f);
-        const float cellCountF = gridDim * gridDim;
-
-        const Tsukino::u32 cellCount = static_cast<Tsukino::u32>(cellCountF);
-
-        //--------------------------------------------------------------
-        // 1セルあたりの本数は切り捨てる。
-        // 切り上げると gridDim^2 * perCell が要求本数を上回り、あぶれたセルには
-        // インスタンス番号が割り当たらないまま残る。頂点シェーダーは
-        // 「インスタンス番号 → セル番号」の順で格子を埋めていくので、
-        // 埋まらなかったぶんは格子の後ろ側の行にまとまって現れ、
-        // 「+Z方向だけ草が近くで途切れる」という形で見える
-        //--------------------------------------------------------------
-        const Tsukino::u32 perCell = std::max(1u, bladeCount / cellCount);
-
-        //--------------------------------------------------------------
-        // 実際に描くのは格子をちょうど埋める本数。
-        // 要求本数をそのまま渡すと端数のぶんだけ格子の一部が空く。
-        // perCellが切り捨てなので、この値が要求本数を超えることはない
-        //--------------------------------------------------------------
-        const Tsukino::u32 drawCount = cellCount * perCell;
 
         //--------------------------------------------------------------
         // プレイヤー位置の収集。
@@ -383,8 +467,9 @@ namespace CombatAndroid::ECS {
         else
             windDir = windDir / windHorizontal;
 
+        // 層ごとに変わる fieldParams / lodParams / coverageParams は、
+        // 下の描画コマンドを積むところで層ごとに入れる
         CBufferGrass params{};
-        params.fieldParams       = hlslpp::float4(activeField->fieldSize, gridDim, static_cast<float>(perCell), m_time);
         params.bladeParams       = hlslpp::float4(activeField->distantWidthBoost, activeField->heightVariance, activeField->groundHeight,
                                                   0.0f);
         params.windParams        = hlslpp::float4(windDir.x, windDir.y, windDir.z, activeField->windStrength);
@@ -396,7 +481,7 @@ namespace CombatAndroid::ECS {
         params.speciesWidthScale = hlslpp::float4(activeField->species[0].widthScale, activeField->species[1].widthScale,
                                                   activeField->species[2].widthScale, 0.0f);
         params.playerParams      = hlslpp::float4(playerPos.x, playerPos.y, playerPos.z, pushRadius);
-        params.fadeParams        = hlslpp::float4(activeField->fadeStartRatio, activeField->playerPushStrength, 0.0f, 0.0f);
+        params.fadeParams        = hlslpp::float4(0.0f, activeField->playerPushStrength, 0.0f, 0.0f);
 
         //--------------------------------------------------------------
         // 草むら（塊）。
@@ -418,19 +503,11 @@ namespace CombatAndroid::ECS {
                                                  std::max(activeField->fillerHeightScale, 0.0f));
 
         //--------------------------------------------------------------
-        // パラメータをゲーム所有の定数バッファへ流し込む。
-        // エンジンは草を知らないので、バッファもこちらで持つ
+        // 遠くほど塊の隙間を埋める距離帯。smoothstepの両端が同じだと
+        // シェーダー側で0除算になるので、最低1だけ幅を持たせる
         //--------------------------------------------------------------
-        if(!m_paramBuffer.IsValid()) {
-            m_paramBuffer = Tsukino::Renderer::CreateUserConstantBuffer(ctx->renderer->GetDevice(), sizeof(CBufferGrass));
-
-            if(!m_paramBuffer.IsValid()) {
-                Tsukino::Core::Log::Error("GrassFieldSystem - failed to create the grass constant buffer. Grass will not be drawn.");
-                return;
-            }
-        }
-
-        Tsukino::Renderer::UpdateUserConstantBuffer(ctx->renderer->GetContext(), m_paramBuffer, &params, sizeof(params));
+        const float horizonFillStart = std::max(activeField->horizonFillStart, 0.0f);
+        const float horizonFillEnd   = std::max(activeField->horizonFillEnd, horizonFillStart + 1.0f);
 
         //--------------------------------------------------------------
         // マテリアルの構築。
@@ -486,30 +563,54 @@ namespace CombatAndroid::ECS {
         materialData.rimParams  = hlslpp::float4(1.0f, 0.0f, 0.0f, 0.0f);    // z=alphaCutoff。草はくり抜かないので0
 
         //--------------------------------------------------------------
-        // 描画コマンドを1本だけ積む。
+        // 層ごとにパラメータを流し込み、描画コマンドを1本ずつ積む。
+        // 描画コマンドはバッファを指しているだけで、実際の描画は後でまとめて行われる。
+        // 1本のバッファを書き換えながら2回積むと両方とも最後の値で描かれてしまうので、
+        // バッファは層ごとに分けて持つ。エンジンは草を知らないので、バッファもこちらで持つ。
+        //
         // 位置も向きも頂点シェーダーがワールド座標で直接組み立てるため、
         // モデル行列は単位行列でよい
         //--------------------------------------------------------------
-        Tsukino::Renderer::DrawCommand cmd{};
-        cmd.mesh          = &m_bladeMesh;
-        cmd.material      = &material;
-        cmd.materialData  = &materialData;
-        cmd.transform     = Tsukino::Core::Math::matrix::identity();
-        cmd.prevTransform = cmd.transform;
-        cmd.hasPrevFrame  = false;
-        cmd.pass          = Tsukino::Renderer::RenderPass::GBuffer;
-        cmd.instanceCount = drawCount;
+        for(Tsukino::u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex) {
+            const GrassLayer&                      layer  = layers[layerIndex];
+            Tsukino::Renderer::UserConstantBuffer& buffer = m_paramBuffers[layerIndex];
 
-        // 影は落とさない。シャドウパスは固定のシャドウ用シェーダーで描き直すため、
-        // 草のように頂点シェーダーが位置を組み立てるものは全インスタンスが
-        // 原点へ重なった状態で描かれてしまう（影を落とさせるには専用の
-        // シャドウ用頂点シェーダーを差し替えられるようにする必要がある）
-        cmd.castsShadow = false;
+            if(!buffer.IsValid()) {
+                buffer = Tsukino::Renderer::CreateUserConstantBuffer(ctx->renderer->GetDevice(), sizeof(CBufferGrass));
 
-        // 草のパラメータをゲーム予約枠へ渡す
-        cmd.userConstantBuffer = m_paramBuffer.buffer.Get();
-        cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
+                if(!buffer.IsValid()) {
+                    Tsukino::Core::Log::Error("GrassFieldSystem - failed to create the grass constant buffer. Grass will not be drawn.");
+                    return;
+                }
+            }
 
-        ctx->renderer->PushDrawCommand(cmd);
+            params.fieldParams    = hlslpp::float4(layer.fieldSize, layer.grid.gridDim, static_cast<float>(layer.grid.perCell), m_time);
+            params.lodParams      = hlslpp::float4(layer.lodStart, layer.lodEnd, layer.layerIndex, layer.fadeStart);
+            params.coverageParams = hlslpp::float4(horizonFillStart, horizonFillEnd, nearHalf, layer.widthCompensation);
+
+            Tsukino::Renderer::UpdateUserConstantBuffer(ctx->renderer->GetContext(), buffer, &params, sizeof(params));
+
+            Tsukino::Renderer::DrawCommand cmd{};
+            cmd.mesh          = &m_bladeMesh;
+            cmd.material      = &material;
+            cmd.materialData  = &materialData;
+            cmd.transform     = Tsukino::Core::Math::matrix::identity();
+            cmd.prevTransform = cmd.transform;
+            cmd.hasPrevFrame  = false;
+            cmd.pass          = Tsukino::Renderer::RenderPass::GBuffer;
+            cmd.instanceCount = layer.grid.drawCount;
+
+            // 影は落とさない。シャドウパスは固定のシャドウ用シェーダーで描き直すため、
+            // 草のように頂点シェーダーが位置を組み立てるものは全インスタンスが
+            // 原点へ重なった状態で描かれてしまう（影を落とさせるには専用の
+            // シャドウ用頂点シェーダーを差し替えられるようにする必要がある）
+            cmd.castsShadow = false;
+
+            // 草のパラメータをゲーム予約枠へ渡す
+            cmd.userConstantBuffer = buffer.buffer.Get();
+            cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
+
+            ctx->renderer->PushDrawCommand(cmd);
+        }
     }
 }    // namespace CombatAndroid::ECS

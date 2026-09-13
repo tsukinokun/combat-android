@@ -55,9 +55,11 @@ cbuffer CBufferGrass : register(b12)
     float4 speciesHeight;      // xyz: 種0/1/2の高さ, w: 予約
     float4 speciesWidthScale;  // xyz: 種0/1/2の幅倍率, w: 予約
     float4 playerParams;       // xyz: プレイヤー座標, w: かき分け半径
-    float4 fadeParams;         // x: 境界フェード開始比率, y: かき分けの強さ, z: 予約, w: 予約
+    float4 fadeParams;         // x: 予約, y: かき分けの強さ, z: 予約, w: 予約
     float4 clumpParams;        // x: 塊の粗セルの一辺, y: 塊の半径の最小, z: 塊の半径の最大, w: 塊が生まれる確率
     float4 clumpShapeParams;   // x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
+    float4 lodParams;          // x: 近景→遠景の切替開始距離, y: 切替終了距離, z: 層（0: 近景, 1: 遠景）, w: 外周で背を縮め始める距離
+    float4 coverageParams;     // x: 塊の隙間が埋まり始める距離, y: 埋まりきる距離, z: 幅の増し分が最大になる距離, w: 本数の少なさを補う幅の倍率
 };
 
 //--------------------------------------------------------------
@@ -144,9 +146,14 @@ float Rand01(uint x)
 //--------------------------------------------------------------
 uint MakeCellSeed(int cellX, int cellZ, uint slot)
 {
+    // 遠景の格子はセルの大きさが違うだけで番号の振り方は同じなので、
+    // 層ごとに種をずらさないと近景と遠景で草の個性が同じ並びで繰り返される。
+    // 近景（層0）では加算がゼロになり、近景の配置は層を足す前と変わらない
+    const uint layer = (uint)(lodParams.z + 0.5f);
+
     uint hx = HashU32(asuint(cellX) * 0x9e3779b9u);
     uint hz = HashU32(asuint(cellZ) * 0x85ebca6bu);
-    uint hs = HashU32(slot * 0xc2b2ae35u + (uint)swayParams.y);
+    uint hs = HashU32(slot * 0xc2b2ae35u + (uint)swayParams.y + layer * 0x9e3779b9u);
 
     return HashU32(hx ^ (hz * 0x27d4eb2fu) ^ hs);
 }
@@ -242,6 +249,22 @@ ClumpInfo FindClump(float2 worldXZ)
 }
 
 //--------------------------------------------------------------
+//! 描かない草の頂点を作ります。
+//! @return 全メンバを0で埋め、位置をクリップ範囲外の1点にした頂点
+//! @note   9頂点すべてが同じ1点になるので三角形の面積がゼロになり、
+//!         1ピクセルも塗られない。近景と遠景の受け持ち範囲の外にある草は、
+//!         草むらの探索（周囲3x3のハッシュ）を回す前にここで打ち切る
+//--------------------------------------------------------------
+VSOutput MakeCulledVertex()
+{
+    VSOutput output = (VSOutput)0;
+    output.position = float4(0.0f, 0.0f, -1.0f, 1.0f);
+    output.curClip  = output.position;
+    output.prevClip = output.position;
+    return output;
+}
+
+//--------------------------------------------------------------
 //! メイン関数
 //! @param  [in] input      刃メッシュの頂点
 //! @param  [in] instanceID 何本目の草か
@@ -292,6 +315,27 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float2 jitter    = float2(Rand01(seed + 1u), Rand01(seed + 2u));
     const float2 rootXZ    = (float2((float)cellX, (float)cellZ) + jitter) * cellSize;
 
+    const float halfField   = fieldSize * 0.5f;
+    const float distFromCam = length(rootXZ - cameraPos.xz);
+
+    //----------------------------------------------------------
+    // 近景と遠景の受け持ち。
+    // 草は「密で細い近景」と「疎で太い遠景」の2回に分けて描く。1回で地平線まで
+    // 敷くと、画面上で数ピクセルにしかならない遠くの草にまで近景と同じ本数を
+    // 割くことになり、本数が何倍にも膨らむ。
+    //
+    // 切替の距離帯では、近景は奥ほど、遠景は手前ほど1本ごとの乱数で間引く。
+    // 背を縮めて入れ替えると帯の中で草原が一段低く沈んで見えるので、背は保ったまま
+    // 本数だけを滑らかに入れ替える
+    //----------------------------------------------------------
+    const float lodT    = saturate((distFromCam - lodParams.x) / max(lodParams.y - lodParams.x, 1.0f));
+    const float lodKeep = (lodParams.z > 0.5f) ? lodT : (1.0f - lodT);
+
+    if(Rand01(seed + 8u) >= lodKeep)
+    {
+        return MakeCulledVertex();
+    }
+
     //----------------------------------------------------------
     // 草むら（塊）の判定。
     // 塊の芯ほど残りやすく背が高く、縁に向かって間引かれながら低くなる。
@@ -303,7 +347,13 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     const ClumpInfo clump        = FindClump(rootXZ);
     const float     edgeSoftness = max(clumpShapeParams.y, 0.01f);
-    const float     inside       = 1.0f - saturate((clump.normDist - (1.0f - edgeSoftness)) / edgeSoftness);
+    const float     clumpInside  = 1.0f - saturate((clump.normDist - (1.0f - edgeSoftness)) / edgeSoftness);
+
+    // 遠くほど塊の隙間を埋める。遠景では塊の形はもう見分けられず、隙間の土だけが
+    // 霧に溶けた帯として目立つので、地平線まで草で覆われて見えるようにする。
+    // 種は塊のものを使い続けるので、色のむらは遠くでも残る
+    const float horizonFill = smoothstep(coverageParams.x, coverageParams.y, distFromCam);
+    const float inside      = lerp(clumpInside, 1.0f, horizonFill);
 
     const bool  inClump  = Rand01(seed + 6u) < inside;
     const bool  isFiller = !inClump && (Rand01(seed + 7u) < clumpShapeParams.z);
@@ -323,12 +373,11 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
 
     //----------------------------------------------------------
     // 境界フェード。カメラからの距離がフィールド半径に近いほど
-    // 背を低くして消す。高さ0の草は面積ゼロで1ピクセルも塗らない
+    // 背を低くして消す。遠景を描くときは遠景の外周だけで効き、
+    // 近景は切替の距離帯で本数ごと遠景へ引き継ぐので縮めない
     //----------------------------------------------------------
-    const float halfField  = fieldSize * 0.5f;
-    const float distFromCam = length(rootXZ - cameraPos.xz);
-    const float fadeStart  = halfField * fadeParams.x;
-    const float edgeFade   = 1.0f - saturate((distFromCam - fadeStart) / max(halfField - fadeStart, 1.0f));
+    const float fadeStart = min(lodParams.w, halfField);
+    const float edgeFade  = 1.0f - saturate((distFromCam - fadeStart) / max(halfField - fadeStart, 1.0f));
 
     //----------------------------------------------------------
     // 草ごとの個性
@@ -398,11 +447,15 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     // フィールドを広げると同じ本数が薄く散らばって密度が落ちるが、
     // 遠くの草は画面上で数ピクセルしかないため、幅を増やしてやると
     // 隙間が埋まって草原が途切れずに続いて見える。
-    // 二乗で効かせるので、手前の草の細さはそのまま保たれる
+    // 二乗で効かせるので、手前の草の細さはそのまま保たれる。
+    //
+    // 基準の距離は近景と遠景で共通にする（層ごとのフィールド半径で割ると、
+    // 切替の距離帯で同じ距離なのに近景と遠景の幅が食い違う）。
+    // 遠景はさらに、近景より本数が少ないぶんを幅で補う
     //----------------------------------------------------------
-    const float distNorm      = saturate(distFromCam / max(halfField, 1.0f));
+    const float distNorm      = saturate(distFromCam / max(coverageParams.z, 1.0f));
     const float speciesWidth  = dot(speciesWidthScale.xyz, speciesMask);
-    const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x) * alive;
+    const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x) * coverageParams.w * alive;
 
     // 幅は刃メッシュの頂点に焼き込み済みの基準幅に、種の倍率と距離による倍率を掛ける。
     // クロスビルボードなので面0(幅はinput.position.x、sideDir方向)と

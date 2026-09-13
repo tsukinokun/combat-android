@@ -8,21 +8,28 @@
 #include <Tsukino/Renderer/DX11/MeshBuffer.hpp>
 #include <Tsukino/Renderer/DX11/UserConstantBuffer.hpp>
 
+#include <array>
 #include <hlsl++.h>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //--------------------------------------------------------------
-    //! 草の本数の上限
+    //! 草の本数の上限（1回の描画あたり）
     //! @note 1本 = クロスビルボード（直交する板2枚）で18頂点・42インデックスの
-    //!       インスタンス描画なので、上限では 2,752,512 インデックスの単一Drawになる
+    //!       インスタンス描画なので、上限では 2,752,512 インデックスの単一Drawになる。
+    //!       近景と遠景はそれぞれ別の描画なので、上限も別々に効く
     //--------------------------------------------------------------
     inline constexpr Tsukino::u32 kMaxGrassBlades = 65536;
+
+    //--------------------------------------------------------------
+    //! 草を描く層の数（近景・遠景）
+    //--------------------------------------------------------------
+    inline constexpr Tsukino::u32 kGrassLayerCount = 2;
 
     //--------------------------------------------------------------
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で176バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で208バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -44,9 +51,11 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 speciesHeight;       //!< xyz: 種0/1/2の高さ, w: 予約
         hlslpp::float4 speciesWidthScale;   //!< xyz: 種0/1/2の幅倍率, w: 予約
         hlslpp::float4 playerParams;        //!< xyz: プレイヤーのワールド座標, w: かき分け半径（0で無効）
-        hlslpp::float4 fadeParams;          //!< x: 境界フェード開始比率, y: かき分けの強さ, zw: 予約
+        hlslpp::float4 fadeParams;          //!< x: 予約, y: かき分けの強さ, zw: 予約
         hlslpp::float4 clumpParams;         //!< x: 塊の粗セルの一辺, y: 塊の半径の最小, z: 塊の半径の最大, w: 塊が生まれる確率
         hlslpp::float4 clumpShapeParams;    //!< x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
+        hlslpp::float4 lodParams;           //!< x: 近景→遠景の切替開始距離, y: 切替終了距離, z: 層（0: 近景, 1: 遠景）, w: 外周で背を縮め始める距離
+        hlslpp::float4 coverageParams;      //!< x: 塊の隙間が埋まり始める距離, y: 埋まりきる距離, z: 幅の増し分が最大になる距離, w: 本数の少なさを補う幅の倍率
     };
 
     //--------------------------------------------------------------
@@ -77,10 +86,12 @@ namespace CombatAndroid::ECS {
         //!       「ヒットストップ中は草も止まる」挙動を保つためこちらを使う
         float m_time = 0.0f;
 
-        //! 頂点シェーダーへ渡すパラメータ用のバッファ（CBSlot::User0）
+        //! 頂点シェーダーへ渡すパラメータ用のバッファ（CBSlot::User0）。近景・遠景で1本ずつ
         //! @note エンジンの定数バッファではなく、ゲーム予約枠へバインドする
-        //!       ゲーム所有のバッファ。初回のUpdateで1回だけ作る
-        Tsukino::Renderer::UserConstantBuffer m_paramBuffer;
+        //!       ゲーム所有のバッファ。初回のUpdateで1回だけ作る。
+        //!       描画コマンドはバッファを指すだけで描画は後でまとめて行われるため、
+        //!       層ごとに値の違うパラメータは1本のバッファを使い回せない
+        std::array<Tsukino::Renderer::UserConstantBuffer, kGrassLayerCount> m_paramBuffers;
 
         //! 刃1本ぶんのメッシュ（9頂点・21インデックス）
         //! @note 全部の草がこの1本を共有する。作り直す必要があるのは

@@ -173,7 +173,7 @@ namespace CombatAndroid {
             groundTransform.parent                                     = entt::null;    // 親なし
 
             // コリジョンをつける（一辺4000 x 厚さ10の床。extentは半径=half-extentの流儀）。
-            // 草原（GrassFieldSystem）の可視半径1800に余裕を持たせた半径2000にしてある。
+            // 半径2000にしてある。
             // 地面自体がGroundFollowSystemでプレイヤーへ追従するため、これより大きくする必要はない
             Tsukino::BuiltIn::ECS::CollisionComponent& collision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(groundEntity);
             collision.extent                                     = {2000.0f, 5.0f, 2000.0f};
@@ -1180,21 +1180,33 @@ namespace CombatAndroid {
         // 追従する。1本ごとの位置はワールド座標のハッシュから決まるので、
         // 追従しても草は地面に固定されたまま見える。
         //
-        // フィールドの一辺はTPSカメラの視界（farZ = 2000）より内側に収め、
-        // 外周のフェードとフォグ（開始500）で境界を隠す
+        // 密で細い近景と、疎で太い遠景の2層で、TPSカメラの視界の端まで敷く
         //--------------------------------------------------------------
         {
             Tsukino::ECS::Entity grassEntity = m_scene.CreateEntity();
             auto&                grass       = registry.AddComponent<CombatAndroid::ECS::GrassFieldComponent>(grassEntity);
 
-            // カメラのfarZが2000なので、一辺3600（＝中心から1800）にして
-            // 視界の端まで草で埋まるようにする。同じ本数のままだと密度が
-            // 落ちるので本数も上げ、さらに遠くの草を太らせて隙間を埋める。
-            // 本数はkMaxGrassBlades(65536)近くまで積んだ上で、地肌が見えないよう
-            // 手前の草そのものも太くする（本数だけでは1本あたりの footprint が
-            // 細いままなので、隣接する株の間に隙間が残ってしまう）
+            // 近景は一辺3600（＝中心から1800）。本数はkMaxGrassBlades(65536)近くまで積んだ上で、
+            // 地肌が見えないよう手前の草そのものも太くする（本数だけでは1本あたりの
+            // footprint が細いままなので、隣接する株の間に隙間が残ってしまう）
             grass.bladeCount = 65000;
             grass.fieldSize  = 3600.0f;
+
+            // 遠景は地平線まで。TPSカメラは farZ = 2000・縦のfov 60度・横長（1700x1000）なので、
+            // 画面の左右の隅では奥行き2000の地点がカメラから水平に約2800離れている。
+            // 一辺5600（＝中心から2800）にして、画面の隅の地平線まで草を届かせる。
+            // 遠景の草は面積あたりの本数が近景の約4割なので、GrassFieldSystemが幅を約2.4倍に太らせる
+            grass.farFieldSize  = 5600.0f;
+            grass.farBladeCount = 65000;
+
+            // 1300〜1700で近景から遠景へ本数を入れ替える（近景の外周1800より内側で終える）
+            grass.lodBlendStart = 1300.0f;
+            grass.lodBlendEnd   = 1700.0f;
+
+            // 900より奥で塊の隙間を埋め始め、1700で草に覆いきる。
+            // これより奥では土が見えず、地平線まで草原が続いて見える
+            grass.horizonFillStart = 900.0f;
+            grass.horizonFillEnd   = 1700.0f;
 
             // プレイヤーの身長が210ユニットなので、標準種で膝下くらいの丈になる
             grass.bladeWidth        = 5.5f;    // 種のwidthScaleが掛かる基準幅。地肌が見えないよう3.5→5.5に増やした
@@ -1239,7 +1251,9 @@ namespace CombatAndroid {
             grass.playerPushRadius   = 90.0f;
             grass.playerPushStrength = 1.2f;
 
-            grass.fadeStartRatio = 0.70f;
+            // 遠景の外周（2800）の手前、2600から背を縮める。正面の地平線（奥行き2000）より
+            // 外なので、縮んでいく草は画面の隅にしか映らない
+            grass.fadeStartRatio = 0.93f;
         }
     }
 
