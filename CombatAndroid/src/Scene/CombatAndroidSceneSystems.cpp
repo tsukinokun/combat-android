@@ -167,7 +167,13 @@ namespace CombatAndroid {
         // 死亡演出からGAME OVER表示・リトライまでの進行。HP確定（isDead）の後であればよい
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GameOverSystem>(), (int)ECS::SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformLate);
-        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TpsCameraSystem>(), (int)ECS::SystemPriority::Camera3D);
+        {
+            // PlayerDamagedEventを購読して、被弾したらカメラを揺らす。
+            // Publish元のCombatSystem（WeaponAttach）より後ろに居るので、被弾したフレームのうちに揺れ始める
+            auto tpsCameraSystem = std::make_shared<CombatAndroid::ECS::TpsCameraSystem>();
+            m_scene.AddSystem(tpsCameraSystem, (int)ECS::SystemPriority::Camera3D);
+            tpsCameraSystem->Initialize(eventBus);
+        }
 #ifdef _DEBUG
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::DebugCameraSystem>(), (int)ECS::SystemPriority::Camera3D);
 #endif
