@@ -22,7 +22,7 @@ namespace CombatAndroid::ECS {
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で144バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で176バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -37,7 +37,7 @@ namespace CombatAndroid::ECS {
     //--------------------------------------------------------------
     struct CBufferGrass {
         hlslpp::float4 fieldParams;         //!< x: フィールドの一辺, y: 1辺のセル数, z: セルあたりの本数, w: 経過時間（秒）
-        hlslpp::float4 bladeParams;         //!< x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 種の切替パッチの大きさ
+        hlslpp::float4 bladeParams;         //!< x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 予約
         hlslpp::float4 windParams;          //!< xyz: 風向き（正規化済み）, w: 常時なびく強さ
         hlslpp::float4 gustParams;          //!< x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: そよぎの角速度
         hlslpp::float4 swayParams;          //!< x: そよぎの強さ, y: 乱数シード, zw: 予約
@@ -45,6 +45,8 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 speciesWidthScale;   //!< xyz: 種0/1/2の幅倍率, w: 予約
         hlslpp::float4 playerParams;        //!< xyz: プレイヤーのワールド座標, w: かき分け半径（0で無効）
         hlslpp::float4 fadeParams;          //!< x: 境界フェード開始比率, y: かき分けの強さ, zw: 予約
+        hlslpp::float4 clumpParams;         //!< x: 塊の粗セルの一辺, y: 塊の半径の最小, z: 塊の半径の最大, w: 塊が生まれる確率
+        hlslpp::float4 clumpShapeParams;    //!< x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
     };
 
     //--------------------------------------------------------------

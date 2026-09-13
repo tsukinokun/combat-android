@@ -53,7 +53,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In
 
     Tsukino::EngineIntegration::EngineIntegration engineIntegration;
     // 初期化
-    if(!engineIntegration.Initialize(1700, 1000)) {
+    if(!engineIntegration.Initialize(1700, 1000,"人造人間0号機")) {
         // 初期化に失敗した場合はエラーログを出力して終了
         Tsukino::Core::Log::Error("Failed to initialize EngineIntegration.");
         return EXIT_FAILURE;

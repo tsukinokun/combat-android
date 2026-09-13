@@ -386,7 +386,7 @@ namespace CombatAndroid::ECS {
         CBufferGrass params{};
         params.fieldParams       = hlslpp::float4(activeField->fieldSize, gridDim, static_cast<float>(perCell), m_time);
         params.bladeParams       = hlslpp::float4(activeField->distantWidthBoost, activeField->heightVariance, activeField->groundHeight,
-                                                  activeField->patchSize);
+                                                  0.0f);
         params.windParams        = hlslpp::float4(windDir.x, windDir.y, windDir.z, activeField->windStrength);
         params.gustParams        = hlslpp::float4(activeField->gustWavelength, activeField->gustSpeed, activeField->gustStrength,
                                                   activeField->swaySpeed);
@@ -397,6 +397,25 @@ namespace CombatAndroid::ECS {
                                                   activeField->species[2].widthScale, 0.0f);
         params.playerParams      = hlslpp::float4(playerPos.x, playerPos.y, playerPos.z, pushRadius);
         params.fadeParams        = hlslpp::float4(activeField->fadeStartRatio, activeField->playerPushStrength, 0.0f, 0.0f);
+
+        //--------------------------------------------------------------
+        // 草むら（塊）。
+        // 頂点シェーダーは周囲3x3の粗セルしか塊を探さないので、セルの一辺を
+        // 「塊が届く最大距離」に合わせる。これより小さいと2セル先の塊が届いてしまい、
+        // セルの境界で塊が直線的に切れる。そのためユーザー設定にはせずここで決める
+        //--------------------------------------------------------------
+        float clumpRadiusMin = std::max(activeField->clumpRadiusMin, 1.0f);
+        float clumpRadiusMax = std::max(activeField->clumpRadiusMax, 1.0f);
+        if(clumpRadiusMin > clumpRadiusMax)
+            std::swap(clumpRadiusMin, clumpRadiusMax);
+
+        const float clumpShapeNoise = std::clamp(activeField->clumpShapeNoise, 0.0f, 0.5f);
+        const float clumpCellSize   = clumpRadiusMax * (1.0f + clumpShapeNoise);
+
+        params.clumpParams      = hlslpp::float4(clumpCellSize, clumpRadiusMin, clumpRadiusMax, std::clamp(activeField->clumpSpawnChance, 0.0f, 1.0f));
+        params.clumpShapeParams = hlslpp::float4(clumpShapeNoise, std::clamp(activeField->clumpEdgeSoftness, 0.01f, 1.0f),
+                                                 std::clamp(activeField->fillerDensity, 0.0f, 1.0f),
+                                                 std::max(activeField->fillerHeightScale, 0.0f));
 
         //--------------------------------------------------------------
         // パラメータをゲーム所有の定数バッファへ流し込む。

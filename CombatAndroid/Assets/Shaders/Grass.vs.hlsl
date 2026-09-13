@@ -48,7 +48,7 @@ cbuffer CBufferScene : register(b0)
 cbuffer CBufferGrass : register(b12)
 {
     float4 fieldParams;        // x: フィールドの一辺, y: 1辺のセル数, z: セルあたりの本数, w: 経過時間（秒）
-    float4 bladeParams;        // x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 種の切替パッチの大きさ
+    float4 bladeParams;        // x: 遠くの草の幅の増し分, y: 高さのばらつき, z: 地面の高さ(Y), w: 予約
     float4 windParams;         // xyz: 風向き（正規化済み）, w: 常時なびく強さ
     float4 gustParams;         // x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: そよぎの角速度
     float4 swayParams;         // x: そよぎの強さ, y: 乱数シード, zw: 予約
@@ -56,6 +56,8 @@ cbuffer CBufferGrass : register(b12)
     float4 speciesWidthScale;  // xyz: 種0/1/2の幅倍率, w: 予約
     float4 playerParams;       // xyz: プレイヤー座標, w: かき分け半径
     float4 fadeParams;         // x: 境界フェード開始比率, y: かき分けの強さ, z: 予約, w: 予約
+    float4 clumpParams;        // x: 塊の粗セルの一辺, y: 塊の半径の最小, z: 塊の半径の最大, w: 塊が生まれる確率
+    float4 clumpShapeParams;   // x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
 };
 
 //--------------------------------------------------------------
@@ -150,26 +152,93 @@ uint MakeCellSeed(int cellX, int cellZ, uint slot)
 }
 
 //--------------------------------------------------------------
-//! 草が生えているパッチ（patchSize四方の区画）から種を選びます。
-//! @param  [in] worldXZ ワールド座標
-//! @return 0〜kSpeciesCount-1 の種番号
-//! @note   草1本ごとにバラバラに選ぶと砂嵐のようなノイズに見えるため、
-//!         セルより一回り大きいパッチ単位でまとめて同じ種を選ぶ。
-//!         MakeCellSeedと同じ「ワールド座標のハッシュ」方式なので、
-//!         こちらもカメラが動いても同じ場所には同じ種が生え続ける
+//! 草むら（塊）の探索結果
 //--------------------------------------------------------------
-uint MakeSpeciesIndex(float2 worldXZ)
+struct ClumpInfo
 {
-    const float patchSize = max(bladeParams.w, 1.0f);
+    float normDist;        // 一番近い塊の縁を1とした距離。1未満なら塊の中
+    uint  speciesIndex;    // その塊の種番号
+};
 
-    const int patchX = (int)floor(worldXZ.x / patchSize);
-    const int patchZ = (int)floor(worldXZ.y / patchSize);
+//--------------------------------------------------------------
+//! その場所に一番近い草むら（塊）を探します。
+//! @param  [in] worldXZ ワールド座標
+//! @return 一番近い塊までの正規化距離と、その塊の種番号
+//! @note   ワールドを clumpParams.x 四方の粗い格子に分け、各セルが確率で
+//!         塊を1個持つ。中心・半径・形・種はどれもセルのワールド座標の
+//!         ハッシュから決めるので、カメラが動いても塊は地面に固定される。
+//!
+//!         正方形の区画ごとに種を選ぶと田んぼの碁盤目に見えるため、
+//!         中心をセル内でばらけさせ、半径を塊ごとに変え、角度方向にも
+//!         半径を揺らして不定形にしている。
+//!
+//!         周囲3x3のセルしか見ないのは、CPU側（GrassFieldSystem.cpp）が
+//!         セルの一辺を「塊が届く最大距離（半径の最大 x (1 + 形の揺らぎ)）」
+//!         に合わせているから。2セル以上離れたセルの塊の中心はどの点からも
+//!         セル1辺より遠く、届かない。この前提が崩れると、セルの境界で
+//!         塊が直線的に切れる
+//--------------------------------------------------------------
+ClumpInfo FindClump(float2 worldXZ)
+{
+    const float cellSize    = max(clumpParams.x, 1.0f);
+    const float radiusMin   = clumpParams.y;
+    const float radiusMax   = clumpParams.z;
+    const float spawnChance = clumpParams.w;
+    const float shapeNoise  = clumpShapeParams.x;
+    const float reachMax    = radiusMax * (1.0f + shapeNoise);
 
-    const uint hx = HashU32(asuint(patchX) * 0x27d4eb2fu);
-    const uint hz = HashU32(asuint(patchZ) * 0xb492b66fu);
-    const uint hs = HashU32((uint)swayParams.y * 0x68e31da4u);
+    const int baseX = (int)floor(worldXZ.x / cellSize);
+    const int baseZ = (int)floor(worldXZ.y / cellSize);
 
-    return HashU32(hx ^ (hz * 0x9e3779b9u) ^ hs) % kSpeciesCount;
+    // 草の配置（MakeCellSeed）と相関しないよう、別の定数で混ぜる
+    const uint seedMix = HashU32((uint)swayParams.y * 0x3c6ef372u);
+
+    ClumpInfo result;
+    result.normDist     = 1.0e9f;
+    result.speciesIndex = 0u;
+
+    for(int dz = -1; dz <= 1; ++dz)
+    {
+        for(int dx = -1; dx <= 1; ++dx)
+        {
+            const int  cellX = baseX + dx;
+            const int  cellZ = baseZ + dz;
+            const uint hx    = HashU32(asuint(cellX) * 0x165667b1u);
+            const uint hz    = HashU32(asuint(cellZ) * 0xd3a2646cu);
+            const uint h     = HashU32(hx ^ (hz * 0xfd7046c5u) ^ seedMix);
+
+            // このセルに塊が無い
+            if(Rand01(h) >= spawnChance)
+                continue;
+
+            const float2 center = (float2((float)cellX, (float)cellZ) + float2(Rand01(h + 1u), Rand01(h + 2u))) * cellSize;
+            const float2 offset = worldXZ - center;
+            const float  dist   = length(offset);
+
+            // どう揺らしても届かない塊は、角度の計算をせずに飛ばす
+            if(dist >= reachMax)
+                continue;
+
+            // 半径は二乗で偏らせ、小さい塊を多めにする
+            const float u      = Rand01(h + 3u);
+            const float radius = lerp(radiusMin, radiusMax, u * u);
+
+            // 角度方向に波を2つ重ねて、円ではない不定形にする
+            const float angle = atan2(offset.y, offset.x);
+            const float wobble = 0.6f * sin(2.0f * angle + Rand01(h + 4u) * TWO_PI)
+                               + 0.4f * sin(3.0f * angle + Rand01(h + 5u) * TWO_PI);
+            const float shapedRadius = max(radius * (1.0f + shapeNoise * wobble), 1.0f);
+
+            const float normDist = dist / shapedRadius;
+            if(normDist < result.normDist)
+            {
+                result.normDist     = normDist;
+                result.speciesIndex = HashU32(h + 6u) % kSpeciesCount;
+            }
+        }
+    }
+
+    return result;
 }
 
 //--------------------------------------------------------------
@@ -224,11 +293,31 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float2 rootXZ    = (float2((float)cellX, (float)cellZ) + jitter) * cellSize;
 
     //----------------------------------------------------------
-    // 種の抽選。1本ごとではなくパッチ単位でまとまって選ぶので、
-    // 群生のような塊で生える。xyzがそれぞれ種0/1/2に対応するので、
+    // 草むら（塊）の判定。
+    // 塊の芯ほど残りやすく背が高く、縁に向かって間引かれながら低くなる。
+    // 間引きを1本ごとの乱数で決めるので、縁が円や直線にならずギザギザになる。
+    // 塊の外でも fillerDensity の割合だけ短い草を残し、土の地面にまばらに生やす。
+    //
+    // 種は一番近い塊のものを使う。塊の外の草も含めて1本ごとにバラバラに
+    // 選ぶと砂嵐のようなノイズに見えるため
+    //----------------------------------------------------------
+    const ClumpInfo clump        = FindClump(rootXZ);
+    const float     edgeSoftness = max(clumpShapeParams.y, 0.01f);
+    const float     inside       = 1.0f - saturate((clump.normDist - (1.0f - edgeSoftness)) / edgeSoftness);
+
+    const bool  inClump  = Rand01(seed + 6u) < inside;
+    const bool  isFiller = !inClump && (Rand01(seed + 7u) < clumpShapeParams.z);
+    const float presence = inClump ? lerp(0.6f, 1.0f, inside) : (isFiller ? clumpShapeParams.w : 0.0f);
+
+    // 生えない草は高さと幅の両方を0にして、9頂点すべてを根元の1点へ潰す。
+    // 面積ゼロなので1ピクセルも塗らない（高さだけ0だと地面に寝た三角形が残る）
+    const float alive = presence > 0.0f ? 1.0f : 0.0f;
+
+    //----------------------------------------------------------
+    // xyzがそれぞれ種0/1/2に対応するので、
     // one-hotのマスクをdotで掛けて選んだ種の値だけを取り出す
     //----------------------------------------------------------
-    const uint   speciesIndex = MakeSpeciesIndex(rootXZ);
+    const uint   speciesIndex = clump.speciesIndex;
     const float3 speciesMask  = float3(speciesIndex == 0u ? 1.0f : 0.0f, speciesIndex == 1u ? 1.0f : 0.0f,
                                        speciesIndex == 2u ? 1.0f : 0.0f);
 
@@ -246,7 +335,7 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     const float baseHeight = dot(speciesHeight.xyz, speciesMask);
     const float heightRand = Rand01(seed + 3u) * 2.0f - 1.0f;                       // -1〜1
-    const float height     = baseHeight * (1.0f + heightRand * bladeParams.y) * edgeFade;
+    const float height     = baseHeight * (1.0f + heightRand * bladeParams.y) * edgeFade * presence;
     const float yaw        = Rand01(seed + 4u) * TWO_PI;                            // 刃の向き
     const float phase      = Rand01(seed + 5u) * TWO_PI;                            // 揺れの位相
 
@@ -313,7 +402,7 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     const float distNorm      = saturate(distFromCam / max(halfField, 1.0f));
     const float speciesWidth  = dot(speciesWidthScale.xyz, speciesMask);
-    const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x);
+    const float widthScale    = speciesWidth * (1.0f + distNorm * distNorm * bladeParams.x) * alive;
 
     // 幅は刃メッシュの頂点に焼き込み済みの基準幅に、種の倍率と距離による倍率を掛ける。
     // クロスビルボードなので面0(幅はinput.position.x、sideDir方向)と

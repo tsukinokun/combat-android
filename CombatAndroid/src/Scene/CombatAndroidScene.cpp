@@ -1211,9 +1211,16 @@ namespace CombatAndroid {
             grass.species[2] = {46.0f, 1.15f, hlslpp::float3(0.05f, 0.13f, 0.05f),
                                 hlslpp::float3(0.18f, 0.42f, 0.20f)};    // 丈の高い、濃い緑
 
-            // 4m四方くらいの塊で種が切り替わる。プレイヤーの移動速度に対して
-            // 「今と少し先で種が違う」と分かる程度の大きさを狙う
-            grass.patchSize = 400.0f;
+            // 草は半径0.6〜2.5mの不定形の草むらにまとめて、ランダムな位置へ散らす。
+            // 正方形の区画で種を切り替えていた頃は田んぼの碁盤目に見えていた。
+            // 塊の間は土の地面を見せつつ、短い草をまばらに残して草原の連続感を保つ
+            grass.clumpRadiusMin    = 60.0f;
+            grass.clumpRadiusMax    = 250.0f;
+            grass.clumpSpawnChance  = 0.8f;
+            grass.clumpShapeNoise   = 0.25f;
+            grass.clumpEdgeSoftness = 0.35f;
+            grass.fillerDensity     = 0.12f;
+            grass.fillerHeightScale = 0.45f;
 
             // 風向きはフォグのノイズ（下のwindDirection）と揃える。
             // ここがずれると、霧と草が別々の風になびいて世界が壊れる
