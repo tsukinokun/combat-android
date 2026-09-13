@@ -30,6 +30,7 @@ namespace CombatAndroid::ECS {
         float followSpringDamping       = 0.75f;      //!< 減衰比。1.0で行き過ぎ無し、小さいほど揺り戻す
         float followSpringResetDistance = 1500.0f;    //!< 目標とこれ以上離れたら（リトライ等）ばねを使わず目標へ置き直す
 
+        hlslpp::float3 followSpringPosition = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 位置追従のばねの位置（内部状態）。大技のズームで寄るぶんを足す前の位置
         hlslpp::float3 followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 位置追従の速度（内部状態）。これを持ち越すから行き過ぎが表現できる
         bool           hasFollowSpringState = false;                               //!< ばねの状態が初期化済みか（内部状態）
 
@@ -47,6 +48,27 @@ namespace CombatAndroid::ECS {
 
         hlslpp::float3 shakeOffset   = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 注視点のずれ（内部状態）
         hlslpp::float3 shakeVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 上記の速度（内部状態）
+
+        // --- 大技のズーム ---
+        // PlayerFinisherEventを受けると、インパクトの瞬間に素早く寄り、少し保ってからゆっくり元へ戻る。
+        // 世界のスロー（SlowMotionController）と同じ瞬間に始まるよう、インパクトまでの待ちは
+        // スローと同じ数え方（ゲーム内時間・イベントを受けた次のフレームから）にしてある。
+        // 寄ってから先（ばねと保持）は実時間で進めるので、スロー中でも素早く寄る。
+        // 寄りの量（0〜1）をばねで動かし、距離と画角の両方に掛ける。
+        // 寄るぶんは位置追従のばねとは別に足すので、追従ばねの遅れで寄りが鈍ることはない
+        float zoomDistanceScale   = 0.7f;     //!< 寄りきったときの距離の倍率（400→280）
+        float zoomFovScale        = 0.87f;    //!< 寄りきったときの画角の倍率（60°→約52°）
+        float zoomHoldAfterImpact = 0.5f;     //!< インパクトで寄り始めてから、寄ったまま保つ秒数（実時間）。
+                                              //!< 世界のスロー（実時間で約0.6秒）が戻りきる頃にズームも戻り始める長さ
+        float zoomInFrequency     = 5.0f;     //!< 寄るときのばねの速さ（Hz・実時間）。5Hzなら0.1秒で約8割寄る
+        float zoomOutFrequency    = 1.5f;     //!< 戻るときのばねの速さ（Hz・実時間）。1.5Hzなら約0.4秒でほぼ戻る
+
+        float zoomAmount    = 0.0f;     //!< 寄りの量（内部状態。0で通常、1で寄りきり）
+        float zoomVelocity  = 0.0f;     //!< 上記の速度（内部状態）
+        float zoomStartTimer = -1.0f;   //!< インパクトまでの残り秒数（内部状態）。負なら待っていない
+        float zoomHoldTimer = 0.0f;     //!< 寄ったまま保つ残り秒数（内部状態）
+        float baseFov       = 60.0f;    //!< 寄っていないときの画角（内部状態。最初のフレームにCameraComponent::fovから覚える）
+        bool  hasBaseFov    = false;    //!< baseFovを覚えたか（内部状態）
 
         // --- マウスによる旋回 ---
         float yaw   = 0.0f;    //!< 現在のカメラyaw（ラジアン。0でプレイヤーの初期正面=+Z方向を映す）

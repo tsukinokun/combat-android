@@ -4,6 +4,8 @@
 //! @author  山﨑愛
 //-------------------------------------------------------------
 #pragma once
+#include <CombatAndroid/ECS/Utility/SlowMotionController.hpp>
+
 #include <Tsukino/EngineIntegration/Scene/GameSceneBase.hpp>
 
 // 前方宣言（RegisterSystemsの引数にしか使わないため、ヘッダの依存を増やさない）
@@ -69,5 +71,8 @@ namespace CombatAndroid {
         };
 
         GameState m_gameState = GameState::Playing;    //!< ゲームの状態
+
+        //! 大技のインパクトで世界の時間を遅くする制御。OnUpdateで実時間を渡して進める
+        CombatAndroid::ECS::SlowMotionController m_slowMotion;
     };
 }    // namespace CombatAndroid

@@ -80,6 +80,10 @@ namespace CombatAndroid {
     //! シーンに全てのシステムを登録します。
     //-------------------------------------------------------------
     void CombatAndroidScene::RegisterSystems(Tsukino::EngineIntegration::EngineContext* context, Tsukino::ECS::EventBus& eventBus) {
+        // 大技（PlayerFinisherEvent）のインパクトで世界の時間を遅くする。
+        // システムではなくシーンが持つのは、倍率をシーンへ渡すdeltaTimeに掛けるため（OnUpdate参照）
+        m_slowMotion.Initialize(eventBus);
+
         // 登録
         // ライトのスポーン/移動はTransformSystemより前に行う。そうしないと
         // 生成・移動したライトのworldMatrixが1フレーム遅れ、LightSystemが古い位置を読む

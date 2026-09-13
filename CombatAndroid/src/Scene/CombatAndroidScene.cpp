@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/InputPromptHudComponent.hpp>
@@ -1262,9 +1263,14 @@ namespace CombatAndroid {
     //-------------------------------------------------------------
     void CombatAndroidScene::OnUpdate(Tsukino::EngineIntegration::EngineAPI& api, float deltaTime) {
         // ヒットストップはHitStopComponent/HitStopSystemによりエンティティ単位（プレイヤーと
-        // ヒットに関与した敵だけ）で処理されるため、ここでシーン全体のdeltaTimeを縮小することはしない
+        // ヒットに関与した敵だけ）で処理されるため、ここでは縮小しない。
 
-        float scaledDeltaTime = deltaTime;
+        //--------------------------------------------------------------
+        // 大技のインパクトで世界の時間を遅くする（こちらは画面全体）。
+        // Sceneへ渡すdeltaTimeそのものに倍率を掛けるので、アニメーション・敵AI・物理・
+        // エフェクト・草・霧まで一律に遅くなる。スローの進行自体は実時間で進める
+        //--------------------------------------------------------------
+        float scaledDeltaTime = deltaTime * m_slowMotion.Advance(deltaTime);
 
         //--------------------------------------------------------------
         // スキル選択メニュー表示中は時間を完全に止める。Sceneへ渡すdeltaTimeそのものを0にする
@@ -1277,6 +1283,10 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         if(CombatAndroid::ECS::IsSkillSelectActive(m_scene.GetRegistry()))
             scaledDeltaTime = 0.0f;
+
+        // スローに引きずられたくない演出（カメラの寄り）が実時間を読めるよう、Sceneを更新する前に置く
+        m_scene.GetRegistry().SetContext<CombatAndroid::ECS::WorldTimeContext>(CombatAndroid::ECS::WorldTimeContext{
+            deltaTime, (deltaTime > 0.0f) ? scaledDeltaTime / deltaTime : 1.0f});
 
         m_scene.Update(scaledDeltaTime);
     }

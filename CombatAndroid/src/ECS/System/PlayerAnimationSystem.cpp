@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Event/PlayerFinisherEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -17,6 +18,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Log.hpp>
 
@@ -143,6 +145,14 @@ namespace CombatAndroid::ECS {
                     // AoE(範囲攻撃)要求。実際に発動するかはCombatSystem側でweapon.areaAttackRadius>0を見て判定する
                     weapon->pendingAreaAttack      = step.areaAttack;
                     weapon->pendingAreaAttackDelay = step.areaAttackDelay;
+
+                    // 範囲攻撃が実際に出る段は大技として通知する（カメラのズームと世界のスロー）。
+                    // 判定はCombatSystemと同じ条件にしておき、範囲攻撃を持たない武器
+                    // （バトルアックス）が連撃で同じ段へ入っても寄らないようにする
+                    if(step.areaAttack && weapon->areaAttackRadius > 0.0f) {
+                        if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                            eventBus->Publish(PlayerFinisherEvent{entity, step.areaAttackDelay});
+                    }
                     // 斬撃弾は溜め攻撃の解放でしか撃たない。通常の段へ入るときは必ず下ろしておき、
                     // 前回の解放で立てた要求が持ち越されないようにする（この直後に走る
                     // 解放判定のブロックが、解放時だけ改めて立て直す）
@@ -548,6 +558,13 @@ namespace CombatAndroid::ECS {
                 // 段階そのものも渡すのは、貫通するかの判定（projectilePierceMinChargeStage）に要るため
                 releasedWeapon.pendingProjectile           = true;
                 releasedWeapon.pendingProjectileChargeStage = chargeStage;
+
+                // 最大段階（紫）まで溜めた解放は大技として通知する（カメラのズームと世界のスロー）。
+                // インパクトは斬撃弾が飛び出す瞬間
+                if(chargeStage >= 3) {
+                    if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                        eventBus->Publish(PlayerFinisherEvent{entity, releasedWeapon.projectileSpawnDelay});
+                }
             }
 
             //-------------------------------------------------------------

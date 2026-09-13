@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
@@ -26,6 +27,7 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief 減衰調和振動子（ばね・ダンパー）を1ステップ進める
+        //! @tparam T        float または hlslpp::float3
         //! @param position  [in,out] 現在位置
         //! @param velocity  [in,out] 現在速度
         //! @param target    [in]     引き寄せられる先（このステップの間は動かないものとして扱う）
@@ -39,8 +41,8 @@ namespace CombatAndroid::ECS {
         //!        振れ幅が変わってしまう（30fpsと144fpsで1.6倍違った）。解析解ならどのフレームレートでも
         //!        同じ揺れになり、deltaTimeが大きくても発散しない
         //-------------------------------------------------------------
-        void StepSpring(hlslpp::float3& position, hlslpp::float3& velocity, const hlslpp::float3& target, float frequency, float damping,
-                        float deltaTime) {
+        template <typename T>
+        void StepSpring(T& position, T& velocity, const T& target, float frequency, float damping, float deltaTime) {
             if(deltaTime <= 0.0f)
                 return;
 
@@ -48,11 +50,11 @@ namespace CombatAndroid::ECS {
             const float zeta  = std::max(damping, 0.0f);
 
             // 目標からのずれとして解く
-            const hlslpp::float3 x0 = position - target;
-            const hlslpp::float3 v0 = velocity;
+            const T x0 = position - target;
+            const T v0 = velocity;
 
-            hlslpp::float3 x;
-            hlslpp::float3 v;
+            T x;
+            T v;
 
             if(zeta < 0.9999f) {
                 // 減衰振動（行き過ぎて何度か揺り戻す）
@@ -66,20 +68,20 @@ namespace CombatAndroid::ECS {
                 v = (v0 * cosTerm - (x0 * (omega * omega) + v0 * decay) * (sinTerm / omegaD)) * envelope;
             } else if(zeta <= 1.0001f) {
                 // 臨界減衰（行き過ぎずに最短で収まる）
-                const float          envelope = std::exp(-omega * deltaTime);
-                const hlslpp::float3 k        = v0 + x0 * omega;
+                const float envelope = std::exp(-omega * deltaTime);
+                const T     k        = v0 + x0 * omega;
 
                 x = (x0 + k * deltaTime) * envelope;
                 v = (v0 - k * (omega * deltaTime)) * envelope;
             } else {
                 // 過減衰（行き過ぎずにゆっくり収まる）
-                const float          root = std::sqrt(zeta * zeta - 1.0f);
-                const float          r1   = -omega * (zeta - root);
-                const float          r2   = -omega * (zeta + root);
-                const hlslpp::float3 c1   = (v0 - x0 * r2) / (r1 - r2);
-                const hlslpp::float3 c2   = x0 - c1;
-                const float          e1   = std::exp(r1 * deltaTime);
-                const float          e2   = std::exp(r2 * deltaTime);
+                const float root = std::sqrt(zeta * zeta - 1.0f);
+                const float r1   = -omega * (zeta - root);
+                const float r2   = -omega * (zeta + root);
+                const T     c1   = (v0 - x0 * r2) / (r1 - r2);
+                const T     c2   = x0 - c1;
+                const float e1   = std::exp(r1 * deltaTime);
+                const float e2   = std::exp(r2 * deltaTime);
 
                 x = c1 * e1 + c2 * e2;
                 v = c1 * (r1 * e1) + c2 * (r2 * e2);
@@ -94,7 +96,8 @@ namespace CombatAndroid::ECS {
     //! @brief PlayerDamagedEventの購読を開始する
     //-------------------------------------------------------------
     void TpsCameraSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
-        m_damagedConnection = eventBus.Subscribe<PlayerDamagedEvent>([this](const PlayerDamagedEvent& event) { OnPlayerDamaged(event); });
+        m_damagedConnection  = eventBus.Subscribe<PlayerDamagedEvent>([this](const PlayerDamagedEvent& event) { OnPlayerDamaged(event); });
+        m_finisherConnection = eventBus.Subscribe<PlayerFinisherEvent>([this](const PlayerFinisherEvent& event) { OnPlayerFinisher(event); });
     }
 
     //-------------------------------------------------------------
@@ -105,6 +108,15 @@ namespace CombatAndroid::ECS {
         // CombatSystem（WeaponAttach）がPublishし、このシステム（Camera3D）はその後に動くため、
         // 被弾したフレームのうちに揺れ始める
         m_pendingShakeDamage += std::max(event.damage, 0.0f);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 大技通知のハンドラ
+    //-------------------------------------------------------------
+    void TpsCameraSystem::OnPlayerFinisher(const PlayerFinisherEvent& event) {
+        // 寄り始めるのはインパクトの瞬間（Updateで数える）
+        const float delay        = std::max(event.impactDelay, 0.0f);
+        m_pendingZoomImpactDelay = (m_pendingZoomImpactDelay < 0.0f) ? delay : std::min(m_pendingZoomImpactDelay, delay);
     }
     //-------------------------------------------------------------
     //! @brief システムの更新
@@ -125,11 +137,19 @@ namespace CombatAndroid::ECS {
         if(IsSkillSelectActive(registry)) {
             auto pausedView = registry.View<TpsCameraComponent>();
             pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
-            m_pendingShakeDamage = 0.0f;
+            m_pendingShakeDamage     = 0.0f;
+            m_pendingZoomImpactDelay = -1.0f;
             return;
         }
 
         Tsukino::Input::InputSystem* inputSystem = ctx->inputSystem;
+
+        //-------------------------------------------------------------
+        // 大技のスローが掛かっていない実時間。カメラの寄りはこちらで動かす
+        // （スローと同じ瞬間に寄り始めても、寄る速さまで遅くなると「素早く寄る」感じが消えるため）
+        //-------------------------------------------------------------
+        const float realDeltaTime =
+            registry.HasContext<WorldTimeContext>() ? registry.GetContext<WorldTimeContext>().realDeltaTime : deltaTime;
 
         //-------------------------------------------------------------
         // マウスの移動量を取得（このフレームの旋回入力）
@@ -222,22 +242,72 @@ namespace CombatAndroid::ECS {
 
             //-------------------------------------------------------------
             // ばねで追従する。初回と、リトライ等で目標が大きく飛んだときは
-            // ばねで引っ張ると画面を横切って飛んでくるので、目標へ置き直す
+            // ばねで引っ張ると画面を横切って飛んでくるので、目標へ置き直す。
+            // ばねの状態は大技のズームで寄るぶんを足す前の位置として別に持つ
             //-------------------------------------------------------------
-            float followGap = hlslpp::length(desiredPosition - transform.position);
+            float followGap = hlslpp::length(desiredPosition - tpsCamera.followSpringPosition);
             if(!tpsCamera.hasFollowSpringState || followGap > tpsCamera.followSpringResetDistance) {
-                transform.position             = desiredPosition;
+                tpsCamera.followSpringPosition = desiredPosition;
                 tpsCamera.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
                 tpsCamera.hasFollowSpringState = true;
             } else {
-                hlslpp::float3 position = transform.position;
-                StepSpring(position, tpsCamera.followSpringVelocity, desiredPosition, tpsCamera.followSpringFrequency,
+                StepSpring(tpsCamera.followSpringPosition, tpsCamera.followSpringVelocity, desiredPosition, tpsCamera.followSpringFrequency,
                            tpsCamera.followSpringDamping, deltaTime);
-                transform.position = position;
             }
-            transform.dirty = true;
 
             hlslpp::float3 lookAtTarget = targetTransform.position + hlslpp::float3(0.0f, tpsCamera.lookHeight, 0.0f);
+
+            //-------------------------------------------------------------
+            // 大技のズーム。
+            // インパクトの瞬間から zoomHoldAfterImpact のあいだ寄りの目標を1にし、切れたら0へ戻す。
+            //
+            // 世界のスロー（SlowMotionController）と同じ瞬間に寄り始めるよう、インパクトまでの待ちは
+            // スローと同じ数え方にする：どちらもゲーム内時間で数え、イベントを受けたフレームは数えず
+            // 次のフレームから減らす（スローはシーンが次のフレームの頭で進めるため）。
+            // そのため、既に待っているぶんを先に減らしてから、今フレーム届いたぶんを合流させる
+            //-------------------------------------------------------------
+            if(tpsCamera.zoomStartTimer >= 0.0f) {
+                tpsCamera.zoomStartTimer -= deltaTime;
+                if(tpsCamera.zoomStartTimer <= 0.0f) {
+                    tpsCamera.zoomStartTimer = -1.0f;
+                    tpsCamera.zoomHoldTimer  = std::max(tpsCamera.zoomHoldTimer, tpsCamera.zoomHoldAfterImpact);
+                }
+            }
+
+            if(m_pendingZoomImpactDelay >= 0.0f) {
+                tpsCamera.zoomStartTimer = (tpsCamera.zoomStartTimer < 0.0f) ? m_pendingZoomImpactDelay
+                                                                             : std::min(tpsCamera.zoomStartTimer, m_pendingZoomImpactDelay);
+            }
+
+            //-------------------------------------------------------------
+            // 寄りは素早く、戻りはゆっくりにしたいので、どちらへ向かうかでばねの速さを変える。
+            // 減衰比は1.0（行き過ぎ無し）にして、寄りきった所で画面が揺り戻さないようにする。
+            // 保持とばねは実時間で進める（インパクトまでの待ちだけはスローと揃えるためゲーム内時間）
+            //-------------------------------------------------------------
+            const float zoomTarget = (tpsCamera.zoomHoldTimer > 0.0f) ? 1.0f : 0.0f;
+            tpsCamera.zoomHoldTimer = std::max(tpsCamera.zoomHoldTimer - realDeltaTime, 0.0f);
+
+            const float zoomFrequency = (zoomTarget > 0.0f) ? tpsCamera.zoomInFrequency : tpsCamera.zoomOutFrequency;
+            StepSpring(tpsCamera.zoomAmount, tpsCamera.zoomVelocity, zoomTarget, zoomFrequency, 1.0f, realDeltaTime);
+
+            // 注視点へ向かって、距離を縮めるぶんだけ前進する
+            hlslpp::float3 cameraPosition = tpsCamera.followSpringPosition;
+            hlslpp::float3 toLookAt       = lookAtTarget - cameraPosition;
+            float          toLookAtLength = hlslpp::length(toLookAt);
+            if(toLookAtLength > 1.0e-3f) {
+                const float approach = tpsCamera.distance * (1.0f - tpsCamera.zoomDistanceScale) * tpsCamera.zoomAmount;
+                cameraPosition       = cameraPosition + (toLookAt / toLookAtLength) * std::min(approach, toLookAtLength * 0.9f);
+            }
+
+            transform.position = cameraPosition;
+            transform.dirty    = true;
+
+            // 画角はシーンが設定した値を基準にする（最初のフレームで覚える）
+            if(!tpsCamera.hasBaseFov) {
+                tpsCamera.baseFov    = camera.fov;
+                tpsCamera.hasBaseFov = true;
+            }
+            camera.fov = tpsCamera.baseFov * (1.0f + (tpsCamera.zoomFovScale - 1.0f) * tpsCamera.zoomAmount);
 
             //-------------------------------------------------------------
             // 被弾時の揺れ。
@@ -280,6 +350,7 @@ namespace CombatAndroid::ECS {
             camera.dirty        = true;
         });
 
-        m_pendingShakeDamage = 0.0f;
+        m_pendingShakeDamage     = 0.0f;
+        m_pendingZoomImpactDelay = -1.0f;
     }
 }    // namespace CombatAndroid::ECS
