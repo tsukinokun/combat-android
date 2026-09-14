@@ -105,8 +105,10 @@ namespace CombatAndroid::ECS {
             float fadeProgress = enemy.deathFadeDuration > 0.0f ? enemy.deathFadeTimer / enemy.deathFadeDuration : 1.0f;
             float opacity        = std::clamp(1.0f - fadeProgress, 0.0f, 1.0f);
 
-            if(auto* model = context.registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(context.entity))
+            if(auto* model = context.registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(context.entity)) {
                 model->opacity = opacity;
+                model->visible = opacity > 0.0f;
+            }
 
             if(fadeProgress >= 1.0f) {
                 // 消滅の直前にEXP玉ドロップ等の副作用処理へ通知する。
