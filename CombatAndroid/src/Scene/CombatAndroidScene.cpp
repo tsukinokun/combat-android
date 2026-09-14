@@ -1191,23 +1191,25 @@ namespace CombatAndroid {
             // 地肌が見えないよう手前の草そのものも太くする（本数だけでは1本あたりの
             // footprint が細いままなので、隣接する株の間に隙間が残ってしまう）
             grass.bladeCount = 65000;
-            grass.fieldSize  = 3600.0f;
+            grass.fieldSize  = 6000.0f;
 
-            // 遠景は地平線まで。TPSカメラは farZ = 2000・縦のfov 60度・横長（1700x1000）なので、
-            // 画面の左右の隅では奥行き2000の地点がカメラから水平に約2800離れている。
-            // 一辺5600（＝中心から2800）にして、画面の隅の地平線まで草を届かせる。
-            // 遠景の草は面積あたりの本数が近景の約4割なので、GrassFieldSystemが幅を約2.4倍に太らせる
-            grass.farFieldSize  = 5600.0f;
+            // 遠景は地平線まで。近景との比率（約1.5倍）を保って拡大し、外周フェードの
+            // 絶対距離も比例して遠くなるようにする（下のfadeStartRatioは比率なので変更不要）。
+            // 遠景の草は面積あたりの本数が近景より少ないので、GrassFieldSystemが幅を自動的に太らせる
+            grass.farFieldSize  = 9000.0f;
             grass.farBladeCount = 65000;
 
-            // 1300〜1700で近景から遠景へ本数を入れ替える（近景の外周1800より内側で終える）
-            grass.lodBlendStart = 1300.0f;
-            grass.lodBlendEnd   = 1700.0f;
+            // 敵の湧き半径（900〜1300、上のフォグのコメント参照）の外側に十分な余裕を
+            // 持たせ、通常の戦闘中には近景→遠景の切替帯（太さが変わって見える）へ
+            // 入らないようにする。帯の幅も400→600に広げ、入れ替わりを緩やかにする
+            // （近景の外周3000より内側で終える）
+            grass.lodBlendStart = 2200.0f;
+            grass.lodBlendEnd   = 2800.0f;
 
-            // 900より奥で塊の隙間を埋め始め、1700で草に覆いきる。
-            // これより奥では土が見えず、地平線まで草原が続いて見える
-            grass.horizonFillStart = 900.0f;
-            grass.horizonFillEnd   = 1700.0f;
+            // lodBlendStart/Endとの相対位置（従来の「400手前から埋め始め、切替完了と
+            // 同時に埋めきる」関係）を維持してスケールする
+            grass.horizonFillStart = 1500.0f;
+            grass.horizonFillEnd   = 2800.0f;
 
             // プレイヤーの身長が210ユニットなので、標準種で膝下くらいの丈になる
             grass.bladeWidth        = 5.5f;    // 種のwidthScaleが掛かる基準幅。地肌が見えないよう3.5→5.5に増やした
@@ -1252,8 +1254,8 @@ namespace CombatAndroid {
             grass.playerPushRadius   = 90.0f;
             grass.playerPushStrength = 1.2f;
 
-            // 遠景の外周（2800）の手前、2600から背を縮める。正面の地平線（奥行き2000）より
-            // 外なので、縮んでいく草は画面の隅にしか映らない
+            // 遠景の外周（4500）の手前、4185から背を縮める。farFieldSize拡大に比率で
+            // 追従するので、正面の地平線（奥行き2000）より十分外側のまま保たれる
             grass.fadeStartRatio = 0.93f;
         }
     }
