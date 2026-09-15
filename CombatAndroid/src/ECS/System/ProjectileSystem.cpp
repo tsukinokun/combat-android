@@ -88,7 +88,7 @@ namespace CombatAndroid::ECS {
 
 #ifdef _DEBUG
                 // 判定カプセルの可視化。見た目のエフェクトとどれだけずれているかを目視で詰める。
-                // 描画コマンドのフラッシュ（Renderer::FlushDebugDraw）はCombatSystemが毎フレーム
+                // 描画コマンドのフラッシュ（DebugDraw::Flush）はCombatSystemが毎フレーム
                 // 積んでおり、実行されるのは全システムの更新が終わった描画時なので、ここで足した線も一緒に出る
                 if(ctx->renderer) {
                     DrawWireCapsule(ctx->renderer, sweepCenter, sweepRotation, projectile.radius, halfHeight,

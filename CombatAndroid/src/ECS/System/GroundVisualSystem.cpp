@@ -161,33 +161,33 @@ namespace CombatAndroid::ECS {
         if(!vsAsset || !psAsset)
             return;
 
-        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline = ctx->renderer->GetPipelineFactory()->Create(
+        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline = ctx->renderer->GetResources().GetPipelineFactory()->Create(
             *vsAsset, *psAsset, Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV, Tsukino::Renderer::DepthMode::ReadWrite,
             Tsukino::Renderer::BlendMode::Opaque);
 
         if(!pipeline)
             return;
 
-        Tsukino::Renderer::Material& material = ctx->renderer->AllocMaterial();
+        Tsukino::Renderer::Material& material = ctx->renderer->GetDrawQueue().AllocMaterial();
         material.SetPipeline(pipeline.get());
         // AnisotropicWrap：タイル張り（UVが0〜1を超えて繰り返す）かつ、地面を
         // 斜めに見下ろす角度でもぼやけにくい異方性フィルタのサンプラー
-        material.SetSampler(ctx->renderer->GetSampler(Tsukino::GraphicsCommon::SamplerType::AnisotropicWrap));
+        material.SetSampler(ctx->renderer->GetResources().GetSampler(Tsukino::GraphicsCommon::SamplerType::AnisotropicWrap));
 
-        ID3D11ShaderResourceView* albedoSRV = textureAsset ? ctx->renderer->GetTextureSRV(*textureAsset) : nullptr;
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, albedoSRV ? albedoSRV : ctx->renderer->GetWhiteTextureSRV());
+        ID3D11ShaderResourceView* albedoSRV = textureAsset ? ctx->renderer->GetResources().GetTextureSRV(*textureAsset) : nullptr;
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, albedoSRV ? albedoSRV : ctx->renderer->GetResources().GetWhiteTextureSRV());
 
         // ノーマルマップは使わない。フラット法線を入れると頂点法線（真上）がそのまま残る
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, ctx->renderer->GetFlatNormalTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, ctx->renderer->GetWhiteTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, ctx->renderer->GetWhiteTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ctx->renderer->GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, ctx->renderer->GetResources().GetFlatNormalTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, ctx->renderer->GetResources().GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, ctx->renderer->GetResources().GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ctx->renderer->GetResources().GetWhiteTextureSRV());
 
         //--------------------------------------------------------------
         // マテリアル定数。土は金属ではないので metallic は0、
         // 表面はざらついているので roughness は高め（草より少し高くする）
         //--------------------------------------------------------------
-        Tsukino::Renderer::CBufferMaterial& materialData = ctx->renderer->AllocMaterialData();
+        Tsukino::Renderer::CBufferMaterial& materialData = ctx->renderer->GetDrawQueue().AllocMaterialData();
         materialData            = Tsukino::Renderer::CBufferMaterial{};
         materialData.baseColor  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
         materialData.emissive   = hlslpp::float3(0.0f, 0.0f, 0.0f);
@@ -220,6 +220,6 @@ namespace CombatAndroid::ECS {
         cmd.userConstantBuffer = m_paramBuffer.buffer.Get();
         cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
 
-        ctx->renderer->PushDrawCommand(cmd);
+        ctx->renderer->GetDrawQueue().Push(cmd);
     }
 }    // namespace CombatAndroid::ECS

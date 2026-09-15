@@ -32,7 +32,7 @@ namespace CombatAndroid::ECS {
                 {center.x + std::cos(angle) * radius, center.y, center.z + std::sin(angle) * radius},
                 {color.x, color.y, color.z, color.w}
             };
-            renderer->DrawDebugLine(prev, next);
+            renderer->GetDebugDraw().DrawLine(prev, next);
             prev = next;
         }
     }
@@ -64,7 +64,7 @@ namespace CombatAndroid::ECS {
                     {pos.x, pos.y, pos.z},
                     {color.x, color.y, color.z, color.w}
                 };
-                renderer->DrawDebugLine(prev, next);
+                renderer->GetDebugDraw().DrawLine(prev, next);
                 prev = next;
             }
         };
@@ -99,7 +99,7 @@ namespace CombatAndroid::ECS {
             hlslpp::float3 offset = axisX * (std::cos(angle) * radius) + axisZ * (std::sin(angle) * radius);
             hlslpp::float3 a      = top + offset;
             hlslpp::float3 b      = bottom + offset;
-            renderer->DrawDebugLine(
+            renderer->GetDebugDraw().DrawLine(
                 Tsukino::GraphicsCommon::DebugVertex{{a.x, a.y, a.z}, {color.x, color.y, color.z, color.w}},
                 Tsukino::GraphicsCommon::DebugVertex{{b.x, b.y, b.z}, {color.x, color.y, color.z, color.w}});
         }

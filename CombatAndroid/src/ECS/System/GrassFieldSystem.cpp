@@ -215,7 +215,7 @@ namespace CombatAndroid::ECS {
             //----------------------------------------------------------
             if(Tsukino::Core::Ref<Tsukino::Asset::IAsset> existing = context.assetManager->Get(handle)) {
                 auto texture = std::static_pointer_cast<Tsukino::Asset::TextureAsset>(existing);
-                return context.renderer->GetTextureSRV(*texture);
+                return context.renderer->GetResources().GetTextureSRV(*texture);
             }
 
             //----------------------------------------------------------
@@ -260,7 +260,7 @@ namespace CombatAndroid::ECS {
             texture->SetHandle(handle);
             context.assetManager->RegisterAsset(handle, texture);
 
-            return context.renderer->GetTextureSRV(*texture);
+            return context.renderer->GetResources().GetTextureSRV(*texture);
         }
 
         //--------------------------------------------------------------
@@ -525,34 +525,34 @@ namespace CombatAndroid::ECS {
         if(!vsAsset || !psAsset)
             return;
 
-        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline = ctx->renderer->GetPipelineFactory()->Create(
+        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline = ctx->renderer->GetResources().GetPipelineFactory()->Create(
             *vsAsset, *psAsset, Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV, Tsukino::Renderer::DepthMode::ReadWrite,
             Tsukino::Renderer::BlendMode::Opaque);
 
         if(!pipeline)
             return;
 
-        Tsukino::Renderer::Material& material = ctx->renderer->AllocMaterial();
+        Tsukino::Renderer::Material& material = ctx->renderer->GetDrawQueue().AllocMaterial();
         material.SetPipeline(pipeline.get());
-        material.SetSampler(ctx->renderer->GetSampler(Tsukino::GraphicsCommon::SamplerType::LinearClamp));
+        material.SetSampler(ctx->renderer->GetResources().GetSampler(Tsukino::GraphicsCommon::SamplerType::LinearClamp));
 
         // アルベドに種ごとの根元→先端グラデーションを差す。頂点シェーダーが
         // 選んだ種に応じてUVのvを自分の帯へずらして出すので、これだけで
         // 種ごとの色分けが出る
         ID3D11ShaderResourceView* gradientSRV = GetGradientSRV(*ctx, activeField->species);
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, gradientSRV ? gradientSRV : ctx->renderer->GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, gradientSRV ? gradientSRV : ctx->renderer->GetResources().GetWhiteTextureSRV());
 
         // ノーマルマップは使わない。フラット法線を入れると頂点法線がそのまま残る
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, ctx->renderer->GetFlatNormalTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, ctx->renderer->GetWhiteTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, ctx->renderer->GetWhiteTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ctx->renderer->GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, ctx->renderer->GetResources().GetFlatNormalTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, ctx->renderer->GetResources().GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, ctx->renderer->GetResources().GetWhiteTextureSRV());
+        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ctx->renderer->GetResources().GetWhiteTextureSRV());
 
         //--------------------------------------------------------------
         // マテリアル定数。草は金属ではないので metallic は0、
         // 表面はざらついているので roughness は高め
         //--------------------------------------------------------------
-        Tsukino::Renderer::CBufferMaterial& materialData = ctx->renderer->AllocMaterialData();
+        Tsukino::Renderer::CBufferMaterial& materialData = ctx->renderer->GetDrawQueue().AllocMaterialData();
         materialData            = Tsukino::Renderer::CBufferMaterial{};
         materialData.baseColor  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
         materialData.emissive   = hlslpp::float3(0.0f, 0.0f, 0.0f);
@@ -610,7 +610,7 @@ namespace CombatAndroid::ECS {
             cmd.userConstantBuffer = buffer.buffer.Get();
             cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
 
-            ctx->renderer->PushDrawCommand(cmd);
+            ctx->renderer->GetDrawQueue().Push(cmd);
         }
     }
 }    // namespace CombatAndroid::ECS
