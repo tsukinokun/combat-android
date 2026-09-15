@@ -233,6 +233,7 @@ namespace CombatAndroid::ECS {
         config.moveSpeed                = 100.0f;
         config.maxHealth                = 40.0f;
         config.modelPath                = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx");
+        assetManager.Load(config.modelPath);
         config.scale                    = hlslpp::float3(1.04f, 1.04f, 1.04f);
         config.bodyRadius               = 35.0f;
         config.bodyHalfHeight           = 70.0f;
@@ -281,6 +282,7 @@ namespace CombatAndroid::ECS {
         config.moveSpeed      = 70.0f;
         config.maxHealth      = 150.0f;
         config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/BigZombie.fbx");
+        assetManager.Load(config.modelPath);
         config.scale          = hlslpp::float3(1.08f, 1.08f, 1.08f);
         config.bodyRadius     = 37.0f;
         config.bodyHalfHeight = 73.0f;
@@ -381,6 +383,7 @@ namespace CombatAndroid::ECS {
         config.moveSpeed      = 110.0f;
         config.maxHealth      = 200.0f;
         config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/Paladin.fbx");
+        assetManager.Load(config.modelPath);
         config.scale          = hlslpp::float3(1.275f, 1.275f, 1.275f);
         config.bodyRadius     = 37.0f;
         config.bodyHalfHeight = 73.0f;
