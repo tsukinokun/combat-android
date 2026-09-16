@@ -57,7 +57,8 @@ namespace CombatAndroid::ECS {
                           // （EnemyDiedEvent、Movementで動くBTから発火）の後、かつプレイヤーの今フレームの
                           // 位置（Movementで確定済み）を吸い寄せ先に使うため、DamageNumberと同じ並びでよい
         EnemyWeaponDrop,    // 敵が持っていた武器を地面へ落とす。EXP玉と同じくEnemyDiedEventを
-                            // 購読するだけなので、ExpOrbと同じ並びでよい
+                            // 購読するだけなので、ExpOrbと同じ並びでよい。落下の補間もここで進めるため、
+                            // 手への追従を書くWeaponAttachより後、TransformLateより前である必要がある
         PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                           // （ExpOrbが確定）の両方より後に置く
         InputPrompt,      // 操作を促すUI（キーキャップ・長押しゲージ）の表示判断と値の反映。

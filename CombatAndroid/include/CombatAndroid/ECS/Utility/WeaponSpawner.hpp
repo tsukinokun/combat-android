@@ -148,4 +148,17 @@ namespace CombatAndroid::ECS {
     void DropWeaponToWorld(Tsukino::ECS::Registry& registry,
                            Tsukino::ECS::Entity weaponEntity,
                            const hlslpp::float3& groundPosition);
+
+    //-------------------------------------------------------------
+    //! @brief  所有者の手から外し、今の姿勢から地面へ落ち始めさせる関数
+    //! @param  registry       [in]     エンティティレジストリ
+    //! @param  weaponEntity   [in]     対象の武器エンティティ
+    //! @param  groundPosition [in]     着地位置（yは接地高さへ差し替えてから渡すこと）
+    //! @note   ownerを外してWeaponDropFallComponentを付けるだけで、位置はまだ動かさない。
+    //!         落下の補間と着地時のDropWeaponToWorldはEnemyWeaponDropSystemが行う。
+    //!         コンポーネント構成が変わるので、必ずViewの反復の外側から呼ぶこと
+    //-------------------------------------------------------------
+    void BeginWeaponDrop(Tsukino::ECS::Registry& registry,
+                         Tsukino::ECS::Entity weaponEntity,
+                         const hlslpp::float3& groundPosition);
 }    // namespace CombatAndroid::ECS

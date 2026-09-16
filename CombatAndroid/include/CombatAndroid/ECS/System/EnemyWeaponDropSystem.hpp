@@ -16,7 +16,8 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @class  EnemyWeaponDropSystem
     //! @brief  EnemyDiedEventを購読し、敵が手に持っていた武器を死亡位置の地面へ落とすシステム。
-    //!         落とした武器はPickupComponentを持つ「拾える武器」になり、以降は
+    //!         武器は手を離れた瞬間の姿勢から地面に横たわる姿勢へ補間しながら落ち
+    //!         （WeaponDropFallComponent）、着地するとPickupComponentを持つ「拾える武器」になり、以降は
     //!         手置きの武器とまったく同じくPickupSystemがFキーでの取得を処理する
     //! @note   武器は敵の生成時（SpawnBehaviorEnemy）に作られた実体をそのまま使い回す。
     //!         作り直さないので、WeaponSpawner::ConfigureWeaponが焼き込んだ性能

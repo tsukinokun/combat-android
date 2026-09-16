@@ -7,6 +7,7 @@
 
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponDropFallComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -334,5 +335,35 @@ namespace CombatAndroid::ECS {
             PickupComponent& pickup = registry.AddComponent<PickupComponent>(weaponEntity);
             pickup.displayName      = GetWeaponSpawnDefinition(weapon.weaponId).displayName;
         }
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 所有者の手から外し、今の姿勢から地面へ落ち始めさせる
+    //-------------------------------------------------------------
+    void BeginWeaponDrop(Tsukino::ECS::Registry& registry,
+                         Tsukino::ECS::Entity weaponEntity,
+                         const hlslpp::float3& groundPosition) {
+        // DropWeaponToWorldと同じく、敵が間引かれた等で既に破棄されている場合に備える
+        if(!registry.IsValid(weaponEntity) || !registry.HasComponent<WeaponComponent>(weaponEntity)
+           || !registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponEntity))
+            return;
+
+        // 二重にドロップされた場合は、落下を最初からやり直さない
+        if(registry.HasComponent<WeaponDropFallComponent>(weaponEntity))
+            return;
+
+        // 未所有にして、次のCombatSystem更新から手ボーンへの追従を止める。
+        // 持ち方のリセットやPickupComponentの付与は着地時のDropWeaponToWorldに任せる
+        registry.GetComponent<WeaponComponent>(weaponEntity).owner = entt::null;
+
+        const Tsukino::BuiltIn::ECS::TransformComponent& transform =
+            registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponEntity);
+
+        WeaponDropFallComponent& fall = registry.AddComponent<WeaponDropFallComponent>(weaponEntity);
+        fall.startPosition            = transform.position;
+        fall.startRotation            = transform.rotation;
+        fall.groundPosition           = groundPosition;
+        fall.groundRotation           = kLyingRotation;    // DropWeaponToWorldが着地時に書く姿勢と揃える
+        fall.timer                    = 0.0f;
     }
 }    // namespace CombatAndroid::ECS
