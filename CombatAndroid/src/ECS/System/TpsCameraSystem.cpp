@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
@@ -127,14 +127,18 @@ namespace CombatAndroid::ECS {
             return;
 
         //-------------------------------------------------------------
-        // スキル選択メニュー中はカメラの旋回を止める。
+        // メニュー（スキル選択・ポーズ・リザルト）中はカメラの旋回を止め、カーソルを解放する。
         // 下のyaw/pitchの加算はdeltaTimeを掛けていないため、シーンがdeltaTime=0を
         // 渡してきても回り続けてしまう（追従の補間だけが止まり、メニューを閉じた瞬間に
         // 溜まった角度へ一気に振れる）。
         // 併せてwasCapturedLastFrameを倒しておくと、復帰後の最初の1フレームぶんの
         // マウス移動量は上の「キャプチャ復帰フレームは旋回に使わない」分岐が捨ててくれる
         //-------------------------------------------------------------
-        if(IsSkillSelectActive(registry)) {
+        if(IsGameplayFrozen(registry)) {
+            // ポーズ中にウィンドウを動かしたり他のアプリへ移ったりできるよう、カーソルを出す
+            if(ctx->window)
+                ctx->window->SetCursorVisible(true);
+
             auto pausedView = registry.View<TpsCameraComponent>();
             pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
             m_pendingShakeDamage     = 0.0f;
@@ -182,13 +186,7 @@ namespace CombatAndroid::ECS {
             Tsukino::BuiltIn::ECS::TransformComponent& targetTransform =
                 registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(tpsCamera.target);
 
-            //-------------------------------------------------------------
-            // Escキーでマウスキャプチャ（カーソル非表示＋旋回操作）のON/OFFを切り替える
-            //-------------------------------------------------------------
-            if(windowFocused && inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Escape)) {
-                tpsCamera.mouseCaptured = !tpsCamera.mouseCaptured;
-            }
-
+            // Escはポーズメニュー（PauseMenuSystem）が使う。キャプチャを外したいときはポーズを開く
             bool shouldCapture = tpsCamera.mouseCaptured && windowFocused;
 
             if(ctx->window)

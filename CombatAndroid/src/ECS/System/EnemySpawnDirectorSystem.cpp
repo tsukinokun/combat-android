@@ -89,6 +89,10 @@ namespace CombatAndroid::ECS {
         const float rampT = std::clamp(elapsedSeconds / kIntervalRampSeconds, 0.0f, 1.0f);
         m_spawnTimer       = kIntervalStart + (kIntervalEnd - kIntervalStart) * rampT;
 
+        // クリア前のラスト1分は、詰めきった間隔をさらに縮めて山場にする
+        if(elapsedSeconds >= kRunClearSeconds - kRunFinalStretchSeconds)
+            m_spawnTimer *= kFinalStretchIntervalScale;
+
         //---------------------------------------------------------
         // 上限判定はシーン手置き・負荷試験が湧かせた分も含めた総数で行う。
         // こうしておくと、負荷試験（F1）で数百体出ている間は本Systemが

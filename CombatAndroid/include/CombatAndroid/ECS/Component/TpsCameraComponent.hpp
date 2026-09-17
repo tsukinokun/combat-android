@@ -87,7 +87,7 @@ namespace CombatAndroid::ECS {
         float minHeightAboveGround = 70.0f;    //!< カメラが地面から最低限保つ高さ。一番背の高い草（46 × ばらつき1.35 ≒ 62）の穂先より上に置き、草の中へ潜らせない
 
         // --- マウスキャプチャ（カーソル非表示＋中央固定）の状態 ---
-        bool mouseCaptured        = true;     //!< true: カーソルを隠して旋回操作に使う（Escキーで切り替え可能）
+        bool mouseCaptured        = true;     //!< true: カーソルを隠して旋回操作に使う（メニュー表示中はTpsCameraSystemがカーソルを出す）
         bool wasCapturedLastFrame = false;    //!< 直前フレームで実際にキャプチャされていたか（復帰時の誤入力防止用）
     };
 }    // namespace CombatAndroid::ECS

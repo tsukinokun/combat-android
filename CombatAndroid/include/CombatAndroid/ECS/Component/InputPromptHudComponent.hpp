@@ -31,8 +31,5 @@ namespace CombatAndroid::ECS {
 
         //! スキル選択：決定の[F]
         InputPromptWidget skillConfirmPrompt;
-
-        //! リトライ：[SPACE]。GAME OVER表示中だけ画面固定で出す
-        InputPromptWidget retryPrompt;
     };
 }    // namespace CombatAndroid::ECS

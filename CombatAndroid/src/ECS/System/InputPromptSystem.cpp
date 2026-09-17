@@ -9,9 +9,9 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
-#include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/InputPromptWidget.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -39,8 +39,6 @@ namespace CombatAndroid::ECS {
         constexpr float kSkillPromptUpOffsetY      = -75.0f;    //!< 画面中心から見た[W]のY
         constexpr float kSkillPromptDownOffsetY    = 20.0f;     //!< 同じく[S]のY
         constexpr float kSkillPromptConfirmOffsetY = 165.0f;    //!< 同じく決定[F]のY
-
-        constexpr float kRetryPromptOffsetY = 110.0f;    //!< 画面中心から見たリトライ[SPACE]のY（GAME OVERの下）
 
         constexpr float kModalPromptScale = 1.15f;    //!< モーダル上のプロンプトは少し大きく見せる
 
@@ -72,6 +70,8 @@ namespace CombatAndroid::ECS {
             return;
 
         const bool skillSelectActive = IsSkillSelectActive(registry);
+        // ポーズ・リザルトも含めて進行を止めている間は、ゲーム中の操作案内（拾う・溜め）を出さない
+        const bool gameplayFrozen = IsGameplayFrozen(registry);
 
         const float screenWidth   = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
         const float screenHeight  = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
@@ -84,7 +84,7 @@ namespace CombatAndroid::ECS {
             // 拾う：範囲内に対象がいるときだけ、対象の頭上に [F] と上向き矢印と名前を出す。
             // メニュー中はFが決定に取られる（PickupSystemも同じ理由で早期リターンしている）ので消す
             //-------------------------------------------------------------
-            const bool canShowPickup = !skillSelectActive && player.pickupTarget != entt::null
+            const bool canShowPickup = !gameplayFrozen && player.pickupTarget != entt::null
                                        && registry.HasComponent<PickupComponent>(player.pickupTarget);
 
             if(canShowPickup) {
@@ -104,7 +104,7 @@ namespace CombatAndroid::ECS {
             // 進行度は「強制解放までの時間」に対する割合なので、ゲージが一周した瞬間に解放される
             //-------------------------------------------------------------
             const bool isCharging =
-                !skillSelectActive && player.isCharging && registry.HasComponent<PlayerAnimationSetComponent>(playerEntity);
+                !gameplayFrozen && player.isCharging && registry.HasComponent<PlayerAnimationSetComponent>(playerEntity);
 
             if(isCharging) {
                 const PlayerAnimationSetComponent& animSet = registry.GetComponent<PlayerAnimationSetComponent>(playerEntity);
@@ -138,23 +138,6 @@ namespace CombatAndroid::ECS {
                 HideInputPrompt(registry, hud.skillUpPrompt);
                 HideInputPrompt(registry, hud.skillDownPrompt);
                 HideInputPrompt(registry, hud.skillConfirmPrompt);
-            }
-
-            //-------------------------------------------------------------
-            // リトライ：GAME OVERのテキストが出てからだけ [SPACE] を出す。
-            // GameOverSystemが表示したフレームは入力を拾わないので、UIもそれに合わせて
-            // overlayShownを見る（先にキーだけ出て押しても効かない、という状態を作らない）
-            //-------------------------------------------------------------
-            const bool showRetry = registry.HasComponent<GameOverComponent>(playerEntity)
-                                   && registry.GetComponent<GameOverComponent>(playerEntity).overlayShown;
-
-            if(showRetry) {
-                InputPromptStyle style;
-                style.scale = kModalPromptScale;
-
-                ShowInputPromptAtScreen(registry, *ctx, hud.retryPrompt, screenCenterX, screenCenterY + kRetryPromptOffsetY, style);
-            } else {
-                HideInputPrompt(registry, hud.retryPrompt);
             }
         });
     }

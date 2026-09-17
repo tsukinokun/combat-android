@@ -24,7 +24,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct SkillSelectComponent
     //! @brief  レベルアップ時のスキル選択メニューの状態。
-    //!         GameOverComponent / PlayerHudComponentと同じく、UIエンティティのハンドルごと
+    //!         RunResultComponent / PlayerHudComponentと同じく、UIエンティティのハンドルごと
     //!         プレイヤーエンティティに1つだけ付ける
     //-------------------------------------------------------------
     struct SkillSelectComponent {
@@ -36,7 +36,7 @@ namespace CombatAndroid::ECS {
         std::array<SkillId, kSkillChoiceMax> candidates{};    //!< 今回提示しているスキル
 
         //! メニューを開いた最初のフレームか。表示した瞬間のフレームで
-        //! そのまま決定入力を拾わないようにするための1フレーム待ち（GameOverSystemと同じ流儀）
+        //! そのまま決定入力を拾わないようにするための1フレーム待ち（RunResultSystemと同じ流儀）
         bool openedThisFrame = false;
 
         //! 決定した後、あと何フレーム入力の遮断を続けるか。

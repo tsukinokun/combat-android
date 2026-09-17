@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
@@ -21,11 +21,11 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void EnemyBehaviorSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
         //-------------------------------------------------------------
-        // スキル選択メニュー中は敵の思考ごと止める。BTの移動アクションが
+        // メニュー（スキル選択・ポーズ・リザルト）中は敵の思考ごと止める。BTの移動アクションが
         // CharacterControllerComponent::moveInputを書くため、放っておくと
         // SkillSelectSystemが打ち消した値が毎フレーム戻されてしまう
         //-------------------------------------------------------------
-        if(IsSkillSelectActive(registry))
+        if(IsGameplayFrozen(registry))
             return;
 
         //-------------------------------------------------------------

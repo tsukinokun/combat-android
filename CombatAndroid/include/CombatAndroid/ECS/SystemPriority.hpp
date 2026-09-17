@@ -32,6 +32,8 @@ namespace CombatAndroid::ECS {
                           // 併せてメニュー表示中はCharacterControllerComponent::moveInputを毎フレーム潰す：
                           // PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップするため、
                           // シーン側でdeltaTime=0にするだけではキャラクタが滑り続けてしまう
+        PauseMenu,        // Escのポーズメニュー。SkillSelectと同じ理由（PlayerSystemが同じフレームの入力を
+                          // 読む前に割り込み、開いている間はmoveInputを潰す）でMovementより前に置く
         Movement,         // プレイヤー入力・敵AIの移動をTransformの後、Physicsの前に反映する
         GroundFollow,     // 地面（Kinematicボディ）をプレイヤーへ追従させる。Movementでその回の
                           // プレイヤー位置が確定した直後に行う。Kinematicボディの物理側への同期は

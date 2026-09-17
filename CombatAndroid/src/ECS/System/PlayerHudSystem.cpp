@@ -150,7 +150,7 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 生存時間：mm:ss形式で画面上部中央に表示する。
+            // 生存時間：「経過 / クリア目標」を分:秒で画面上部中央に表示する。
             // 加算はRunClockSystemが行うため、ここは表示だけを受け持つ
             //-------------------------------------------------------------
             if(hud.survivalTimeTextEntity != entt::null) {
@@ -164,7 +164,9 @@ namespace CombatAndroid::ECS {
                     if(secondsText.size() < 2)
                         secondsText.insert(0, L"0");
 
-                    survivalTimeFont->text = minutesText + L":" + secondsText;
+                    // クリアまでの目標も並べて、あとどれだけ生き延びればよいかを見せる
+                    survivalTimeFont->text = minutesText + L":" + secondsText + L" / "
+                                             + std::to_wstring(static_cast<int>(kRunClearSeconds) / 60) + L":00";
                 }
             }
 

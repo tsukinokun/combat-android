@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerSystem.hpp>
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
@@ -36,13 +36,13 @@ namespace CombatAndroid::ECS {
             return;
 
         //-------------------------------------------------------------
-        // スキル選択メニュー中は入力を一切読まない。決定のスペースは回避、
+        // メニュー（スキル選択・ポーズ・リザルト）中は入力を一切読まない。決定のスペースは回避、
         // カーソル移動のホイールは武器切り替えと衝突するため、
         // ここで読んでしまうとメニュー操作がそのままゲーム操作にもなってしまう。
-        // moveInputの打ち消しはSkillSelectSystem（本Systemより前に走る）が行うので、
+        // moveInputの打ち消しは各メニューのSystem（本Systemより前に走る）が行うので、
         // ここは何も書かずに抜けてよい
         //-------------------------------------------------------------
-        if(IsSkillSelectActive(registry))
+        if(IsGameplayFrozen(registry))
             return;
 
         Tsukino::Input::InputSystem* inputSystem = ctx->inputSystem;

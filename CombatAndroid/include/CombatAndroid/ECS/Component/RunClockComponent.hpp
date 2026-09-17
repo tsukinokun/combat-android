@@ -9,7 +9,7 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct RunClockComponent
-    //! @brief  1回の走行（シーン開始から死亡まで）の経過時間と危険度をまとめて持つコンポーネント。
+    //! @brief  1回の走行（シーン開始から死亡・クリアまで）の経過時間と危険度をまとめて持つコンポーネント。
     //!         プレイヤーエンティティに付け、RunClockSystemだけが書き込む。
     //! @note   以前は同じ量の時計が2本あった。EnemySpawnDirectorSystem::m_elapsedSeconds
     //!         （死んでも止まらない）と PlayerHudComponent::survivalTime（死ぬと止まる）で、
@@ -27,4 +27,12 @@ namespace CombatAndroid::ECS {
     //! rankUpFlashTimerの初期値（秒）。RunClockSystemが立て、PlayerHudSystemが
     //! 残り時間の割合を演出の強さとして読むため、両者が同じ値を見る必要がある
     inline constexpr float kRankUpFlashDuration = 1.6f;
+
+    //! この秒数を生き延びたらクリア（RunResultSystemが判定する）。
+    //! 危険度テーブルの最終段（危険度10＝540秒）から1分を戦い抜いたところで区切る
+    inline constexpr float kRunClearSeconds = 600.0f;
+
+    //! クリアまでの残りがこの秒数を切ったら「ラスト1分」として湧きを強める
+    //!（EnemySpawnDirectorSystem）。RunClockSystemが切り替わる瞬間に取得ログを出す
+    inline constexpr float kRunFinalStretchSeconds = 60.0f;
 }    // namespace CombatAndroid::ECS

@@ -13,6 +13,8 @@
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 #include <Tsukino/Engine/Asset/Texture/TextureAsset.hpp>
 
+#include <Tsukino/Core/Path.hpp>
+
 #include <entt/entt.hpp>
 
 #include <memory>
@@ -101,6 +103,46 @@ namespace CombatAndroid::ECS {
 
         font->text  = text;
         font->color = color;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 画面固定の単色矩形エンティティを非表示で作る
+    //-------------------------------------------------------------
+    Tsukino::ECS::Entity CreateUiRectEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                            int sortOrder) {
+        Tsukino::ECS::Entity entity = registry.CreateEntity();
+
+        Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
+        transform.scale                                       = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 面積ゼロの間は描画されない
+        transform.dirty                                       = true;
+
+        Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity);
+        sprite.sortOrder                                = sortOrder;
+        if(context.assetManager)
+            sprite.textureHandle = context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+
+        return entity;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 画面固定の文字エンティティを非表示で作る
+    //-------------------------------------------------------------
+    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align) {
+        Tsukino::ECS::Entity entity = registry.CreateEntity();
+
+        Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
+        transform.dirty                                       = true;
+
+        // fontHandle未設定 → builtinAssetsの既定フォントが使われるので日本語をそのまま渡してよい
+        Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
+        font.text                                   = L"";
+        font.sortOrder                              = sortOrder;
+        font.horizontalAlign = (align == UiTextAlign::Center) ? Tsukino::BuiltIn::ECS::HorizontalAlign::Center : Tsukino::BuiltIn::ECS::HorizontalAlign::Left;
+        font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
+        font.outlineColor    = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+        font.outlineWidth    = 3.0f;
+
+        return entity;
     }
 
     //-------------------------------------------------------------

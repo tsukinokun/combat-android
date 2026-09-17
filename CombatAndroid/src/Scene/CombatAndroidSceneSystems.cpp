@@ -32,7 +32,8 @@
 #include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
-#include <CombatAndroid/ECS/System/GameOverSystem.hpp>
+#include <CombatAndroid/ECS/System/PauseMenuSystem.hpp>
+#include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
@@ -101,6 +102,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::Transform);
         // レベルアップ時のスキル選択。PlayerSystemが同じフレームの入力を消費する前に割り込む
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillSelectSystem>(), (int)ECS::SystemPriority::SkillSelect);
+        // Escのポーズメニュー。スキル選択と同じく、PlayerSystemが同じフレームの入力を消費する前に割り込む
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PauseMenuSystem>(), (int)ECS::SystemPriority::PauseMenu);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSystem>(), (int)ECS::SystemPriority::Movement);
         // 敵は全てBehaviorTreeComponentを持つBT駆動（歩いて近づき、射程内で攻撃・被弾でノックバック・死亡演出）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyBehaviorSystem>(), (int)ECS::SystemPriority::Movement);
@@ -169,8 +172,13 @@ namespace CombatAndroid {
             m_scene.AddSystem(playerDamageEffectSystem, (int)ECS::SystemPriority::PlayerHud);
             playerDamageEffectSystem->Initialize(eventBus);
         }
-        // 死亡演出からGAME OVER表示・リトライまでの進行。HP確定（isDead）の後であればよい
-        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GameOverSystem>(), (int)ECS::SystemPriority::PlayerHud);
+        {
+            // 走行の終わり（死亡・クリア）の判定からリザルト表示・リトライまで。
+            // HP確定（isDead）と生存時間（RunClock）の後であればよい。撃破数はEnemyDiedEventで数える
+            auto runResultSystem = std::make_shared<CombatAndroid::ECS::RunResultSystem>();
+            m_scene.AddSystem(runResultSystem, (int)ECS::SystemPriority::PlayerHud);
+            runResultSystem->Initialize(eventBus);
+        }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformLate);
         {
             // PlayerDamagedEventを購読して、被弾したらカメラを揺らす。

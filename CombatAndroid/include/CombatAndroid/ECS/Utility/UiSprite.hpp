@@ -25,6 +25,37 @@ namespace Tsukino::EngineIntegration {
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
+    //! @enum   UiTextAlign
+    //! @brief  文字の横方向の基準
+    //-------------------------------------------------------------
+    enum class UiTextAlign {
+        Left,      //!< 指定したXが文字列の左端
+        Center,    //!< 指定したXが文字列の中心
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  画面固定の単色矩形（WhitePixel.pngを着色する）エンティティを非表示で作る
+    //! @param  registry  [in] ECSレジストリ
+    //! @param  context   [in] エンジンコンテキスト（テクスチャのロードに使う）
+    //! @param  sortOrder [in] 描画層（CombatAndroid/UI/UiSortOrder.hpp）
+    //! @return 作ったエンティティ。表示はStretchSpriteで行う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    Tsukino::ECS::Entity CreateUiRectEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                            int sortOrder);
+
+    //-------------------------------------------------------------
+    //! @brief  画面固定の文字エンティティを非表示（空文字）で作る
+    //! @param  registry  [in] ECSレジストリ
+    //! @param  sortOrder [in] 描画層（CombatAndroid/UI/UiSortOrder.hpp）
+    //! @param  align     [in] 横方向の基準
+    //! @return 作ったエンティティ。表示はPlaceUiTextで行う
+    //! @note   縦は中央揃え。暗転板の上でも明るい景色の上でも読めるよう、黒い縁取りを付ける
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align);
+
+    //-------------------------------------------------------------
     //! @brief  スプライトを中心座標・ピクセル寸法・色で配置する
     //! @param  registry  [in] ECSレジストリ
     //! @param  context   [in] エンジンコンテキスト（テクスチャの実寸を引くのに使う）

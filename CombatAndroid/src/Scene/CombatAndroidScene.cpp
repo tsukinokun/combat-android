@@ -27,7 +27,8 @@
 #include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
-#include <CombatAndroid/ECS/Component/GameOverComponent.hpp>
+#include <CombatAndroid/ECS/Component/PauseMenuComponent.hpp>
+#include <CombatAndroid/ECS/Component/RunResultComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
@@ -37,8 +38,8 @@
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
-// スキル選択中かどうかの問い合わせ（OnUpdateで使う）
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -149,7 +150,7 @@ namespace CombatAndroid {
         // ウォーハンマー3段目のAoE(範囲攻撃)エフェクトのロードは WeaponSpawner の
         // ConfigureWeapon 側へ移した。AssetManager がパスでキャッシュするため、
         // 何本生成しても実際のロードは1回で済む
-        // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。GameOverSystem参照）
+        // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。RunResultSystem参照）
         Tsukino::Asset::AssetHandle deathAnimHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
 
@@ -504,13 +505,6 @@ namespace CombatAndroid {
             skillConfirmDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
             skillConfirmDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillConfirmPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillConfirmDesc);
-
-            // リトライ：GAME OVERより手前に出したいのでモーダル用の層を使う
-            CombatAndroid::ECS::InputPromptDesc retryDesc;
-            retryDesc.keyLabel      = L"SPACE";
-            retryDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
-            retryDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
-            inputPromptHud.retryPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, retryDesc);
         }
 
         // InputPromptSystemはPlayerComponentと同じエンティティに付いた束を引く
@@ -781,38 +775,33 @@ namespace CombatAndroid {
             damageEffect.screenFlashEntity = screenFlashEntity;
 
             //-------------------------------------------------------------
-            // GAME OVER / リトライ案内テキスト。「Fキーで拾う」ラベルと同じく空文字で非表示にしておき、
-            // GameOverSystemがHealthComponent::isDeadを検知した時点でtextを書き込む。
-            // 位置は画面中央基準の固定ピクセル座標（開始時点のウィンドウサイズで決める。
-            // リサイズには追従しない＝他の画面固定UIと同じ割り切り）
+            // 走行の終わり（死亡・クリア）のリザルトと、Escで開くポーズメニュー。
+            // どちらも全て非表示で作っておき、RunResultSystem / PauseMenuSystem が
+            // 表示のたびにウィンドウサイズから位置を計算して文言を書き込む
             //-------------------------------------------------------------
-            float screenCenterX = context->window ? static_cast<float>(context->window->GetWidth()) * 0.5f : 850.0f;
-            float screenHeight   = context->window ? static_cast<float>(context->window->GetHeight()) : 1000.0f;
+            CombatAndroid::ECS::RunResultComponent& runResult = registry.AddComponent<CombatAndroid::ECS::RunResultComponent>(playerEntity);
+            runResult.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kRunResultBackdrop);
+            runResult.titleEntity =
+                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center);
+            for(CombatAndroid::ECS::RunResultStatRow& row : runResult.statRows) {
+                row.labelEntity =
+                    CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Left);
+                row.valueEntity =
+                    CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Left);
+                row.recordEntity =
+                    CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Left);
+            }
+            runResult.skillsEntity =
+                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center);
+            runResult.bestEntity =
+                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center);
+            runResult.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kRunResultMenuBase);
 
-            auto makeCenteredOverlayText = [&](float screenY, float fontScale) {
-                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
-
-                Tsukino::BuiltIn::ECS::TransformComponent& textTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
-                textTransform.position = hlslpp::float3(screenCenterX, screenY, 0.0f);
-                textTransform.scale     = hlslpp::float3(fontScale, fontScale, 1.0f);
-                textTransform.dirty     = true;
-
-                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
-                font.text              = L"";    // 空文字の間はFontRendererSystemが描画しない
-                font.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-                font.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-                font.outlineWidth      = 3.0f;
-                font.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
-                font.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder         = CombatAndroid::UI::kGameOverText;    // 画面フラッシュより手前に描く
-
-                return textEntity;
-            };
-
-            CombatAndroid::ECS::GameOverComponent& gameOver = registry.AddComponent<CombatAndroid::ECS::GameOverComponent>(playerEntity);
-            gameOver.titleTextEntity = makeCenteredOverlayText(screenHeight * 0.42f, 2.4f);
-            gameOver.retryTextEntity = makeCenteredOverlayText(screenHeight * 0.55f, 1.1f);
+            CombatAndroid::ECS::PauseMenuComponent& pauseMenu = registry.AddComponent<CombatAndroid::ECS::PauseMenuComponent>(playerEntity);
+            pauseMenu.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kPauseBackdrop);
+            pauseMenu.titleEntity =
+                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center);
+            pauseMenu.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kPauseMenuBase);
 
             //-------------------------------------------------------------
             // レベルアップ時のスキル選択メニュー。
@@ -1275,15 +1264,15 @@ namespace CombatAndroid {
         float scaledDeltaTime = deltaTime * m_slowMotion.Advance(deltaTime);
 
         //--------------------------------------------------------------
-        // スキル選択メニュー表示中は時間を完全に止める。Sceneへ渡すdeltaTimeそのものを0にする
-        // ことで、敵AI・アニメーション・湧きディレクター・EXP玉・生存時間まで一律に停止する
-        // （ヒットストップと異なり、こちらは意図的な画面全体の停止）。
+        // メニュー（スキル選択・ポーズ・リザルト）の表示中は時間を完全に止める。Sceneへ渡す
+        // deltaTimeそのものを0にすることで、敵AI・アニメーション・湧きディレクター・EXP玉・
+        // 生存時間まで一律に停止する（ヒットストップと異なり、こちらは意図的な画面全体の停止）。
         //
         // ただしPhysicsSystemだけはdeltaTimeが0以下でも1/60秒ぶんステップしてしまうため、
         // これだけではCharacterVirtualが滑り続ける。移動入力の打ち消しと、
-        // プレイヤー入力の遮断はSkillSelectSystem側で行っている
+        // プレイヤー入力の遮断は各メニューのSystem側で行っている（GameplayFreeze.hpp）
         //--------------------------------------------------------------
-        if(CombatAndroid::ECS::IsSkillSelectActive(m_scene.GetRegistry()))
+        if(CombatAndroid::ECS::IsGameplayFrozen(m_scene.GetRegistry()))
             scaledDeltaTime = 0.0f;
 
         // スローに引きずられたくない演出（カメラの寄り）が実時間を読めるよう、Sceneを更新する前に置く

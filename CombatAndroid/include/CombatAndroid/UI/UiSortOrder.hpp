@@ -60,11 +60,26 @@ namespace CombatAndroid::UI {
     //! 暗転板ではなくカード自身の下に沈む。kInputPromptBaseと同じく+4までの5層を使う
     constexpr int kModalInputPromptBase = 440;
 
-    //! モーダル：GAME OVER
-    //! スキル選択より手前に置く。レベルアップの予約と死亡が同じフレームに重なると
-    //! 両方のUIが立ち得るため、GAME OVERが暗転板の下に沈んで「操作が効かないのに
-    //! 理由が分からない」状態になるのを避ける
-    constexpr int kGameOverText = 500;
+    //! モーダル：リザルト（GAME OVER / CLEAR）
+    //! スキル選択より手前に置く。レベルアップの予約と走行の終わりが同じフレームに重なっても、
+    //! リザルトが暗転板の下に沈んで「操作が効かないのに理由が分からない」状態にならないようにする
+    constexpr int kRunResultBackdrop = 500;    //!< 画面全体の暗転板
+    constexpr int kRunResultText     = 510;    //!< 見出し・成績・ベスト記録
+    constexpr int kRunResultMenuBase = 520;    //!< リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+
+    //! モーダル：ポーズ。走行中にしか開けないのでリザルトとは重ならないが、
+    //! 念のため全てのモーダルより手前に置く
+    constexpr int kPauseBackdrop = 600;    //!< 画面全体の暗転板
+    constexpr int kPauseText     = 610;    //!< 「PAUSE」の見出し
+    constexpr int kPauseMenuBase = 620;    //!< 再開／リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+
+    //! タイトル画面（TitleScene。戦闘シーンとは別のシーンなので上の帯とは衝突しない）
+    constexpr int kTitleBackdrop      = 100;    //!< 背景の板
+    constexpr int kTitleText          = 110;    //!< タイトル・副題・ベスト記録
+    constexpr int kTitleMenuBase      = 120;    //!< はじめる／操作説明／終了（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kTitleControlsPanel = 200;    //!< 操作説明の板
+    constexpr int kTitleControlsText  = 210;    //!< 操作説明の文字
+    constexpr int kTitleControlsMenuBase = 220;    //!< 操作説明の「もどる」
 
     //! デバッグHUD。調査用なので常に全ての演出より手前に出す
     //! （既定値0のままだと暗転板やフラッシュの下へ沈む）

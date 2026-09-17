@@ -8,6 +8,8 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/System/RunResultSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -248,45 +250,6 @@ namespace CombatAndroid::ECS {
                 HideEntity(registry, card.descEntity);
             }
         }
-
-        //-------------------------------------------------------------
-        //! @brief  全キャラクタの移動入力を打ち消す関数
-        //! @param  registry [in] ECSレジストリ
-        //! @note   PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップする。
-        //!         そのためシーン側でdeltaTime=0にしても、moveInputが残っていると
-        //!         CharacterVirtualは毎フレーム動き続けてしまう。移動入力を書くSystem群は
-        //!         メニュー中は早期リターンして何も書かないので、ここで潰した値が保たれる
-        //-------------------------------------------------------------
-        void SuppressMoveInput(Tsukino::ECS::Registry& registry) {
-            auto view = registry.View<Tsukino::BuiltIn::ECS::CharacterControllerComponent>();
-            view.each([](Tsukino::BuiltIn::ECS::CharacterControllerComponent& characterController) {
-                characterController.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
-            });
-        }
-
-        //-------------------------------------------------------------
-        //! @brief  進行中のヒットストップ（HitStopComponent）を全エンティティから取り除く。
-        //!         メニュー表示中はSceneへ渡すdeltaTimeが0になりHitStopSystemの減算処理が
-        //!         止まってしまうため、放っておくとメニューを閉じた後にスローモーションが
-        //!         残ってしまう
-        //-------------------------------------------------------------
-        void ClearAllHitStop(Tsukino::ECS::Registry& registry) {
-            std::vector<entt::entity> entities;
-            auto                      view = registry.View<HitStopComponent>();
-            for(entt::entity entity : view)
-                entities.push_back(entity);
-
-            for(entt::entity entity : entities) {
-                // HitStopSystemの自然終了パスと同様、削除前にplayback_speedを
-                // ヒットストップ開始時点の値へ復元する。これをしないとレベルアップと
-                // ヒットストップが重なった際にアニメーション速度が固まったまま戻らなくなる
-                const HitStopComponent& hitStop = view.get<HitStopComponent>(entity);
-                if(auto* animPlayer = registry.try_get<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity)) {
-                    animPlayer->playback_speed = hitStop.baseAnimSpeed;
-                }
-                registry.RemoveComponent<HitStopComponent>(entity);
-            }
-        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -338,15 +301,27 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 if(select.closingBlockFrames > 0) {
                     --select.closingBlockFrames;
-                    SuppressMoveInput(registry);
+                    SuppressAllMoveInput(registry);
                 }
                 continue;    // 平常時。何もしない
             }
 
             select.closingBlockFrames = 0;
 
+            //-------------------------------------------------------------
+            // 走行が終わった（死亡・クリア）後はメニューを出さない。
+            // 終わりと同じフレームにレベルアップが積まれることがあり、リザルトと同じF・W/Sを
+            // 取り合ってしまうため、残っている予約ごと捨てる
+            //-------------------------------------------------------------
+            if(IsRunEnded(registry)) {
+                select.pendingLevelUps = 0;
+                select.isActive        = false;
+                HideUi(registry, select);
+                continue;
+            }
+
             // 停止中はプレイヤーも敵も移動入力を持たない状態に固定する
-            SuppressMoveInput(registry);
+            SuppressAllMoveInput(registry);
 
             //-------------------------------------------------------------
             // メニューを開く

@@ -20,6 +20,7 @@
 
 #include <entt/entt.hpp>
 
+#include <algorithm>
 #include <string>
 
 // 名前空間 : CombatAndroid::ECS
@@ -41,8 +42,9 @@ namespace CombatAndroid::ECS {
             // deltaTimeはシーンがスキル選択中に0を渡してくるため、メニュー表示中も
             // 自動的に止まる（CombatAndroidSceneのscaledDeltaTime）
             //-------------------------------------------------------------
+            const float previousSeconds = clock.elapsedSeconds;
             if(!health.isDead)
-                clock.elapsedSeconds += deltaTime;
+                clock.elapsedSeconds = std::min(clock.elapsedSeconds + deltaTime, kRunClearSeconds);    // クリアの瞬間で止める
 
 #ifdef _DEBUG
             //-------------------------------------------------------------
@@ -60,10 +62,20 @@ namespace CombatAndroid::ECS {
                 clock.rankUpFlashTimer -= deltaTime;
 
             //-------------------------------------------------------------
+            // ラスト1分に入った瞬間を知らせる。ここから湧きが強まる（EnemySpawnDirectorSystem）ので、
+            // 危険度の上昇と同じ行で「山場に入った」ことを伝える
+            //-------------------------------------------------------------
+            const float finalStretchStart = kRunClearSeconds - kRunFinalStretchSeconds;
+            if(previousSeconds < finalStretchStart && clock.elapsedSeconds >= finalStretchStart && eventBus)
+                eventBus->Publish(GameLogEvent{GameLogCategory::DangerRankUp, L"ラスト1分"});
+
+            //-------------------------------------------------------------
             // ランクの更新。下がることは無いので上がった時だけ演出と通知を出す
             // （F12で複数段飛んだ場合も、行は最新のランク1本だけ出る）
             //-------------------------------------------------------------
-            const int newRank = GetDangerRank(clock.elapsedSeconds);
+            // クリアの瞬間（kRunClearSeconds）は危険度テーブル上ちょうど次の段の始まりに当たるが、
+            // その段で戦うことは無いので上げない（リザルトに「危険度11」と出さないため）
+            const int newRank = GetDangerRank(std::min(clock.elapsedSeconds, kRunClearSeconds - 0.001f));
             if(newRank > clock.dangerRank) {
                 clock.dangerRank       = newRank;
                 clock.rankUpFlashTimer = kRankUpFlashDuration;

@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
@@ -270,12 +270,12 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void PlayerAnimationSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
         //-------------------------------------------------------------
-        // スキル選択メニュー中は何もしない。攻撃中・回避中はここがCharacterControllerComponent::moveInput
+        // メニュー（スキル選択・ポーズ・リザルト）中は何もしない。攻撃中・回避中はここがCharacterControllerComponent::moveInput
         // を上書きするため、SkillSelectSystemが打ち消した値が戻ってしまう
         // （PhysicsSystemはdeltaTime=0でも1/60秒ぶん進むので、そのまま滑り続ける）。
         // 併せて、先行入力バッファの消費もメニュー中は止める
         //-------------------------------------------------------------
-        if(IsSkillSelectActive(registry))
+        if(IsGameplayFrozen(registry))
             return;
 
         auto view = registry.View<PlayerComponent,

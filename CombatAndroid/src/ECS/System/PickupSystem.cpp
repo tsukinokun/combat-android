@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
-#include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
@@ -88,11 +88,11 @@ namespace CombatAndroid::ECS {
             return;
 
         //-------------------------------------------------------------
-        // スキル選択メニュー中（決定直後の1フレームも含む）はFキーがメニューの
+        // メニュー（スキル選択・ポーズ・リザルト）中（決定直後の1フレームも含む）はFキーがメニューの
         // 決定入力と衝突するため、拾得を一切処理しない
         // （PlayerSystem等、他の入力Systemと同じ流儀）
         //-------------------------------------------------------------
-        if(IsSkillSelectActive(registry))
+        if(IsGameplayFrozen(registry))
             return;
 
         Tsukino::Input::InputSystem* inputSystem = ctx->inputSystem;

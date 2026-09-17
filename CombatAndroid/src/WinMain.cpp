@@ -8,7 +8,7 @@
 #include <Tsukino/Core/Log.hpp>
 #include <Tsukino/Core/DebugTools/DebugFeatures.hpp>
 #include <Tsukino/Core/DebugTools/FrameProfiler.hpp>
-#include <CombatAndroid/Scene/CombatAndroidScene.hpp>
+#include <CombatAndroid/Scene/TitleScene.hpp>
 #ifdef TSUKINO_ENABLE_STRESS_TEST
 #include <CombatAndroid/ECS/System/EnemyStressTestSystem.hpp>
 #endif
@@ -63,9 +63,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In
     Tsukino::EngineIntegration::EngineAPI      engineAPI(engineContext);
 
     //--------------------------------------------------------------
-    // 最初のシーンを登録・開始
+    // 最初のシーンを登録・開始（タイトル画面から始める）
     //--------------------------------------------------------------
-    engineAPI.ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>());
+    engineAPI.ChangeScene(std::make_unique<CombatAndroid::TitleScene>());
 
     //--------------------------------------------------------------
     // メインループ

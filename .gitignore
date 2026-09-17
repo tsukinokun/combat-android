@@ -15,3 +15,6 @@ StressTestResult.csv
 Logs/
 *.log
 diag_*.txt
+
+# ベスト記録（RunRecord）の保存先
+Saves/
