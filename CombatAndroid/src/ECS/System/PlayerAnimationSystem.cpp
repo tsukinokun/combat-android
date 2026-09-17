@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Event/PlayerChargeEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerFinisherEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
@@ -558,6 +559,12 @@ namespace CombatAndroid::ECS {
                 // 段階そのものも渡すのは、貫通するかの判定（projectilePierceMinChargeStage）に要るため
                 releasedWeapon.pendingProjectile           = true;
                 releasedWeapon.pendingProjectileChargeStage = chargeStage;
+
+                // 溜めの効果音（ChargeSoundSystem）へ解放を知らせる。ドンを鳴らすのは
+                // 斬撃弾が飛び出す瞬間なので、そこまでの秒数を渡す
+                //（下の大技通知のimpactDelayと同じ値・同じ考え方）
+                if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                    eventBus->Publish(PlayerChargeReleasedEvent{entity, releasedWeapon.projectileSpawnDelay});
 
                 // 最大段階（紫）まで溜めた解放は大技として通知する（カメラのズームと世界のスロー）。
                 // インパクトは斬撃弾が飛び出す瞬間

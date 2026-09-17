@@ -78,6 +78,14 @@ namespace CombatAndroid::ECS {
         float minPitch          = -0.5f;      //!< pitchの下限（見上げすぎ防止）
         float maxPitch          = 1.3f;       //!< pitchの上限（見下ろしすぎ防止）
 
+        // --- 地面へのめり込み防止 ---
+        // 見上げると球面上のカメラ位置は足元より下へ回り込む（pitch=-0.5で足元から約52下）。
+        // pitchの下限を上げると見上げられる範囲まで狭まるので、pitchはそのままにして
+        // カメラの高さだけに下限を設ける。下限に当たったカメラは地面すれすれに留まり、
+        // そこから対象を見上げる形になる
+        float groundHeight         = 0.0f;     //!< 地面の上面の高さ（GrassFieldComponent::groundHeightと同じ地面コライダーの上面）
+        float minHeightAboveGround = 70.0f;    //!< カメラが地面から最低限保つ高さ。一番背の高い草（46 × ばらつき1.35 ≒ 62）の穂先より上に置き、草の中へ潜らせない
+
         // --- マウスキャプチャ（カーソル非表示＋中央固定）の状態 ---
         bool mouseCaptured        = true;     //!< true: カーソルを隠して旋回操作に使う（Escキーで切り替え可能）
         bool wasCapturedLastFrame = false;    //!< 直前フレームで実際にキャプチャされていたか（復帰時の誤入力防止用）

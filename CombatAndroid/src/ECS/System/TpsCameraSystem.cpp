@@ -240,6 +240,10 @@ namespace CombatAndroid::ECS {
 
             hlslpp::float3 desiredPosition = targetTransform.position + offset;
 
+            // 見上げたときに球面上の位置が地面の下へ回り込まないよう、高さに下限を設ける
+            const float minCameraHeight = tpsCamera.groundHeight + tpsCamera.minHeightAboveGround;
+            desiredPosition.y           = std::max(static_cast<float>(desiredPosition.y), minCameraHeight);
+
             //-------------------------------------------------------------
             // ばねで追従する。初回と、リトライ等で目標が大きく飛んだときは
             // ばねで引っ張ると画面を横切って飛んでくるので、目標へ置き直す。
@@ -253,6 +257,13 @@ namespace CombatAndroid::ECS {
             } else {
                 StepSpring(tpsCamera.followSpringPosition, tpsCamera.followSpringVelocity, desiredPosition, tpsCamera.followSpringFrequency,
                            tpsCamera.followSpringDamping, deltaTime);
+
+                // 目標を下限で止めても、ばねは行き過ぎるので地面の下まで沈みうる。
+                // 床に当たったら下向きの速度を捨てて、跳ね返らずにそこへ留める
+                if(tpsCamera.followSpringPosition.y < minCameraHeight) {
+                    tpsCamera.followSpringPosition.y = minCameraHeight;
+                    tpsCamera.followSpringVelocity.y = std::max(static_cast<float>(tpsCamera.followSpringVelocity.y), 0.0f);
+                }
             }
 
             hlslpp::float3 lookAtTarget = targetTransform.position + hlslpp::float3(0.0f, tpsCamera.lookHeight, 0.0f);
@@ -298,6 +309,9 @@ namespace CombatAndroid::ECS {
                 const float approach = tpsCamera.distance * (1.0f - tpsCamera.zoomDistanceScale) * tpsCamera.zoomAmount;
                 cameraPosition       = cameraPosition + (toLookAt / toLookAtLength) * std::min(approach, toLookAtLength * 0.9f);
             }
+
+            // 寄りは注視点（頭上）へ向かうので下がることは無いが、念のため最終位置にも下限を効かせる
+            cameraPosition.y = std::max(static_cast<float>(cameraPosition.y), minCameraHeight);
 
             transform.position = cameraPosition;
             transform.dirty    = true;

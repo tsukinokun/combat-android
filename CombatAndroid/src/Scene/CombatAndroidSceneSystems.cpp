@@ -36,6 +36,7 @@
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
+#include <CombatAndroid/ECS/System/ChargeSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
@@ -204,6 +205,12 @@ namespace CombatAndroid {
             auto hitSoundSystem = std::make_shared<CombatAndroid::ECS::HitSoundSystem>();
             m_scene.AddSystem(hitSoundSystem, (int)ECS::SystemPriority::Audio);
             hitSoundSystem->Initialize(eventBus);
+        }
+        {
+            // 溜め攻撃を解放して斬撃弾が飛び出す瞬間に「ドン」を鳴らす
+            auto chargeSoundSystem = std::make_shared<CombatAndroid::ECS::ChargeSoundSystem>();
+            m_scene.AddSystem(chargeSoundSystem, (int)ECS::SystemPriority::Audio);
+            chargeSoundSystem->Initialize(eventBus);
         }
         {
             auto physicsSystem = std::make_shared<Tsukino::BuiltIn::ECS::PhysicsSystem>(eventBus);
