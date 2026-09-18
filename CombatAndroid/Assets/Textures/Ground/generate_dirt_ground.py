@@ -10,8 +10,12 @@
 # 自動的にインポートできる形式で、追加の依存ライブラリが要らないため選んだ。
 #
 # タイル張り（UVを繰り返して広い地面に敷く）が前提なので、継ぎ目が出ない
-# ことが最優先。すべての模様を「整数周波数の周期関数」または「輪環距離
+# ことが最優先。すべての模様を「端で折り返す格子の値ノイズ」または「輪環距離
 # （トーラス距離）」だけで作ることで、端をまたいでも値が連続するようにしている。
+#
+# ムラには方向を持たない値ノイズを使う。以前は整数周波数の正弦波
+# sin(fx*x + fy*y) を重ねていたが、これは1方向にしか変化しない平面波なので、
+# 何層重ねても斜めの縞になり、タイル張りした地面では「影の縞」に見えていた。
 #--------------------------------------------------------------
 import math
 import random
@@ -38,37 +42,54 @@ def toroidal_delta(a, b, size):
     return d
 
 
-def make_octaves(count, max_freq, rng):
-    """整数周波数の2D正弦波を複数用意する。整数周波数なので
-    sin(2*pi*f*x/SIZE)はちょうどSIZE周期で閉じ、タイルの境界をまたいでも
-    連続する（＝継ぎ目が出ない）"""
+def make_octaves(cell_counts, rng):
+    """値ノイズの層を用意する。各層は「一辺をcell個に割った格子」の各点に
+    -1..1の乱数を置いたもの。格子の数はSIZEの約数にしておき、端の点を反対側の
+    端と同じ値として扱う（折り返す）ことで、タイルの境界をまたいでも連続する。
+    細かい層ほど振幅を小さくする"""
     octaves = []
-    for i in range(count):
-        fx = rng.randint(1, max_freq)
-        fy = rng.randint(1, max_freq)
-        phase = rng.uniform(0.0, math.tau)
-        amplitude = 1.0 / (i + 1)
-        octaves.append((fx, fy, phase, amplitude))
+    for i, cells in enumerate(cell_counts):
+        lattice = [[rng.uniform(-1.0, 1.0) for _ in range(cells)] for _ in range(cells)]
+        amplitude = 1.0 / (2 ** i)
+        octaves.append((cells, lattice, amplitude))
     return octaves
+
+
+def smooth(t):
+    """格子の間をなめらかにつなぐ補間の重み（smoothstep）"""
+    return t * t * (3.0 - 2.0 * t)
 
 
 def sample_noise(octaves, x, y, size):
     total = 0.0
-    for fx, fy, phase, amplitude in octaves:
-        total += amplitude * math.sin(2.0 * math.pi * fx * x / size + 2.0 * math.pi * fy * y / size + phase)
+    for cells, lattice, amplitude in octaves:
+        # ピクセル座標を格子座標へ。端の格子点は0番へ折り返す
+        gx = x * cells / size
+        gy = y * cells / size
+        x0 = int(gx) % cells
+        y0 = int(gy) % cells
+        x1 = (x0 + 1) % cells
+        y1 = (y0 + 1) % cells
+        tx = smooth(gx - int(gx))
+        ty = smooth(gy - int(gy))
+
+        top = lattice[y0][x0] + (lattice[y0][x1] - lattice[y0][x0]) * tx
+        bottom = lattice[y1][x0] + (lattice[y1][x1] - lattice[y1][x0]) * tx
+        total += amplitude * (top + (bottom - top) * ty)
     return total
 
 
 def generate_pixels():
     rng = random.Random(SEED)
 
-    # 明暗のムラ（土の乾き方・色ムラ）。周波数の違う正弦波を3層重ねる
-    macro_octaves = make_octaves(4, 4, rng)     # 大きなムラ
-    micro_octaves = make_octaves(3, 12, rng)    # 細かいザラつき
+    # 明暗のムラ（土の乾き方・色ムラ）。粗さの違う値ノイズを重ねる。
+    # 格子の数はSIZE(256)の約数にすること（折り返しが端でちょうど閉じるように）
+    macro_octaves = make_octaves((4, 8, 16), rng)    # 大きなムラ
+    micro_octaves = make_octaves((32, 64), rng)      # 細かいザラつき
 
-    # 正規化用に一度サンプルしてスケールを求める
-    macro_peak = sum(1.0 / (i + 1) for i in range(len(macro_octaves)))
-    micro_peak = sum(1.0 / (i + 1) for i in range(len(micro_octaves)))
+    # 正規化用に、全層の振幅の合計（取り得る値の上限）を求める
+    macro_peak = sum(amplitude for _, _, amplitude in macro_octaves)
+    micro_peak = sum(amplitude for _, _, amplitude in micro_octaves)
 
     # 小石・土くれの斑点。位置は自由に置き、距離だけ輪環距離で測ることで
     # タイルの境界をまたぐ斑点も継ぎ目なく見える
