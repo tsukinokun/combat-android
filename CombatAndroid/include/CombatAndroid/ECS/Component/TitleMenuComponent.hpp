@@ -7,6 +7,8 @@
 
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 
+#include <CombatAndroid/ECS/Utility/OptionsMenu.hpp>
+
 #include <array>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -19,7 +21,7 @@ namespace CombatAndroid::ECS {
     //!         タイトル画面に1つだけ置く目印のエンティティに付ける
     //-------------------------------------------------------------
     struct TitleMenuComponent {
-        int  cursorIndex     = 0;        //!< 選択中の項目（はじめる／操作説明／終了）
+        int  cursorIndex     = 0;        //!< 選択中の項目（はじめる／操作説明／オプション／終了）
         bool showingControls = false;    //!< 操作説明を開いているか
 
         //! 画面の状態を切り替えた最初のフレームか。切り替えに使った決定入力を、
@@ -39,5 +41,7 @@ namespace CombatAndroid::ECS {
         std::array<Tsukino::ECS::Entity, kTitleControlsLineCount> controlsActionEntities{};              //!< 操作の名前（Font）
         std::array<Tsukino::ECS::Entity, kTitleControlsLineCount> controlsKeyEntities{};                 //!< 割り当てられたキー（Font）
         GameMenuWidget                                           controlsMenu;                          //!< もどる
+
+        OptionsMenuState options;    //!< オプション画面（開いている間はタイトルの文字とメニューを隠す）
     };
 }    // namespace CombatAndroid::ECS

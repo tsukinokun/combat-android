@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
+#include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
@@ -207,8 +208,10 @@ namespace CombatAndroid::ECS {
                 // マウス移動量でyaw/pitchを更新する
                 // 左右は反転させる（マウスを右へ動かすとカメラは左へ旋回する）
                 //-------------------------------------------------------------
-                tpsCamera.yaw -= static_cast<float>(mouseDx) * tpsCamera.mouseSensitivity;
-                tpsCamera.pitch += static_cast<float>(mouseDy) * tpsCamera.mouseSensitivity;
+                // 感度はコンポーネントの基準値にオプションの倍率を掛ける
+                const float sensitivity = tpsCamera.mouseSensitivity * GetGameSettings().mouseSensitivityScale;
+                tpsCamera.yaw -= static_cast<float>(mouseDx) * sensitivity;
+                tpsCamera.pitch += static_cast<float>(mouseDy) * sensitivity;
                 tpsCamera.pitch = std::clamp(tpsCamera.pitch, tpsCamera.minPitch, tpsCamera.maxPitch);
 
                 //-------------------------------------------------------------
@@ -327,6 +330,10 @@ namespace CombatAndroid::ECS {
             // 奥行き方向へ揺らすと注視点が前後するだけで画面はほとんど動かないので、
             // 画面に平行な向きに限る
             //-------------------------------------------------------------
+            // オプションで画面揺れを切っているときは、溜まった揺れを捨てて何もしない
+            if(!GetGameSettings().screenShakeEnabled)
+                m_pendingShakeDamage = 0.0f;
+
             if(m_pendingShakeDamage > 0.0f) {
                 const float referenceDamage = std::max(tpsCamera.shakeReferenceDamage, 1.0f);
                 const float scale = std::clamp(m_pendingShakeDamage / referenceDamage, tpsCamera.shakeMinScale, tpsCamera.shakeMaxScale);

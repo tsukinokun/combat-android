@@ -28,6 +28,7 @@
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
 #include <CombatAndroid/ECS/Component/PauseMenuComponent.hpp>
+#include <CombatAndroid/ECS/System/TutorialSystem.hpp>
 #include <CombatAndroid/ECS/Component/RunResultComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillHudComponent.hpp>
@@ -806,6 +807,11 @@ namespace CombatAndroid {
             pauseMenu.titleEntity =
                 CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center);
             pauseMenu.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kPauseMenuBase);
+            pauseMenu.options = CombatAndroid::ECS::CreateOptionsMenu(registry, *context, CombatAndroid::UI::kPauseOptionsBase);
+
+            // 操作の案内。タイトルの「はじめる」から来たときだけ出す（リトライでは出さない）
+            if(m_showTutorial)
+                CombatAndroid::ECS::CreateTutorial(registry, *context);
 
             //-------------------------------------------------------------
             // レベルアップ時のスキル選択メニュー。

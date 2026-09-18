@@ -341,6 +341,14 @@ namespace CombatAndroid::ECS {
                         armBY    = spread;
                         break;
 
+                    case PromptChevron::Left:
+                        centerX = -(bodyWidth * 0.5f + gap);
+                        rollA    = quarter;
+                        rollB    = -quarter;
+                        armAY    = -spread;
+                        armBY    = spread;
+                        break;
+
                     default:
                         break;
                 }

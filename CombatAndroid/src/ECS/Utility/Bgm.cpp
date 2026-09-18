@@ -3,6 +3,7 @@
 //! @brief   BGMの再生・停止の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
+#include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -19,6 +20,11 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
+        //! 最後にPlayBgmで鳴らしたBGMと、その音量（オプションを掛ける前の値）。
+        //! ReapplyBgmVolumeが鳴らし直すときに使う。止めたらnullptrに戻す
+        const char* s_currentPath   = nullptr;
+        float       s_currentVolume = kBgmVolume;
+
         //-------------------------------------------------------------
         //! @brief  BGMのアセットを引く
         //! @param  context [in] エンジンコンテキスト
@@ -49,9 +55,20 @@ namespace CombatAndroid::ECS {
             return;
         }
 
+        s_currentPath   = path;
+        s_currentVolume = volume;
+
         // 同じBGMが二重に鳴らないよう、鳴っていれば止めてから鳴らし直す
         context.audioManager->Stop(*asset);
-        context.audioManager->Play(*asset, true, volume);
+        context.audioManager->Play(*asset, true, volume * GetBgmVolumeScale());
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 鳴っているBGMを、今のオプションの音量で鳴らし直す
+    //-------------------------------------------------------------
+    void ReapplyBgmVolume(Tsukino::EngineIntegration::EngineContext& context) {
+        if(s_currentPath != nullptr)
+            PlayBgm(context, s_currentPath, s_currentVolume);
     }
 
     //-------------------------------------------------------------
@@ -63,5 +80,7 @@ namespace CombatAndroid::ECS {
             return;
 
         context.audioManager->Stop(*asset);
+        if(s_currentPath == path)
+            s_currentPath = nullptr;
     }
 }    // namespace CombatAndroid::ECS

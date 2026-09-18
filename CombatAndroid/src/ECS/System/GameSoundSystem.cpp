@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
+#include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -109,7 +110,7 @@ namespace CombatAndroid::ECS {
             if(!asset)
                 continue;
 
-            ctx->audioManager->Play(*asset, false, entry.volume);
+            ctx->audioManager->Play(*asset, false, entry.volume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
             m_elapsedSinceLastPlay[index] = 0.0f;
         }
 

@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -82,7 +83,7 @@ namespace CombatAndroid::ECS {
             const auto& asset  = isBlunt ? bluntAsset : sharpAsset;
 
             if(asset)
-                ctx->audioManager->Play(*asset, false, kHitVolume);
+                ctx->audioManager->Play(*asset, false, kHitVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
         }
 
         m_pendingHits.clear();

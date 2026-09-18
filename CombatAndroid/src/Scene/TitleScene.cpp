@@ -6,6 +6,7 @@
 
 #include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
 #include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
@@ -52,6 +53,13 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::CameraSystem>(), 3);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SpriteRenderSystem>(), 4);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FontRendererSystem>(), 5);
+        {
+            // メニューの操作音。これが無いとタイトルではPlaySoundが誰にも拾われず無音になり、
+            // オプションで変えた効果音の音量もその場で確かめられない
+            auto gameSoundSystem = std::make_shared<CombatAndroid::ECS::GameSoundSystem>();
+            m_scene.AddSystem(gameSoundSystem, 6);
+            gameSoundSystem->Initialize(m_scene.GetEventBus());
+        }
 
         //--------------------------------------------------------------
         // 画面固定UI用の2Dカメラ（戦闘シーンと同じ設定）
@@ -91,6 +99,7 @@ namespace CombatAndroid {
                 CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleControlsText, CombatAndroid::ECS::UiTextAlign::Left);
         }
         title.controlsMenu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kTitleControlsMenuBase);
+        title.options      = CombatAndroid::ECS::CreateOptionsMenu(registry, *context, CombatAndroid::UI::kTitleOptionsBase);
 
         registry.AddComponent<CombatAndroid::ECS::TitleMenuComponent>(titleEntity, title);
     }

@@ -68,6 +68,10 @@ namespace CombatAndroid::ECS {
                           // chargeTimer）はどちらもGameplayで確定するのでその後に置き、
                           // かつWorldAnchorSystemが座標を確定させる前でなければならない
                           // （プロンプトは部品ごとのtarget/screenOffsetをここで書くため）
+        Tutorial,         // タイトルから始めたときの操作の案内。できたかの判定にプレイヤーの
+                          // アニメーションステート（Gameplayで確定）と手持ちの武器（PickupSystem・
+                          // PlayerSystemで確定）を読むのでその後に置き、画面固定UIの位置を書くので
+                          // TransformUIより前に置く。InputPromptと同じ理由でその直後にした
         TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
                           // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                           // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分

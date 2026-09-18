@@ -35,6 +35,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         enum class PauseMenuItem : int {
             Resume = 0,    //!< 再開
+            Options,       //!< オプション画面を開く
             Retry,         //!< 最初からやり直す
             Title,         //!< タイトルへ戻る
             Count,
@@ -43,6 +44,7 @@ namespace CombatAndroid::ECS {
         //! 項目の文字。PauseMenuItemの並びと揃えること
         const std::array<std::wstring, static_cast<size_t>(PauseMenuItem::Count)> kMenuLabels = {
             L"再開",
+            L"オプション",
             L"リトライ",
             L"タイトルへ",
         };
@@ -67,6 +69,14 @@ namespace CombatAndroid::ECS {
             const float screenCenterY = screenHeight * 0.5f;
 
             StretchSprite(registry, context, pause.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
+
+            // オプション画面を開いている間は暗転板だけ残し、見出しとメニューはオプションの板と重ならないよう隠す
+            if(pause.options.isOpen) {
+                HideUiText(registry, pause.titleEntity);
+                HideGameMenu(registry, pause.menu);
+                return;
+            }
+
             PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"PAUSE", kTitleColor);
             ShowGameMenu(registry, context, pause.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, pause.cursorIndex);
         }
@@ -80,6 +90,7 @@ namespace CombatAndroid::ECS {
             HideUiSprite(registry, pause.backdropEntity);
             HideUiText(registry, pause.titleEntity);
             HideGameMenu(registry, pause.menu);
+            HideOptionsMenu(registry, pause.options);
         }
     }    // namespace
 
@@ -151,6 +162,16 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
+            // オプション画面：入力は全てそちらへ回す。オプションを閉じたEscで
+            // ポーズまで閉じないよう、閉じたフレームはここで終える
+            //-------------------------------------------------------------
+            if(pause.options.isOpen) {
+                if(UpdateOptionsMenu(registry, *ctx, pause.options))
+                    RefreshUi(registry, *ctx, pause);
+                continue;
+            }
+
+            //-------------------------------------------------------------
             // カーソル移動と決定。Escをもう一度押しても再開する
             //-------------------------------------------------------------
             const int step = ReadGameMenuStep(input);
@@ -181,6 +202,11 @@ namespace CombatAndroid::ECS {
             case PauseMenuItem::Title:
                 if(ctx->gameSceneManager)
                     ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::TitleScene>());
+                break;
+
+            case PauseMenuItem::Options:
+                OpenOptionsMenu(registry, *ctx, pause.options);
+                RefreshUi(registry, *ctx, pause);
                 break;
 
             case PauseMenuItem::Resume:

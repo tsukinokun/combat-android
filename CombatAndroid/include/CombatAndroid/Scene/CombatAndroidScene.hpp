@@ -25,8 +25,12 @@ namespace CombatAndroid {
     public:
         //-------------------------------------------------------------
         //! @brief  コンストラクタ
+        //! @param  showTutorial [in] 走行の最初に操作の案内を出すか。
+        //!                            タイトルの「はじめる」だけがtrueを渡し、リトライは既定のfalse
         //-------------------------------------------------------------
-        CombatAndroidScene() = default;
+        explicit CombatAndroidScene(bool showTutorial = false)
+            : m_showTutorial(showTutorial) {
+        }
 
         //-------------------------------------------------------------
         //! @brief  デストラクタ
@@ -74,5 +78,7 @@ namespace CombatAndroid {
 
         //! 大技のインパクトで世界の時間を遅くする制御。OnUpdateで実時間を渡して進める
         CombatAndroid::ECS::SlowMotionController m_slowMotion;
+
+        bool m_showTutorial = false;    //!< 走行の最初に操作の案内を出すか（コンストラクタで決まる）
     };
 }    // namespace CombatAndroid

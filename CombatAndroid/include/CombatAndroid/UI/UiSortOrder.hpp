@@ -47,6 +47,11 @@ namespace CombatAndroid::UI {
     constexpr int kGameLogAccent = 221;    //!< パネル左端の種別色バー
     constexpr int kGameLogText   = 230;    //!< 種別ラベル・主題テキスト
 
+    //! 画面下の操作の案内（タイトルから始めたときだけ）。HUDと同じく、スキル選択の暗転板(400)より奥
+    constexpr int kTutorialPanel      = 240;    //!< 黒い半透明の板
+    constexpr int kTutorialText       = 250;    //!< 案内の文・「操作 n / 6」
+    constexpr int kTutorialPromptBase = 255;    //!< キー表示（+4までの5層を使う）
+
     //! 全画面演出
     constexpr int kScreenDamageFlash = 300;    //!< 被弾時の赤フラッシュ。HUDより手前に掛けて画面全体を染める
 
@@ -71,7 +76,8 @@ namespace CombatAndroid::UI {
     //! 念のため全てのモーダルより手前に置く
     constexpr int kPauseBackdrop = 600;    //!< 画面全体の暗転板
     constexpr int kPauseText     = 610;    //!< 「PAUSE」の見出し
-    constexpr int kPauseMenuBase = 620;    //!< 再開／リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kPauseMenuBase = 620;    //!< 再開／オプション／リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kPauseOptionsBase = 700;    //!< ポーズから開くオプション画面（OptionsMenuが+0〜+44を使う）。ポーズの暗転板より手前
 
     //! タイトル画面（TitleScene。戦闘シーンとは別のシーンなので上の帯とは衝突しない）
     constexpr int kTitleBackdrop      = 100;    //!< 背景の板
@@ -80,6 +86,7 @@ namespace CombatAndroid::UI {
     constexpr int kTitleControlsPanel = 200;    //!< 操作説明の板
     constexpr int kTitleControlsText  = 210;    //!< 操作説明の文字
     constexpr int kTitleControlsMenuBase = 220;    //!< 操作説明の「もどる」
+    constexpr int kTitleOptionsBase      = 300;    //!< タイトルから開くオプション画面（OptionsMenuが+0〜+44を使う）
 
     //! デバッグHUD。調査用なので常に全ての演出より手前に出す
     //! （既定値0のままだと暗転板やフラッシュの下へ沈む）

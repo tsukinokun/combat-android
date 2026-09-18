@@ -18,7 +18,6 @@ namespace CombatAndroid::ECS {
         // 見た目のチューニング値（全て画面ピクセル単位）
         //-------------------------------------------------------------
         constexpr float kItemPitch      = 72.0f;     //!< 選択肢1つぶんの縦の送り
-        constexpr float kHighlightWidth = 440.0f;    //!< 強調帯の幅
         constexpr float kHighlightHeight = 56.0f;    //!< 強調帯の高さ
         constexpr float kItemFontScale  = 1.25f;     //!< 選択肢の文字の大きさ
 
@@ -80,7 +79,7 @@ namespace CombatAndroid::ECS {
     //! @brief メニューを表示する
     //-------------------------------------------------------------
     void ShowGameMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const GameMenuWidget& widget,
-                      float centerX, float topY, std::span<const std::wstring> labels, int cursor) {
+                      float centerX, float topY, std::span<const std::wstring> labels, int cursor, float highlightWidth) {
         const int count = std::min(static_cast<int>(labels.size()), kGameMenuMaxItems);
         if(count <= 0) {
             HideGameMenu(registry, widget);
@@ -101,7 +100,7 @@ namespace CombatAndroid::ECS {
         }
 
         const float cursorY = topY + kItemPitch * static_cast<float>(cursor);
-        StretchSprite(registry, context, widget.highlightEntity, centerX, cursorY, kHighlightWidth, kHighlightHeight, kHighlightColor);
+        StretchSprite(registry, context, widget.highlightEntity, centerX, cursorY, highlightWidth, kHighlightHeight, kHighlightColor);
 
         //-------------------------------------------------------------
         // [W][S] は選択中の選択肢の右に縦に並べ、[F] はさらにその右に置く。
@@ -110,7 +109,7 @@ namespace CombatAndroid::ECS {
         InputPromptStyle style;
         style.scale = kPromptScale;
 
-        const float promptX = centerX + kHighlightWidth * 0.5f + kPromptGapX;
+        const float promptX = centerX + highlightWidth * 0.5f + kPromptGapX;
         if(count > 1) {
             ShowInputPromptAtScreen(registry, context, widget.upPrompt, promptX, cursorY + kPromptUpOffsetY, style);
             ShowInputPromptAtScreen(registry, context, widget.downPrompt, promptX, cursorY + kPromptDownOffsetY, style);
@@ -153,6 +152,18 @@ namespace CombatAndroid::ECS {
             ++step;
 
         return std::clamp(step, -1, 1);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief このフレームの値の増減を読む
+    //-------------------------------------------------------------
+    int ReadGameMenuValueStep(const Tsukino::Input::InputSystem& input) {
+        int step = 0;
+        if(input.IsKeyPressed(Tsukino::Input::KeyCode::A) || input.IsKeyPressed(Tsukino::Input::KeyCode::Left))
+            --step;
+        if(input.IsKeyPressed(Tsukino::Input::KeyCode::D) || input.IsKeyPressed(Tsukino::Input::KeyCode::Right))
+            ++step;
+        return step;
     }
 
     //-------------------------------------------------------------

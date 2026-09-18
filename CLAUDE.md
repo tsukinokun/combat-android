@@ -45,8 +45,8 @@
 
 | ディレクトリ | 中身 |
 |---|---|
-| `ECS/Component/` | データのみ（32個） |
-| `ECS/System/` | ロジック（26個。`*System.hpp` / `.cpp` のペア） |
+| `ECS/Component/` | データのみ（39個） |
+| `ECS/System/` | ロジック（38個。`*System.hpp` / `.cpp` のペア） |
 | `ECS/Utility/` | テーブル・スポナー・判定の共通実装 |
 | `ECS/Event/` `ECS/AI/` | イベント定義 / 敵の行動（ビヘイビアツリー） |
 | `Scene/` | `CombatAndroidScene.cpp`（シーン構築）と `CombatAndroidSceneSystems.cpp`（システム登録） |

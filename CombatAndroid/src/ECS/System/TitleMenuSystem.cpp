@@ -35,6 +35,7 @@ namespace CombatAndroid::ECS {
         enum class TitleMenuItem : int {
             Start = 0,    //!< 戦闘を始める
             Controls,     //!< 操作説明を開く
+            Options,      //!< オプション画面を開く
             Quit,         //!< ゲームを終了する
             Count,
         };
@@ -43,6 +44,7 @@ namespace CombatAndroid::ECS {
         const std::array<std::wstring, static_cast<size_t>(TitleMenuItem::Count)> kMenuLabels = {
             L"はじめる",
             L"操作説明",
+            L"オプション",
             L"終了",
         };
 
@@ -132,6 +134,18 @@ namespace CombatAndroid::ECS {
 
             StretchSprite(registry, context, title.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
 
+            //-------------------------------------------------------------
+            // オプション画面を開いている間は、その板と文字が重ならないようタイトル側を全部隠す
+            // （オプション画面は自分で描く）
+            //-------------------------------------------------------------
+            if(title.options.isOpen) {
+                HideUiText(registry, title.titleEntity);
+                HideUiText(registry, title.subtitleEntity);
+                HideUiText(registry, title.bestEntity);
+                HideGameMenu(registry, title.menu);
+                return;
+            }
+
             if(!title.showingControls) {
                 PlaceUiText(registry, title.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"人造人間0号機", kTitleColor);
                 PlaceUiText(registry, title.subtitleEntity, screenCenterX, screenCenterY + kSubtitleOffsetY, kSubtitleFontScale,
@@ -199,6 +213,15 @@ namespace CombatAndroid::ECS {
             const Tsukino::Input::InputSystem& input = *ctx->inputSystem;
 
             //-------------------------------------------------------------
+            // オプション画面：入力は全てそちらへ回し、閉じたらタイトルを組み直す
+            //-------------------------------------------------------------
+            if(title.options.isOpen) {
+                if(UpdateOptionsMenu(registry, *ctx, title.options))
+                    title.changedThisFrame = true;
+                continue;
+            }
+
+            //-------------------------------------------------------------
             // 操作説明：決定かEscでタイトルのメニューへ戻る
             //-------------------------------------------------------------
             if(title.showingControls) {
@@ -227,14 +250,21 @@ namespace CombatAndroid::ECS {
 
             switch(static_cast<TitleMenuItem>(title.cursorIndex)) {
             case TitleMenuItem::Start:
-                // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭で行われる
+                // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭で行われる。
+                // タイトルから始めたときだけ操作の案内を出す（リトライからは出さない）
                 if(ctx->gameSceneManager)
-                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>());
+                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>(true));
                 break;
 
             case TitleMenuItem::Controls:
                 title.showingControls  = true;
                 title.changedThisFrame = true;
+                break;
+
+            case TitleMenuItem::Options:
+                // 開く前にタイトル側を隠す（RefreshUiはoptions.isOpenを見て隠す側へ回る）
+                OpenOptionsMenu(registry, *ctx, title.options);
+                RefreshUi(registry, *ctx, title);
                 break;
 
             case TitleMenuItem::Quit:

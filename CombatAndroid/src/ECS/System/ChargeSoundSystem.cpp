@@ -3,6 +3,7 @@
 //! @brief  ChargeSoundSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/ChargeSoundSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -65,6 +66,6 @@ namespace CombatAndroid::ECS {
 
         auto fireAsset = std::dynamic_pointer_cast<Tsukino::Asset::AudioAsset>(ctx->assetManager->Get(m_fireSoundHandle));
         if(fireAsset)
-            ctx->audioManager->Play(*fireAsset, false, kFireVolume);
+            ctx->audioManager->Play(*fireAsset, false, kFireVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
     }
 }    // namespace CombatAndroid::ECS

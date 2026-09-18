@@ -26,10 +26,18 @@ namespace CombatAndroid::ECS {
     //! @brief  BGMをループ再生する
     //! @param  context [in] エンジンコンテキスト
     //! @param  path    [in] .wavのパス
-    //! @param  volume  [in] 音量
+    //! @param  volume  [in] 音量（オプションのBGM音量はここへさらに掛ける）
     //! @note   シーンのOnInitializeから呼ぶ。ファイルが無い等で読めなければ何もしない
     //-------------------------------------------------------------
     void PlayBgm(Tsukino::EngineIntegration::EngineContext& context, const char* path, float volume = kBgmVolume);
+
+    //-------------------------------------------------------------
+    //! @brief  鳴っているBGMを、今のオプションの音量で鳴らし直す
+    //! @param  context [in] エンジンコンテキスト
+    //! @note   エンジンには再生中の音量を変えるAPIが無いので、止めて最初から鳴らし直す。
+    //!         オプション画面を閉じたときに呼ぶ（値を変えるたびに呼ぶと曲が頭に戻り続ける）
+    //-------------------------------------------------------------
+    void ReapplyBgmVolume(Tsukino::EngineIntegration::EngineContext& context);
 
     //-------------------------------------------------------------
     //! @brief  BGMを止める

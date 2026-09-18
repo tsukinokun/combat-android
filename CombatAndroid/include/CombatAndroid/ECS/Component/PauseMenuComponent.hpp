@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #pragma once
 #include <CombatAndroid/ECS/Utility/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/OptionsMenu.hpp>
 
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 // 名前空間 : CombatAndroid::ECS
@@ -27,6 +28,8 @@ namespace CombatAndroid::ECS {
 
         Tsukino::ECS::Entity backdropEntity = entt::null;    //!< 画面全体を暗くする板（Sprite）
         Tsukino::ECS::Entity titleEntity    = entt::null;    //!< 「PAUSE」の見出し（Font）
-        GameMenuWidget       menu;                           //!< 再開／リトライ／タイトルへ
+        GameMenuWidget       menu;                           //!< 再開／オプション／リトライ／タイトルへ
+
+        OptionsMenuState options;    //!< オプション画面（開いている間は「PAUSE」とメニューを隠す）
     };
 }    // namespace CombatAndroid::ECS

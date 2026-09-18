@@ -26,8 +26,11 @@ namespace Tsukino::Input {
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
-    //! 1つのメニューに並べられる選択肢の最大数
-    inline constexpr int kGameMenuMaxItems = 4;
+    //! 1つのメニューに並べられる選択肢の最大数（オプション画面の4項目＋もどる）
+    inline constexpr int kGameMenuMaxItems = 5;
+
+    //! 選択中の選択肢の後ろに敷く帯の既定の幅
+    inline constexpr float kGameMenuDefaultHighlightWidth = 440.0f;
 
     //-------------------------------------------------------------
     //! @struct GameMenuWidget
@@ -61,9 +64,10 @@ namespace CombatAndroid::ECS {
     //! @param  topY     [in] 1つ目の選択肢の中心のスクリーンY
     //! @param  labels   [in] 選択肢の文字（kGameMenuMaxItems個まで。超えた分は出さない）
     //! @param  cursor   [in] 選択中の選択肢
+    //! @param  highlightWidth [in] 強調帯の幅（選択肢の文字が長いメニューで広げる）
     //-------------------------------------------------------------
     void ShowGameMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const GameMenuWidget& widget,
-                      float centerX, float topY, std::span<const std::wstring> labels, int cursor);
+                      float centerX, float topY, std::span<const std::wstring> labels, int cursor, float highlightWidth = kGameMenuDefaultHighlightWidth);
 
     //-------------------------------------------------------------
     //! @brief  メニューを丸ごと非表示にする
@@ -80,6 +84,14 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     int ReadGameMenuStep(const Tsukino::Input::InputSystem& input);
+
+    //-------------------------------------------------------------
+    //! @brief  このフレームの値の増減を読む（オプション画面の左右）
+    //! @param  input [in] 入力
+    //! @return -1（A・左キー）／+1（D・右キー）／0
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    int ReadGameMenuValueStep(const Tsukino::Input::InputSystem& input);
 
     //-------------------------------------------------------------
     //! @brief  このフレームに決定が押されたかを読む

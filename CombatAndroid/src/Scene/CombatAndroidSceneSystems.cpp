@@ -31,6 +31,7 @@
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
 #include <CombatAndroid/ECS/System/InputPromptSystem.hpp>
+#include <CombatAndroid/ECS/System/TutorialSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
@@ -44,6 +45,7 @@
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
+#include <CombatAndroid/ECS/System/EnemyAttackAreaSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
 #include <CombatAndroid/ECS/Component/WeaponGripDebugComponent.hpp>
@@ -161,6 +163,8 @@ namespace CombatAndroid {
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptSystem>(), (int)ECS::SystemPriority::InputPrompt);
+        // タイトルから始めたときだけ出す操作の案内（TutorialComponentが無ければ何もしない）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TutorialSystem>(), (int)ECS::SystemPriority::Tutorial);
         // EXPバーの下に並べる取得済みスキル一覧。取得段階はSkillSelectSystem（ECS::SystemPriority::SkillSelect）が
         // 同じフレームの手前で確定させているため、選んだ内容がその回のフレームから一覧へ載る
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSkillHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
@@ -209,6 +213,9 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::ModelSystem>(), (int)ECS::SystemPriority::Render);
         // 地面（GroundFollowComponentを持つエンティティ）へ土テクスチャの板を描く
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GroundVisualSystem>(), (int)ECS::SystemPriority::Render);
+        // 敵の振りかぶり中、攻撃が当たる範囲を足元へ赤く描く。攻撃ステート（Gameplay）が
+        // 確定した後に描画コマンドを積むだけなので、地面と同じRenderに置く
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAttackAreaSystem>(), (int)ECS::SystemPriority::Render);
         {
             auto effectSystem = std::make_shared<Tsukino::BuiltIn::ECS::EffectSystem>();
             m_scene.AddSystem(effectSystem, (int)ECS::SystemPriority::Render);
