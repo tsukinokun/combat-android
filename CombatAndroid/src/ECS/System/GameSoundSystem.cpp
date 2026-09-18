@@ -31,6 +31,8 @@ namespace CombatAndroid::ECS {
             case GameLogCategory::PlayerLevelUp:  return SoundId::LevelUp;
             case GameLogCategory::SkillAcquired:  return SoundId::SkillPick;
             case GameLogCategory::DangerRankUp:   return SoundId::DangerUp;
+            case GameLogCategory::WeaponEvolved:  return SoundId::WeaponEvolve;
+            case GameLogCategory::EliteAppeared:  return SoundId::DangerUp;
             default:                              return SoundId::Count;
             }
         }

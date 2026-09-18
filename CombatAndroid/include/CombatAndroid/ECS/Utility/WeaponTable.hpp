@@ -73,7 +73,7 @@ namespace CombatAndroid::ECS {
 
     //-------------------------------------------------------------
     //! @brief  weaponId/levelからテーブルを引き、実効ステータス（damage）を書き戻す関数
-    //! @param  weapon [in,out] 対象のコンポーネント。weaponId/levelを読み、damageを書く
+    //! @param  weapon [in,out] 対象のコンポーネント。weaponId/level/evolvedを読み、damageを書く
     //! @note   levelが1未満・kMaxWeaponLevel超の場合は範囲内へ丸めて引く
     //-------------------------------------------------------------
     void RecalculateWeaponStats(WeaponComponent& weapon);

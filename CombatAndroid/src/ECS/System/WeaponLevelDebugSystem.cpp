@@ -49,6 +49,8 @@ namespace CombatAndroid::ECS {
                 const WeaponComponent&  weapon = registry.GetComponent<WeaponComponent>(weaponEntity);
                 const WeaponTableEntry& entry  = GetWeaponEntry(weapon.weaponId);
                 wss << L"\n" << entry.displayName << L" Lv." << weapon.level;
+                if(weapon.evolved)
+                    wss << L" 進化";
             }
 
             hudFont.text = wss.str();

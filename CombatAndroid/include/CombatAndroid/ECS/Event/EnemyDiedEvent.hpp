@@ -9,6 +9,8 @@
 #include <entt/entt.hpp>
 #include <hlsl++.h>
 
+#include <vector>
+
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
 
@@ -28,6 +30,11 @@ namespace CombatAndroid::ECS {
         // 引き直せる保証が無いため、武器エンティティはイベントに載せて運ぶ
         //-------------------------------------------------------------
         Tsukino::ECS::Entity heldWeaponEntity = entt::null;
+
+        //! 使用中の1本以外に持っていた武器（複数の武器を持つエリートのPaladinだけ）。これも全部地面へ落とす
+        std::vector<Tsukino::ECS::Entity> extraWeaponEntities;
+
+        bool isElite = false;    //!< エリート（強化個体）だったか。武器を持っていなければEnemyWeaponDropSystemが武器を1本落とす
     };
 
 }    // namespace CombatAndroid::ECS

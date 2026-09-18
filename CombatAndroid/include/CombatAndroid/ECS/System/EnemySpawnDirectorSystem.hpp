@@ -79,6 +79,14 @@ namespace CombatAndroid::ECS {
         [[nodiscard]]
         int CountLiveEnemies(Tsukino::ECS::Registry& registry);
 
+        //-------------------------------------------------------------
+        //! @brief 生存中（死亡演出中を除く）のエリートを数える関数
+        //! @param registry [in] エンティティレジストリ
+        //! @return 生存数（同時出現数の上限判定に使う）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        int CountLiveElites(Tsukino::ECS::Registry& registry) const;
+
         //---------------------------------------------------------
         // 湧き位置
         //---------------------------------------------------------

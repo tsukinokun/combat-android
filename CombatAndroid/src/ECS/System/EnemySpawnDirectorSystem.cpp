@@ -5,17 +5,23 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 
+#include <CombatAndroid/ECS/Component/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/SpawnedEnemyComponent.hpp>
+#include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Utility/EliteEnemy.hpp>
 #include <CombatAndroid/ECS/Utility/EnemyDifficultyTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawnTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
+
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -131,6 +137,15 @@ namespace CombatAndroid::ECS {
         //-----------------------------------------------------
         ApplyEnemyDifficulty(config, dangerRank);
 
+        //-----------------------------------------------------
+        // エリート（強化個体）の抽選。危険度の補正の上から掛けるので、
+        // 後半のエリートほど硬く強くなる
+        //-----------------------------------------------------
+        const bool isFinalStretch = elapsedSeconds >= kRunClearSeconds - kRunFinalStretchSeconds;
+        const bool isElite        = RollElite(m_rng, dangerRank, isFinalStretch, CountLiveElites(registry));
+        if(isElite)
+            ApplyEliteModifiers(config);
+
         // 全個体の再生位置をずらす。揃っていると群れの足の運びが完全に一致し、
         // AnimationSystemの分岐も毎フレーム同じになって不自然に見える
         std::uniform_real_distribution<float> phaseDist(0.0f, 3.0f);
@@ -138,6 +153,35 @@ namespace CombatAndroid::ECS {
 
         Tsukino::ECS::Entity enemyEntity = SpawnBehaviorEnemy(registry, context, config);
         registry.AddComponent<SpawnedEnemyComponent>(enemyEntity);
+
+        if(isElite) {
+            registry.AddComponent<EliteEnemyComponent>(enemyEntity).baseType = entry->id;
+
+            // エリートのPaladinは2本以上の武器を持ち、攻撃ごとに使い分ける（PaladinWeaponSwitchSystem）
+            if(entry->id == EnemyTypeId::Paladin)
+                EquipPaladinArsenal(registry, context, m_rng, enemyEntity);
+
+            // 重いので押されにくくする（EnemySpawnConfigを経由しない値なので生成後に書く）
+            if(auto* enemy = registry.try_get<EnemyComponent>(enemyEntity))
+                enemy->knockbackDecayRate *= kEliteKnockbackDecayScale;
+
+            // フォグの外から来るので、先に知らせて身構えさせる
+            if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                eventBus->Publish(GameLogEvent{GameLogCategory::EliteAppeared, GetEliteDisplayName(entry->id)});
+        }
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 生きている（死亡演出に入っていない）エリートを数える
+    //-------------------------------------------------------------
+    int EnemySpawnDirectorSystem::CountLiveElites(Tsukino::ECS::Registry& registry) const {
+        int  count = 0;
+        auto view  = registry.View<EliteEnemyComponent, HealthComponent>();
+        view.each([&](const EliteEnemyComponent&, const HealthComponent& health) {
+            if(!health.isDead)
+                ++count;
+        });
+        return count;
     }
 
     //-------------------------------------------------------------
@@ -218,6 +262,13 @@ namespace CombatAndroid::ECS {
             if(const EnemyHeldWeaponComponent* heldWeapon = registry.try_get<EnemyHeldWeaponComponent>(entity)) {
                 if(heldWeapon->weaponEntity != entt::null)
                     registry.QueueDestroy(heldWeapon->weaponEntity);
+            }
+
+            // エリートのPaladinが浮かせている残りの武器も一緒に消す
+            // （使用中の1本は上と重複するが、FlushDestroyQueueが重複を除去する）
+            if(const PaladinArsenalComponent* arsenal = registry.try_get<PaladinArsenalComponent>(entity)) {
+                for(Tsukino::ECS::Entity weaponEntity : arsenal->weaponEntities)
+                    registry.QueueDestroy(weaponEntity);
             }
 
             registry.QueueDestroy(entity);

@@ -20,6 +20,7 @@
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAttackTelegraphSystem.hpp>
+#include <CombatAndroid/ECS/System/PaladinWeaponSwitchSystem.hpp>
 #include <CombatAndroid/ECS/System/HitStopSystem.hpp>
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
@@ -118,6 +119,8 @@ namespace CombatAndroid {
         // 攻撃の振りかぶりを赤いリムライトで見せる。EnemyAnimationSystemが今フレームの
         // ステートを確定させた後に読む必要があるので、必ずこの後に登録する
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAttackTelegraphSystem>(), (int)ECS::SystemPriority::Gameplay);
+        // エリートのPaladinの持ち替え。攻撃ステートを抜けた瞬間を見るので、これもEnemyAnimationSystemの後
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PaladinWeaponSwitchSystem>(), (int)ECS::SystemPriority::Gameplay);
         // ヒットストップ（プレイヤー/被弾した敵だけを止める）。Player/EnemyAnimationSystemが
         // 今フレームのplayback_speedを確定させた後、AnimationSystemがそれを消費する前に
         // 対象エンティティだけ掛け算で減速させる

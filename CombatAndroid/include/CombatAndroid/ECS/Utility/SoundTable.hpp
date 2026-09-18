@@ -29,6 +29,7 @@ namespace CombatAndroid::ECS {
         MenuConfirm,       //!< メニューで決定した
         RunClear,          //!< クリアした
         RunFailed,         //!< 倒された
+        WeaponEvolve,      //!< 武器が進化した
         Count,
     };
 

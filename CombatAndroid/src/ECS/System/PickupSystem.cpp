@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponAbsorbComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -65,6 +66,11 @@ namespace CombatAndroid::ECS {
         constexpr float kLevelUpRimColorB       = 0.35f;
         constexpr float kLevelUpRimIntensityMax = 6.0f;    //!< 発光開始直後のリム強度
         constexpr float kLevelUpGlowMax         = 0.6f;    //!< 発光開始直後の白発光量
+
+        // 進化済みの武器に常に残す弱い発光。レベルアップ発光と同じ金色で、
+        // 戦闘中に目障りにならないよう面全体（glow）はほとんど持ち上げない
+        constexpr float kEvolvedRimIntensity = 1.8f;
+        constexpr float kEvolvedGlow         = 0.04f;
 
         //-------------------------------------------------------------
         //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
@@ -181,6 +187,10 @@ namespace CombatAndroid::ECS {
                         }
                     }
                     targetWeapon.levelUpFlashTimer = kLevelUpFlashDuration;
+
+                    // 最大レベルに届いた武器が進化条件を満たしていれば進化させる
+                    // （進化した武器はここで発光を長いものに焼き直す）
+                    TryEvolvePlayerWeapons(registry, playerEntity);
                 }
 
                 registry.RemoveComponent<WeaponAbsorbComponent>(entity);
@@ -194,22 +204,38 @@ namespace CombatAndroid::ECS {
         {
             auto flashView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::RimGlowComponent>();
             flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::RimGlowComponent& highlight) {
-                if(weapon.levelUpFlashTimer <= 0.0f)
+                // 手持ちの進化済み武器は、発光が減衰し切った後もこの弱さで光らせ続ける
+                const bool  keepsEvolvedGlow = weapon.evolved && weapon.owner != entt::null;
+                const float restRim          = keepsEvolvedGlow ? kEvolvedRimIntensity : 0.0f;
+                const float restGlow         = keepsEvolvedGlow ? kEvolvedGlow : 0.0f;
+
+                if(weapon.levelUpFlashTimer <= 0.0f) {
+                    if(keepsEvolvedGlow) {
+                        highlight.active       = true;
+                        highlight.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
+                        highlight.rimIntensity = restRim;
+                        highlight.rimPower     = kRimPower;
+                        highlight.glow         = restGlow;
+                    }
                     return;
+                }
 
                 weapon.levelUpFlashTimer -= deltaTime;
                 if(weapon.levelUpFlashTimer <= 0.0f) {
                     weapon.levelUpFlashTimer = 0.0f;
-                    highlight.active           = false;
+                    highlight.active           = keepsEvolvedGlow;
+                    highlight.rimIntensity     = restRim;
+                    highlight.glow             = restGlow;
                     return;
                 }
 
+                // 減衰の行き先は消灯ではなく常時発光の強さ（進化済みでなければ0）
                 float ease = SmoothStep01(weapon.levelUpFlashTimer / kLevelUpFlashDuration);
                 highlight.active       = true;
                 highlight.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
-                highlight.rimIntensity = kLevelUpRimIntensityMax * ease;
+                highlight.rimIntensity = restRim + (kLevelUpRimIntensityMax - restRim) * ease;
                 highlight.rimPower     = kRimPower;
-                highlight.glow         = kLevelUpGlowMax * ease;
+                highlight.glow         = restGlow + (kLevelUpGlowMax - restGlow) * ease;
             });
         }
 
@@ -312,6 +338,10 @@ namespace CombatAndroid::ECS {
                     pickedWeapon.hasFollowSpringState = false;
 
                     player->weaponInventory.push_back(nearest);
+
+                    // 今は拾った直後の武器がLv1なので進化しないが、将来レベル付きで落ちる武器を
+                    // 足しても取りこぼさないよう、手持ちが変わる箇所では必ず判定しておく
+                    TryEvolvePlayerWeapons(registry, playerEntity);
 
                     // 画面右の取得ログへ流す（初取得のときだけ。2本目以降は上の吸収側が出す）
                     if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {

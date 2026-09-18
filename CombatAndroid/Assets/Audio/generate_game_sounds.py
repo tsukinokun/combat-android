@@ -205,6 +205,19 @@ def run_clear():
     return normalize(samples, 0.8)
 
 
+def weapon_evolve():
+    """武器の進化。低い一撃のあとに駆け上がる4音と、高い和音の余韻（レベルアップより一段派手に）"""
+    samples = make_buffer(0.75)
+    tone(samples, 0.00, 0.22, 196.0, 98.0, 0.7, "sine", decay=12.0)
+    noise(samples, 0.00, 0.10, 0.25, decay=40.0, low_pass=0.6)
+    for start, freq in ((0.06, 523.0), (0.12, 659.0), (0.18, 784.0), (0.24, 1047.0)):
+        tone(samples, start, 0.20, freq, freq, 0.40, "sine", decay=12.0)
+    for freq in (1047.0, 1319.0, 1568.0):
+        tone(samples, 0.30, 0.45, freq, freq, 0.28, "sine", decay=6.0)
+        tone(samples, 0.30, 0.45, freq * 2.0, freq * 2.0, 0.06, "sine", decay=8.0)
+    return normalize(samples, 0.75)
+
+
 def run_failed():
     """ゲームオーバー。下降する3音"""
     samples = make_buffer(0.95)
@@ -228,6 +241,7 @@ OUTPUTS = (
     ("MenuConfirm.wav", menu_confirm),
     ("RunClear.wav", run_clear),
     ("RunFailed.wav", run_failed),
+    ("WeaponEvolve.wav", weapon_evolve),
 )
 
 

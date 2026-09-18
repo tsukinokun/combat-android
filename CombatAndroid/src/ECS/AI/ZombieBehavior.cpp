@@ -3,10 +3,12 @@
 //! @brief  ゾンビ系敵（SmallZombie/BigZombie共通）用ビヘイビアツリー構築関数の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
+#include <CombatAndroid/ECS/Component/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/EnemyDiedEvent.hpp>
 
@@ -125,8 +127,18 @@ namespace CombatAndroid::ECS {
                     if(auto* heldWeapon = context.registry.try_get<EnemyHeldWeaponComponent>(context.entity))
                         heldWeaponEntity = heldWeapon->weaponEntity;
 
-                    eventBus->Publish(
-                        EnemyDiedEvent{deathTransform.position, static_cast<int>(enemy.expReward + 0.5f), heldWeaponEntity});
+                    EnemyDiedEvent diedEvent{deathTransform.position, static_cast<int>(enemy.expReward + 0.5f), heldWeaponEntity};
+                    diedEvent.isElite = context.registry.HasComponent<EliteEnemyComponent>(context.entity);
+
+                    // 複数の武器を持つエリートのPaladinは、使っていなかった武器も全部落とす
+                    if(const auto* arsenal = context.registry.try_get<PaladinArsenalComponent>(context.entity)) {
+                        for(Tsukino::ECS::Entity weaponEntity : arsenal->weaponEntities) {
+                            if(weaponEntity != heldWeaponEntity)
+                                diedEvent.extraWeaponEntities.push_back(weaponEntity);
+                        }
+                    }
+
+                    eventBus->Publish(diedEvent);
                 }
 
                 // 本体・頭上HPバー（背景・残量）を破棄予約する。

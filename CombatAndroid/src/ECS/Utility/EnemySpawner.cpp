@@ -323,22 +323,11 @@ namespace CombatAndroid::ECS {
 
     namespace {
         //-------------------------------------------------------------
-        //! @struct PaladinWeaponVariant
-        //! @brief  Paladinが持つ武器1種類ぶんの、攻撃まわりのパラメータ
-        //! @note   Paladinは武器を持って湧く敵で、持っている武器によって攻撃モーション・
-        //!         間合い・威力が変わる。「1個体が持つ武器は湧いた瞬間に確定する」ため、
-        //!         攻撃クリップは常に1本で済み、EnemyAnimState側へ攻撃ステートを増やす必要はない
+        // Paladinは武器を持って湧く敵で、持っている武器によって攻撃モーション・間合い・威力が変わる。
+        // 攻撃クリップは常に1本（EnemyAnimationSetComponent::attackClip）で、エリートが持ち替えるときは
+        // その1本と判定の値を差し替える。EnemyAnimState側へ攻撃ステートを増やす必要はない
         //-------------------------------------------------------------
-        struct PaladinWeaponVariant {
-            WeaponId    weaponId;
-            const char* attackClipPath;
-            float       attackRange;     //!< BTが攻撃へ移る距離（＝MoveToPlayerが足を止める距離）
-            float       hitboxReach;     //!< 手ボーンから武器先端までの距離
-            float       hitboxRadius;
-            float       hitboxDamage;
-            float       hitStartTime;
-            float       hitDuration;
-        };
+        using PaladinWeaponVariant = PaladinWeaponAttack;
 
         //-------------------------------------------------------------
         // 手ボーンから武器先端までの距離。プレイヤーが振るときの当たり判定の長さ
@@ -373,6 +362,13 @@ namespace CombatAndroid::ECS {
             return kPaladinWeaponVariants[0];
         }
     }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief 武器の種類からPaladinの攻撃パラメータを引く
+    //-------------------------------------------------------------
+    const PaladinWeaponAttack& GetPaladinWeaponAttack(WeaponId weaponId) {
+        return FindPaladinWeaponVariant(weaponId);
+    }
 
     //-------------------------------------------------------------
     //! @brief Paladin 1体分の生成パラメータを作る（武器を明示指定する版）

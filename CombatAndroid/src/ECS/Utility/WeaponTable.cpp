@@ -5,6 +5,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -93,5 +94,9 @@ namespace CombatAndroid::ECS {
         const int               levelIndex = std::clamp(weapon.level, 1, kMaxWeaponLevel) - 1;
 
         weapon.damage = entry.levels[static_cast<size_t>(levelIndex)].damage;
+
+        // 進化済みなら進化の倍率を掛ける（範囲・射程などはApplyWeaponEvolutionが一度だけ書き換える）
+        if(weapon.evolved)
+            weapon.damage *= GetWeaponEvolution(weapon.weaponId).damageScale;
     }
 }    // namespace CombatAndroid::ECS

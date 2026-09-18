@@ -35,6 +35,7 @@ namespace CombatAndroid::ECS {
             {SoundId::MenuConfirm,   "CombatAndroid/Assets/Audio/MenuConfirm.wav",   0.55f, 0.00f},
             {SoundId::RunClear,      "CombatAndroid/Assets/Audio/RunClear.wav",      0.80f, 0.00f},
             {SoundId::RunFailed,     "CombatAndroid/Assets/Audio/RunFailed.wav",     0.80f, 0.00f},
+            {SoundId::WeaponEvolve,  "CombatAndroid/Assets/Audio/WeaponEvolve.wav",  0.80f, 0.00f},
         };
 
         // 種類を足したのに表へ書き忘れる事故を防ぐ（WeaponTable.cppと同じ作法）

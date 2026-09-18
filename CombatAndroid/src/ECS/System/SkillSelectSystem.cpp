@@ -7,11 +7,13 @@
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -152,6 +154,32 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  スキルカードに添える進化の案内を作る関数
+        //! @param  registry [in] ECSレジストリ
+        //! @param  player   [in] 手持ちの武器を持つプレイヤー
+        //! @param  skill    [in] カードのスキル
+        //! @return このスキルを条件に進化する、手持ちで未進化の武器の進化後の名前（「・」区切り）。無ければ空
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        std::wstring FindEvolutionHint(Tsukino::ECS::Registry& registry, const PlayerComponent& player, SkillId skill) {
+            std::wstring hint;
+            for(Tsukino::ECS::Entity weaponEntity : player.weaponInventory) {
+                const auto* weapon = registry.try_get<WeaponComponent>(weaponEntity);
+                if(!weapon || weapon->evolved)
+                    continue;
+
+                const WeaponEvolutionEntry& evolution = GetWeaponEvolution(weapon->weaponId);
+                if(evolution.requiredSkill != skill)
+                    continue;
+
+                if(!hint.empty())
+                    hint += L"・";
+                hint += evolution.displayName;
+            }
+            return hint;
+        }
+
+        //-------------------------------------------------------------
         //! @brief  メニュー全体の見た目を書き直す関数
         //! @param  registry [in] ECSレジストリ
         //! @param  context  [in] エンジンコンテキスト
@@ -161,7 +189,7 @@ namespace CombatAndroid::ECS {
         //!         文字列を組み立てるので変化があった時だけにしている
         //-------------------------------------------------------------
         void RefreshUi(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, SkillSelectComponent& select,
-                       const PlayerSkillComponent& skills) {
+                       const PlayerSkillComponent& skills, const PlayerComponent& player) {
             const float screenWidth   = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
             const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
@@ -228,6 +256,14 @@ namespace CombatAndroid::ECS {
                 nameText += std::to_wstring(level + 1);
                 nameText += L" / ";
                 nameText += std::to_wstring(kMaxSkillLevel);
+
+                // 持っている武器の進化条件になっているスキルなら、進化先を添えて気付かせる
+                const std::wstring evolutionHint = FindEvolutionHint(registry, player, id);
+                if(!evolutionHint.empty()) {
+                    nameText += L"   [進化: ";
+                    nameText += evolutionHint;
+                    nameText += L"]";
+                }
 
                 PlaceUiText(registry, card.nameEntity, textLeftX, centerY + kNameOffsetY, kNameFontScale, nameText, kNameColor);
                 PlaceUiText(registry, card.descEntity, textLeftX, centerY + kDescOffsetY, kDescFontScale,
@@ -347,7 +383,7 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 ClearAllHitStop(registry);
 
-                RefreshUi(registry, *ctx, select, skills);
+                RefreshUi(registry, *ctx, select, skills, player);
                 continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
             }
 
@@ -380,7 +416,7 @@ namespace CombatAndroid::ECS {
                 if(nextIndex != select.cursorIndex) {
                     select.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
-                    RefreshUi(registry, *ctx, select, skills);
+                    RefreshUi(registry, *ctx, select, skills, player);
                 }
             }
 
@@ -406,6 +442,9 @@ namespace CombatAndroid::ECS {
                                                   std::wstring(GetSkillEntry(acquiredId).displayName) + L" Lv."
                                                       + std::to_wstring(acquiredLevel)});
                 }
+
+                // スキルが条件に届いた武器を進化させる（ログはスキル取得の次の行に流れる）
+                TryEvolvePlayerWeapons(registry, entity);
 
                 --select.pendingLevelUps;
                 select.isActive = false;

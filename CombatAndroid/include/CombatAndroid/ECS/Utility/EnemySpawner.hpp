@@ -143,4 +143,28 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition);
+
+    //-------------------------------------------------------------
+    //! @struct PaladinWeaponAttack
+    //! @brief  Paladinが持つ武器1種類ぶんの、攻撃まわりのパラメータ（危険度・エリートの補正前の素の値）
+    //-------------------------------------------------------------
+    struct PaladinWeaponAttack {
+        WeaponId    weaponId;
+        const char* attackClipPath;
+        float       attackRange;     //!< BTが攻撃へ移る距離（＝MoveToPlayerが足を止める距離）
+        float       hitboxReach;     //!< 手ボーンから武器先端までの距離
+        float       hitboxRadius;
+        float       hitboxDamage;
+        float       hitStartTime;
+        float       hitDuration;
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  武器の種類からPaladinの攻撃パラメータを引く関数
+    //! @param  weaponId [in] 武器の種類
+    //! @return 対応するパラメータ（見つからなければ表の先頭）
+    //! @note   エリートのPaladinが戦闘中に武器を持ち替えるとき（PaladinWeaponSwitchSystem）にも使う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    const PaladinWeaponAttack& GetPaladinWeaponAttack(WeaponId weaponId);
 }    // namespace CombatAndroid::ECS

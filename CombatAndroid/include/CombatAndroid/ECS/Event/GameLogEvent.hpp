@@ -21,6 +21,8 @@ namespace CombatAndroid::ECS {
         PlayerLevelUp,         //!< プレイヤーのレベルアップ
         SkillAcquired,         //!< スキル取得
         DangerRankUp,          //!< 危険度ランクの上昇（時間経過で敵が強くなった）
+        WeaponEvolved,         //!< 武器の進化（最大レベル＋対応スキル）
+        EliteAppeared,         //!< エリート敵の出現
         Count,
     };
 
