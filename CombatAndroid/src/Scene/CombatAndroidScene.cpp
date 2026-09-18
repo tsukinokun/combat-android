@@ -38,6 +38,7 @@
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
+#include <CombatAndroid/ECS/Utility/Bgm.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #ifdef _DEBUG
@@ -128,6 +129,9 @@ namespace CombatAndroid {
         // 既存コードはキャッシュヒットになり、戦闘中や初回表示のタイミングで
         // 重いインポート処理が走らなくなる（詳細はAssetPreloader.hppのコメント参照）
         CombatAndroid::ECS::PreloadAssets(*context);
+
+        // 戦闘中のBGM。素材が置かれていなければ無音のまま進む（Assets/Audio/README.md）
+        CombatAndroid::ECS::PlayBgm(*context, CombatAndroid::ECS::kBattleBgmPath);
 
         Tsukino::Asset::AssetHandle modelHandle =
             context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Player.fbx"));
@@ -1287,7 +1291,9 @@ namespace CombatAndroid {
     //! @brief  シーンの終了処理
     //-------------------------------------------------------------
     void CombatAndroidScene::OnExit() {
-        // シーン終了時の解放処理などが必要な場合はここに記述します
+        // BGMは明示的に止める。止めないとタイトルへ戻っても戦闘曲が鳴り続ける
+        if(auto* context = m_scene.GetRegistry().GetContext<Tsukino::EngineIntegration::EngineContext*>())
+            CombatAndroid::ECS::StopBgm(*context, CombatAndroid::ECS::kBattleBgmPath);
     }
 
 }    // namespace CombatAndroid

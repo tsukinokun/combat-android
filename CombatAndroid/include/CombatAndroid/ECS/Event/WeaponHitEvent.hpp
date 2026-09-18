@@ -21,6 +21,7 @@ namespace CombatAndroid::ECS {
         entt::entity   target;        //!< ヒットを受けた敵エンティティ
         hlslpp::float3 hitPosition;   //!< ヒット位置（ワールド空間。演出用）
         float          damage;        //!< 実際に与えたダメージ量
+        bool           killed;        //!< このヒットで倒したか（撃破音・演出の起点に使う）
     };
 
 }    // namespace CombatAndroid::ECS

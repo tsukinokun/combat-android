@@ -101,27 +101,32 @@ namespace CombatAndroid::ECS {
         // スキルテーブル本体。
         //
         // ★ スキルを1種追加するときはここへ1行足す ★
-        //     { SkillId::Xxx, L"名前", 背景テクスチャのパス, 色, kXxxLevels },
+        //     { SkillId::Xxx, L"名前", カード背景のパス, アイコンのパス, 色, kXxxLevels },
         //   併せてSkillIdへの追加と、RecalculateSkillStatsのcase文の追加が要る。
         //
-        // backgroundTexturePathは今のところ全て白1色のWhitePixel.pngを指しており、
-        // 実際の見た目はpanelColorの乗算で作っている。スキルごとの絵を用意したら
-        // ここのパスを差し替えるだけで切り替わる（panelColorは白にすれば素の絵になる）。
+        // 絵は Assets/Textures/UI/Skill/generate_skill_art.py が生成したグレースケールで、
+        // 色は panelColor の乗算で付けている（紋章の形＋色でスキルを見分けられるようにするため）。
         // GetSkillEntryがidを添字として使うため、必ずSkillIdの並び順に定義すること
         //-------------------------------------------------------------
-        constexpr const char* kPlaceholderTexturePath = "CombatAndroid/Assets/Textures/UI/WhitePixel.png";
 
         // hlslpp::float4のコンストラクタはconstexprではない（SIMD型のため）ので、
         // 段階のテーブルと違いこちらはconstexprにできない。
         // 実体はどのみち静的な読み取り専用データで、動的確保は発生しない
         const SkillTableEntry kSkillTable[] = {
-            {SkillId::Greed, L"強欲", kPlaceholderTexturePath, {0.85f, 0.72f, 0.20f, 1.0f}, kGreedLevels},
-            {SkillId::Gluttony, L"暴食", kPlaceholderTexturePath, {0.35f, 0.70f, 0.35f, 1.0f}, kGluttonyLevels},
-            {SkillId::Wrath, L"憤怒", kPlaceholderTexturePath, {0.80f, 0.25f, 0.25f, 1.0f}, kWrathLevels},
-            {SkillId::Pride, L"傲慢", kPlaceholderTexturePath, {0.55f, 0.35f, 0.80f, 1.0f}, kPrideLevels},
-            {SkillId::Envy, L"嫉妬", kPlaceholderTexturePath, {0.25f, 0.65f, 0.60f, 1.0f}, kEnvyLevels},
-            {SkillId::Lust, L"色欲", kPlaceholderTexturePath, {0.90f, 0.40f, 0.65f, 1.0f}, kLustLevels},
-            {SkillId::Sloth, L"怠惰", kPlaceholderTexturePath, {0.45f, 0.50f, 0.60f, 1.0f}, kSlothLevels},
+            {SkillId::Greed, L"強欲", "CombatAndroid/Assets/Textures/UI/Skill/GreedCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/GreedIcon.png", {0.85f, 0.72f, 0.20f, 1.0f}, kGreedLevels},
+            {SkillId::Gluttony, L"暴食", "CombatAndroid/Assets/Textures/UI/Skill/GluttonyCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/GluttonyIcon.png", {0.35f, 0.70f, 0.35f, 1.0f}, kGluttonyLevels},
+            {SkillId::Wrath, L"憤怒", "CombatAndroid/Assets/Textures/UI/Skill/WrathCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/WrathIcon.png", {0.80f, 0.25f, 0.25f, 1.0f}, kWrathLevels},
+            {SkillId::Pride, L"傲慢", "CombatAndroid/Assets/Textures/UI/Skill/PrideCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/PrideIcon.png", {0.55f, 0.35f, 0.80f, 1.0f}, kPrideLevels},
+            {SkillId::Envy, L"嫉妬", "CombatAndroid/Assets/Textures/UI/Skill/EnvyCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/EnvyIcon.png", {0.25f, 0.65f, 0.60f, 1.0f}, kEnvyLevels},
+            {SkillId::Lust, L"色欲", "CombatAndroid/Assets/Textures/UI/Skill/LustCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/LustIcon.png", {0.90f, 0.40f, 0.65f, 1.0f}, kLustLevels},
+            {SkillId::Sloth, L"怠惰", "CombatAndroid/Assets/Textures/UI/Skill/SlothCard.png",
+             "CombatAndroid/Assets/Textures/UI/Skill/SlothIcon.png", {0.45f, 0.50f, 0.60f, 1.0f}, kSlothLevels},
         };
 
         // 種類を足したのにテーブルへ書き忘れる事故を防ぐ

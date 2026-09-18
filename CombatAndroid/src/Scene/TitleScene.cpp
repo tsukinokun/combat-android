@@ -6,6 +6,7 @@
 
 #include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
 #include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/Utility/Bgm.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
@@ -38,6 +39,9 @@ namespace CombatAndroid {
         // 戦闘シーンではTpsCameraSystemがカーソルを隠しているので、戻ってきたときのために出しておく
         if(context->window)
             context->window->SetCursorVisible(true);
+
+        // タイトルのBGM。素材が置かれていなければ無音のまま進む（Assets/Audio/README.md）
+        CombatAndroid::ECS::PlayBgm(*context, CombatAndroid::ECS::kTitleBgmPath);
 
         //--------------------------------------------------------------
         // システム。画面固定のスプライトと文字を描くのに必要な分だけ
@@ -102,5 +106,7 @@ namespace CombatAndroid {
     //! @brief  シーンの終了処理
     //-------------------------------------------------------------
     void TitleScene::OnExit() {
+        if(auto* context = m_scene.GetRegistry().GetContext<Tsukino::EngineIntegration::EngineContext*>())
+            CombatAndroid::ECS::StopBgm(*context, CombatAndroid::ECS::kTitleBgmPath);
     }
 }    // namespace CombatAndroid

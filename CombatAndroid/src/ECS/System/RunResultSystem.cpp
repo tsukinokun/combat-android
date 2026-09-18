@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/RunResultComponent.hpp>
+#include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/RunRecord.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
@@ -245,6 +246,8 @@ namespace CombatAndroid::ECS {
                 result.openedThisFrame = true;
                 result.cursorIndex     = 0;
 
+                PlaySound(registry, cleared ? SoundId::RunClear : SoundId::RunFailed);
+
                 const int level = registry.HasComponent<PlayerExperienceComponent>(entity)
                                       ? registry.GetComponent<PlayerExperienceComponent>(entity).level
                                       : 1;
@@ -316,6 +319,7 @@ namespace CombatAndroid::ECS {
                 const int nextIndex = std::clamp(result.cursorIndex + step, 0, static_cast<int>(ResultMenuItem::Count) - 1);
                 if(nextIndex != result.cursorIndex) {
                     result.cursorIndex = nextIndex;
+                    PlaySound(registry, SoundId::MenuMove);
 
                     const float screenWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
                     const float screenHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
@@ -326,6 +330,8 @@ namespace CombatAndroid::ECS {
 
             if(!IsGameMenuConfirmPressed(input) || !ctx->gameSceneManager)
                 continue;
+
+            PlaySound(registry, SoundId::MenuConfirm);
 
             // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭
             //（GameSceneManager::Update）で行われるため、System内から直接呼んでよい

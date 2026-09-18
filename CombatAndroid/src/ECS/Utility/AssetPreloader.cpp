@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Utility/SkillTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
+#include <CombatAndroid/ECS/Utility/SoundTable.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -65,10 +66,12 @@ namespace CombatAndroid::ECS {
             PreloadWeapon(assetManager, GetWeaponSpawnDefinition(static_cast<WeaponId>(i)));
 
         //-------------------------------------------------------------
-        // スキル：カード背景テクスチャ
+        // スキル：カード背景とHUDアイコン
         //-------------------------------------------------------------
-        for(const SkillTableEntry& entry : GetSkillTable())
+        for(const SkillTableEntry& entry : GetSkillTable()) {
             assetManager.Load(Tsukino::Core::Path(entry.backgroundTexturePath));
+            assetManager.Load(Tsukino::Core::Path(entry.iconTexturePath));
+        }
 
         //-------------------------------------------------------------
         // 敵：モデル・アニメーションクリップ。生成パラメータを作るだけで
@@ -82,6 +85,12 @@ namespace CombatAndroid::ECS {
 
         for(int i = 0; i < static_cast<int>(WeaponId::Count); ++i)
             (void)MakePaladinConfig(context, dummyPosition, static_cast<WeaponId>(i));
+
+        //-------------------------------------------------------------
+        // 効果音：表に載っているものを全て読む（初回再生時の変換待ちを無くす）
+        //-------------------------------------------------------------
+        for(const SoundTableEntry& entry : GetSoundTable())
+            assetManager.Load(Tsukino::Core::Path(entry.path));
 
         //-------------------------------------------------------------
         // どのテーブルにも属さない単発アセット

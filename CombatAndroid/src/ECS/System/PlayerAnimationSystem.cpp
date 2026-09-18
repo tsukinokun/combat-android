@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerChargeEvent.hpp>
+#include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerFinisherEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
@@ -503,6 +504,17 @@ namespace CombatAndroid::ECS {
                 cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
             } else if(willBeDodging) {
                 cc.moveInput = animSet.dodgeDirection * player.dodgeSpeed;
+            }
+
+            //-------------------------------------------------------------
+            // 効果音。ステートが実際に切り替わる瞬間に鳴らす
+            //（攻撃は段が進むたびに鳴らしたいので、Attack1→Attack2のような攻撃同士の切り替わりも拾う）
+            //-------------------------------------------------------------
+            if(desiredState != animSet.currentState) {
+                if(IsAttackState(desiredState))
+                    PlaySound(registry, SoundId::Swing);
+                else if(desiredState == PlayerAnimState::Dodge)
+                    PlaySound(registry, SoundId::Dodge);
             }
 
             //-------------------------------------------------------------

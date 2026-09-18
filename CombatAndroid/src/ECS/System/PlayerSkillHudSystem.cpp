@@ -141,11 +141,11 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 // アイコン枠。テクスチャはテーブルのパスから引く（AssetManagerがパスで
                 // キャッシュするため、毎フレームLoadを呼んでも実際の読み込みは1回きり）。
-                // スキルごとの絵を用意するまでは、WhitePixelをpanelColorで着色した四角になる
+                // 絵はグレースケールなので、panelColorの乗算がそのままスキルの色になる
                 //-------------------------------------------------------------
                 if(row.iconEntity != entt::null && ctx->assetManager) {
                     if(auto* iconSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(row.iconEntity))
-                        iconSprite->textureHandle = ctx->assetManager->Load(Tsukino::Core::Path(entry.backgroundTexturePath));
+                        iconSprite->textureHandle = ctx->assetManager->Load(Tsukino::Core::Path(entry.iconTexturePath));
                 }
 
                 StretchIconSprite(registry, *ctx, row.iconEntity, kSkillListLeftX + kIconSize * 0.5f, rowCenterY, kIconSize,

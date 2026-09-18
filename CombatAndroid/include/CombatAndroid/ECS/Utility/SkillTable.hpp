@@ -69,8 +69,9 @@ namespace CombatAndroid::ECS {
     struct SkillTableEntry {
         SkillId        id;                       //!< 種類の識別子
         const wchar_t* displayName;              //!< カードに出す名前
-        const char*    backgroundTexturePath;    //!< カードの背景テクスチャ。専用の絵を用意したらここを差し替える
-        hlslpp::float4 panelColor;               //!< 背景テクスチャに乗算する色（WhitePixel.pngを使っている間はこれが実質のカード色）
+        const char*    backgroundTexturePath;    //!< カードの背景テクスチャ（760x150）
+        const char*    iconTexturePath;          //!< HUDの取得済み一覧に出すアイコン（正方形）
+        hlslpp::float4 panelColor;               //!< 上の2枚に乗算する色。絵はグレースケールなので、この色がスキルの色になる
 
         //! そのスキルの段階ごとの効果。levels[0]が1回目の取得（Lv1）に対応する
         std::span<const SkillLevelEntry> levels;

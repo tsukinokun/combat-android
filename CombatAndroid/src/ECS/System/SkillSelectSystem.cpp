@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
@@ -378,6 +379,7 @@ namespace CombatAndroid::ECS {
                 const int nextIndex = std::clamp(select.cursorIndex + step, 0, select.candidateCount - 1);
                 if(nextIndex != select.cursorIndex) {
                     select.cursorIndex = nextIndex;
+                    PlaySound(registry, SoundId::MenuMove);
                     RefreshUi(registry, *ctx, select, skills);
                 }
             }

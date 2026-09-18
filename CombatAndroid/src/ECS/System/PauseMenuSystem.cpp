@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/PauseMenuComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
@@ -131,6 +132,7 @@ namespace CombatAndroid::ECS {
                 pause.isOpen          = true;
                 pause.cursorIndex     = 0;
                 pause.openedThisFrame = true;
+                PlaySound(registry, SoundId::MenuConfirm);
 
                 // 止めている間にヒットストップが残ると、再開した後もスローが続いてしまう
                 ClearAllHitStop(registry);
@@ -156,6 +158,7 @@ namespace CombatAndroid::ECS {
                 const int nextIndex = std::clamp(pause.cursorIndex + step, 0, static_cast<int>(PauseMenuItem::Count) - 1);
                 if(nextIndex != pause.cursorIndex) {
                     pause.cursorIndex = nextIndex;
+                    PlaySound(registry, SoundId::MenuMove);
                     RefreshUi(registry, *ctx, pause);
                 }
             }
@@ -165,6 +168,7 @@ namespace CombatAndroid::ECS {
                 continue;
 
             const PauseMenuItem selected = resumeByEscape ? PauseMenuItem::Resume : static_cast<PauseMenuItem>(pause.cursorIndex);
+            PlaySound(registry, SoundId::MenuConfirm);
 
             switch(selected) {
             case PauseMenuItem::Retry:

@@ -19,6 +19,7 @@
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
+#include <CombatAndroid/ECS/System/EnemyAttackTelegraphSystem.hpp>
 #include <CombatAndroid/ECS/System/HitStopSystem.hpp>
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
@@ -38,6 +39,7 @@
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemySpawnDirectorSystem.hpp>
 #include <CombatAndroid/ECS/System/ChargeSoundSystem.hpp>
+#include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
@@ -113,6 +115,9 @@ namespace CombatAndroid {
         // EnemyAnimationSystemが書いたAnimationControllerComponent::nextを同フレームでAnimationSystemが
         // 消費するため、PlayerAnimationSystemと同じくAnimationSystemより前に登録する
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAnimationSystem>(), (int)ECS::SystemPriority::Gameplay);
+        // 攻撃の振りかぶりを赤いリムライトで見せる。EnemyAnimationSystemが今フレームの
+        // ステートを確定させた後に読む必要があるので、必ずこの後に登録する
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAttackTelegraphSystem>(), (int)ECS::SystemPriority::Gameplay);
         // ヒットストップ（プレイヤー/被弾した敵だけを止める）。Player/EnemyAnimationSystemが
         // 今フレームのplayback_speedを確定させた後、AnimationSystemがそれを消費する前に
         // 対象エンティティだけ掛け算で減速させる
@@ -213,6 +218,12 @@ namespace CombatAndroid {
             auto hitSoundSystem = std::make_shared<CombatAndroid::ECS::HitSoundSystem>();
             m_scene.AddSystem(hitSoundSystem, (int)ECS::SystemPriority::Audio);
             hitSoundSystem->Initialize(eventBus);
+        }
+        {
+            // 被弾・撃破・取得・メニュー操作など、ゲーム全体の効果音
+            auto gameSoundSystem = std::make_shared<CombatAndroid::ECS::GameSoundSystem>();
+            m_scene.AddSystem(gameSoundSystem, (int)ECS::SystemPriority::Audio);
+            gameSoundSystem->Initialize(eventBus);
         }
         {
             // 溜め攻撃を解放して斬撃弾が飛び出す瞬間に「ドン」を鳴らす

@@ -151,7 +151,7 @@ namespace CombatAndroid::ECS {
 
         // ヒット通知（エフェクト・SE等の副作用処理用）を発火する
         if(eventBus) {
-            eventBus->Publish(WeaponHitEvent{attacker, sourceEntity, hitEntity, hitPosition, dealtDamage});
+            eventBus->Publish(WeaponHitEvent{attacker, sourceEntity, hitEntity, hitPosition, dealtDamage, enemyHealth.isDead});
         }
 
         // ヒットストップを要求する。画面全体ではなく、被弾した敵と攻撃者だけを止める

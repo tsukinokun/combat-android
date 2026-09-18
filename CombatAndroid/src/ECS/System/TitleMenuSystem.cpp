@@ -5,6 +5,7 @@
 #include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
+#include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/RunRecord.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
@@ -202,6 +203,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(title.showingControls) {
                 if(IsGameMenuConfirmPressed(input) || input.IsKeyPressed(Tsukino::Input::KeyCode::Escape)) {
+                    PlaySound(registry, SoundId::MenuConfirm);
                     title.showingControls  = false;
                     title.changedThisFrame = true;
                 }
@@ -213,12 +215,15 @@ namespace CombatAndroid::ECS {
                 const int nextIndex = std::clamp(title.cursorIndex + step, 0, static_cast<int>(TitleMenuItem::Count) - 1);
                 if(nextIndex != title.cursorIndex) {
                     title.cursorIndex = nextIndex;
+                    PlaySound(registry, SoundId::MenuMove);
                     RefreshUi(registry, *ctx, title);
                 }
             }
 
             if(!IsGameMenuConfirmPressed(input))
                 continue;
+
+            PlaySound(registry, SoundId::MenuConfirm);
 
             switch(static_cast<TitleMenuItem>(title.cursorIndex)) {
             case TitleMenuItem::Start:

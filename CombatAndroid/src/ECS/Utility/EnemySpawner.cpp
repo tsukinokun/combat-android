@@ -24,6 +24,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/CollisionComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/RigidBodyComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkeletonOutputComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -72,6 +73,10 @@ namespace CombatAndroid::ECS {
         // Kinematicにすることで、EnemyBehaviorSystemが毎フレーム書き換えるTransformへPhysicsSystemが
         // 追従してくれる（Static/RigidbodyComponent無しだと初期位置に固定されたままになる）。
         // isSensor=trueなので物理的な押し出し（ブロッキング）は発生しない
+        // 攻撃の振りかぶりで赤く光らせるための土台（EnemyAttackTelegraphSystem）。
+        // 既定はactive=falseなので、予兆を出していない間の見た目は変わらない
+        registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(enemyEntity);
+
         Tsukino::BuiltIn::ECS::RigidbodyComponent& enemyRigidbody = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(enemyEntity);
         enemyRigidbody.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
 
@@ -255,10 +260,17 @@ namespace CombatAndroid::ECS {
         // 判定は手ではなく頭部ボーンへ球1つで出す（endBoneNameは空のまま＝球モード）
         config.boneName                 = "mixamorig:Head";
         config.hitboxRadius             = 30.0f;
-        // 判定窓は既定値（0.40〜0.60秒）のままだと振り下ろしの実タイミングとずれて当たらないことがあったため、
-        // 広めに取って実機で見ながら詰める（EnemyAttackHitboxComponentのコメント参照）
-        config.hitStartTime             = 0.25f;
-        config.hitDuration              = 0.60f;
+        //-------------------------------------------------------------
+        // 判定窓は頭部ボーンの動きを実測して決めた。Zombie Attack.fbx は頭を2回前へ出す：
+        //   0.0〜0.9秒  小さく前傾して戻る（モデルローカルの前後 z: 7→39→-1）
+        //   1.4〜2.0秒  大きく頭を突き出して噛みつく（z: 24→54→39、高さも164→131へ沈む）
+        // 当てるのは後者だけ。突き出しの幅の約3割まで進んだ1.45秒から判定を出し、
+        // 一番前に出た後に半分ほど戻る2.00秒で閉じる。以前は0.25秒から出しており、
+        // 前者の小さな前傾で当たってしまっていた。
+        // 振りかぶり（EnemyAttackTelegraphSystem の赤い予兆）もこの開始時刻まで続く
+        //-------------------------------------------------------------
+        config.hitStartTime             = 1.45f;
+        config.hitDuration              = 0.55f;
 
         return config;
     }
