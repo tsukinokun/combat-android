@@ -78,8 +78,6 @@
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DirectionalLightComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/PointLightComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/SpotLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
 #include <CombatAndroid/ECS/Component/GrassFieldComponent.hpp>
@@ -1013,77 +1011,6 @@ namespace CombatAndroid {
             light.color                                             = hlslpp::float3(1.0f, 1.0f, 1.0f);
             light.intensity                                         = 5.0f;
             light.castShadow                                        = true;
-        }
-
-        //--------------------------------------------------------------
-        // 点光源・スポットライトの生成（ディファードの多光源デモ）
-        //
-        // ディレクショナルライトと違い TransformComponent が必須。
-        // LightSystem の View が <TransformComponent, PointLight/SpotLight> のため、
-        // Transform を付け忘れると収集されず、何も光らない。
-        // また worldMatrix から位置を取るので dirty=true を立てて
-        // TransformSystem に初回計算をさせること。
-        //--------------------------------------------------------------
-        {
-            struct PointLightSpec {
-                hlslpp::float3 position;
-                hlslpp::float3 color;
-                float          intensity;
-                float          range;
-            };
-
-            // プレイヤーとゾンビが戦う地面付近を、暖色と寒色で挟むように配置する。
-            //
-            // intensityの単位に注意：減衰が物理的な逆二乗（intensity / (d^2 + 1)）なので、
-            // 到達させたい放射輝度に「距離の二乗」を掛けた値が必要になる。
-            // このシーンは1ユニット≒1cm相当（プレイヤー身長が約210ユニット）で
-            // ライトまでの距離が150前後になるため d^2 ≒ 22500。
-            // つまり radiance を 3 程度にしたければ intensity は 7万前後が必要。
-            // ディレクショナルライト（intensity=5）と桁が違うのは距離減衰の有無によるもの。
-            const PointLightSpec pointSpecs[] = {
-                {hlslpp::float3(160.0f, 60.0f, 90.0f), hlslpp::float3(1.0f, 0.45f, 0.15f), 45000.0f, 700.0f},     // 焚き火（橙）
-                {hlslpp::float3(-170.0f, 60.0f, 60.0f), hlslpp::float3(0.25f, 0.5f, 1.0f), 45000.0f, 700.0f},     // 月明かり寄り（青）
-                {hlslpp::float3(0.0f, 90.0f, -190.0f), hlslpp::float3(0.6f, 1.0f, 0.4f), 40000.0f, 700.0f},       // 背後（緑）
-                {hlslpp::float3(0.0f, 40.0f, 170.0f), hlslpp::float3(1.0f, 0.2f, 0.35f), 35000.0f, 600.0f},       // 手前（赤）
-            };
-
-            for(const auto& spec : pointSpecs) {
-                Tsukino::ECS::Entity                       e         = m_scene.CreateEntity();
-                Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(e);
-                transform.position                                   = spec.position;
-                transform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
-                transform.scale                                      = hlslpp::float3(1.0f, 1.0f, 1.0f);
-                transform.dirty                                      = true;          // 初回計算のためフラグを立てる
-                transform.parent                                     = entt::null;    // 親なし
-
-                Tsukino::BuiltIn::ECS::PointLightComponent& light = registry.AddComponent<Tsukino::BuiltIn::ECS::PointLightComponent>(e);
-                light.color                                      = spec.color;
-                light.intensity                                  = spec.intensity;
-                light.range                                      = spec.range;
-                light.enabled                                    = true;
-            }
-
-            //----------------------------------------------------------
-            // スポットライト：真上からプレイヤー付近を照らす
-            // 向きはエンティティのローカル+Z。X軸に+90度回すと+Zが真下(-Y)を向く
-            //----------------------------------------------------------
-            {
-                Tsukino::ECS::Entity                       e         = m_scene.CreateEntity();
-                Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(e);
-                transform.position                                   = hlslpp::float3(0.0f, 300.0f, 0.0f);
-                transform.rotation                                   = hlslpp::quaternion::rotation_x(1.5708f);
-                transform.scale                                      = hlslpp::float3(1.0f, 1.0f, 1.0f);
-                transform.dirty                                      = true;
-                transform.parent                                     = entt::null;
-
-                Tsukino::BuiltIn::ECS::SpotLightComponent& light = registry.AddComponent<Tsukino::BuiltIn::ECS::SpotLightComponent>(e);
-                light.color                                     = hlslpp::float3(1.0f, 0.95f, 0.85f);
-                light.intensity                                 = 120000.0f;    // 距離300から照らすため d^2=90000 を見込む
-                light.range                                     = 900.0f;
-                light.innerConeDeg                              = 18.0f;
-                light.outerConeDeg                              = 32.0f;
-                light.enabled                                   = true;
-            }
         }
 
         //--------------------------------------------------------------
