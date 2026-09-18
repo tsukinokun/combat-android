@@ -88,6 +88,11 @@ namespace CombatAndroid::UI {
     constexpr int kTitleControlsMenuBase = 220;    //!< 操作説明の「もどる」
     constexpr int kTitleOptionsBase      = 300;    //!< タイトルから開くオプション画面（OptionsMenuが+0〜+44を使う）
 
+    //! ロード画面（LoadingScene。これも別シーンなので他の帯とは衝突しない）
+    constexpr int kLoadingBackdrop = 100;    //!< 背景の板
+    constexpr int kLoadingParts    = 110;    //!< 進捗バーの溝(+0)・中身(+1)、回る印
+    constexpr int kLoadingText     = 120;    //!< 「NOW LOADING」・進捗の数字
+
     //! デバッグHUD。調査用なので常に全ての演出より手前に出す
     //! （既定値0のままだと暗転板やフラッシュの下へ沈む）
     constexpr int kDebugWeaponGripHud  = 900;    //!< 武器の握り位置調整HUD（F6）

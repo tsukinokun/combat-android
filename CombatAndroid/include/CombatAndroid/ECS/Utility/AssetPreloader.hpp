@@ -5,6 +5,9 @@
 //-------------------------------------------------------------
 #pragma once
 
+#include <functional>
+#include <vector>
+
 // 前方宣言
 namespace Tsukino::EngineIntegration {
     struct EngineContext;
@@ -30,4 +33,15 @@ namespace CombatAndroid::ECS {
     //!           この関数の実装内にある固定リストへ1行足すこと
     //-------------------------------------------------------------
     void PreloadAssets(Tsukino::EngineIntegration::EngineContext& context);
+
+    //-------------------------------------------------------------
+    //! @brief  PreloadAssetsの中身を、1件ずつの読み込みの列として返す関数
+    //! @param  context [in] エンジンコンテキスト（AssetManagerの取得に使う。列を実行し終えるまで生かしておくこと）
+    //! @return 読み込みの列。順に実行すればPreloadAssetsと同じ結果になる
+    //! @note   ロード画面（LoadingScene）が裏スレッドで1件ずつ実行し、何件目まで終わったかを
+    //!         進捗バーに出すために分けてある。各ステップはAssetManager::Loadしか呼ばないので、
+    //!         裏スレッドで実行してよい（AssetManagerはスレッド安全）
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    std::vector<std::function<void()>> BuildPreloadSteps(Tsukino::EngineIntegration::EngineContext& context);
 }    // namespace CombatAndroid::ECS

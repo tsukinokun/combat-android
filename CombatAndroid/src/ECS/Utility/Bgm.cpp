@@ -11,6 +11,7 @@
 #include <Tsukino/Engine/Asset/Audio/AudioAsset.hpp>
 #include <Tsukino/Audio/AudioManager.hpp>
 
+#include <Tsukino/Core/IO/FileSystem.hpp>
 #include <Tsukino/Core/Log.hpp>
 #include <Tsukino/Core/Path.hpp>
 
@@ -20,6 +21,19 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
+        //-------------------------------------------------------------
+        //! @brief  BGMの素材が置かれているか
+        //! @param  path [in] .wavのパス
+        //! @note   BGMは利用者が後から置く素材で、置かれていないのが普通にあり得る。
+        //!         無いファイルをAssetManager::Loadへ渡すと、失敗は覚えておかれないため
+        //!         呼ぶたびにインポートを試みて約0.4秒止まる（タイトル表示・戦闘開始のたびに固まっていた）。
+        //!         ここで先にファイルの有無を見て、無ければLoadしない
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool BgmFileExists(const char* path) {
+            return Tsukino::IO::FileSystem::Exists(Tsukino::IO::FileSystem::GetAssetRootPath() / Tsukino::Core::Path(path));
+        }
+
         //! 最後にPlayBgmで鳴らしたBGMと、その音量（オプションを掛ける前の値）。
         //! ReapplyBgmVolumeが鳴らし直すときに使う。止めたらnullptrに戻す
         const char* s_currentPath   = nullptr;
@@ -33,7 +47,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         std::shared_ptr<Tsukino::Asset::AudioAsset> FindBgmAsset(Tsukino::EngineIntegration::EngineContext& context, const char* path) {
-            if(!context.assetManager || !context.audioManager || path == nullptr)
+            if(!context.assetManager || !context.audioManager || path == nullptr || !BgmFileExists(path))
                 return nullptr;
 
             Tsukino::Asset::AssetHandle handle = context.assetManager->Load(Tsukino::Core::Path(path));

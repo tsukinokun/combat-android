@@ -8,7 +8,7 @@
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/RunRecord.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
-#include <CombatAndroid/Scene/CombatAndroidScene.hpp>
+#include <CombatAndroid/Scene/LoadingScene.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
@@ -251,9 +251,11 @@ namespace CombatAndroid::ECS {
             switch(static_cast<TitleMenuItem>(title.cursorIndex)) {
             case TitleMenuItem::Start:
                 // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭で行われる。
+                // 戦闘で使うアセットはロード画面が裏スレッドで読み、読み終えてから戦闘シーンへ移る
+                // （直接切り替えると、戦闘シーンの初期化で読み込む間ずっと画面が止まる）。
                 // タイトルから始めたときだけ操作の案内を出す（リトライからは出さない）
                 if(ctx->gameSceneManager)
-                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>(true));
+                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::LoadingScene>(true));
                 break;
 
             case TitleMenuItem::Controls:
