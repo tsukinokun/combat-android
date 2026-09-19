@@ -148,6 +148,43 @@ namespace CombatAndroid::ECS {
             else
                 HideUiText(registry, row.recordEntity);
         }
+
+        //-------------------------------------------------------------
+        //! @brief  リザルト画面を今の画面サイズで組む
+        //! @param  registry [in]     ECSレジストリ
+        //! @param  ctx      [in]     エンジンコンテキスト
+        //! @param  result   [in,out] 対象のリザルト。保存済みの表示内容から配置し、配置した画面サイズを書き戻す
+        //! @note   配置は画面中心からのオフセットなので、ウィンドウサイズが変わるたびに呼び直す。
+        //!         最大化や元に戻す操作の後も、暗転板が画面全体を覆い、文字が中央に収まる
+        //-------------------------------------------------------------
+        void LayoutResultScreen(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& ctx, RunResultComponent& result) {
+            const float screenWidth   = ctx.window ? static_cast<float>(ctx.window->GetWidth()) : 1700.0f;
+            const float screenHeight  = ctx.window ? static_cast<float>(ctx.window->GetHeight()) : 1000.0f;
+            const float screenCenterX = screenWidth * 0.5f;
+            const float screenCenterY = screenHeight * 0.5f;
+
+            result.layoutWidth  = screenWidth;
+            result.layoutHeight = screenHeight;
+
+            StretchSprite(registry, ctx, result.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
+
+            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale,
+                        result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? kClearTitleColor : kDeadTitleColor);
+
+            const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
+            for(int i = 0; i < kRunResultStatRowCount; ++i) {
+                const float rowY = screenCenterY + kFirstRowOffsetY + kRowPitch * static_cast<float>(i);
+                PlaceStatRow(registry, result.statRows[i], screenCenterX, rowY, labels[i], result.statValues[i], result.statNewRecords[i]);
+            }
+
+            if(!result.skillsText.empty())
+                PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + kSkillsOffsetY, kSkillsFontScale, result.skillsText,
+                            kSkillsColor);
+
+            PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + kBestOffsetY, kBestFontScale, result.bestText, kBestColor);
+
+            ShowGameMenu(registry, ctx, result.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, result.cursorIndex);
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -261,45 +298,39 @@ namespace CombatAndroid::ECS {
                 SuppressAllMoveInput(registry);
 
                 //-------------------------------------------------------------
-                // 画面を組む
+                // 表示内容を確定して保存し、画面を組む。
+                // 配置はウィンドウサイズが変わるたびに組み直すので、内容はコンポーネントに残す
                 //-------------------------------------------------------------
-                const float screenWidth   = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
-                const float screenHeight  = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
-                const float screenCenterX = screenWidth * 0.5f;
-                const float screenCenterY = screenHeight * 0.5f;
-
-                StretchSprite(registry, *ctx, result.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
-
-                PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale,
-                            cleared ? L"CLEAR" : L"GAME OVER", cleared ? kClearTitleColor : kDeadTitleColor);
-
-                const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
-                const std::array<std::wstring, kRunResultStatRowCount> values = {
+                result.cleared        = cleared;
+                result.statValues     = {
                     FormatMinutesSeconds(clock.elapsedSeconds),
                     std::to_wstring(result.killCount),
                     L"Lv " + std::to_wstring(level),
                     std::to_wstring(clock.dangerRank),
                 };
-                const std::array<bool, kRunResultStatRowCount> newRecords = {update.survivalSeconds, update.kills, update.level, false};
+                result.statNewRecords = {update.survivalSeconds, update.kills, update.level, false};
 
-                for(int i = 0; i < kRunResultStatRowCount; ++i) {
-                    const float rowY = screenCenterY + kFirstRowOffsetY + kRowPitch * static_cast<float>(i);
-                    PlaceStatRow(registry, result.statRows[i], screenCenterX, rowY, labels[i], values[i], newRecords[i]);
-                }
+                if(registry.HasComponent<PlayerSkillComponent>(entity))
+                    result.skillsText = FormatSkills(registry.GetComponent<PlayerSkillComponent>(entity));
+                else
+                    result.skillsText.clear();
 
-                if(registry.HasComponent<PlayerSkillComponent>(entity)) {
-                    PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + kSkillsOffsetY, kSkillsFontScale,
-                                FormatSkills(registry.GetComponent<PlayerSkillComponent>(entity)), kSkillsColor);
-                }
+                result.bestText = L"ベスト　生存 " + FormatMinutesSeconds(record.bestSurvivalSeconds) + L"　撃破 "
+                                  + std::to_wstring(record.bestKills) + L"　Lv " + std::to_wstring(record.bestLevel)
+                                  + L"　クリア " + std::to_wstring(record.clearCount) + L"回";
 
-                const std::wstring bestText = L"ベスト　生存 " + FormatMinutesSeconds(record.bestSurvivalSeconds) + L"　撃破 "
-                                              + std::to_wstring(record.bestKills) + L"　Lv " + std::to_wstring(record.bestLevel)
-                                              + L"　クリア " + std::to_wstring(record.clearCount) + L"回";
-                PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + kBestOffsetY, kBestFontScale, bestText, kBestColor);
-
-                ShowGameMenu(registry, *ctx, result.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, result.cursorIndex);
+                LayoutResultScreen(registry, *ctx, result);
                 continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
             }
+
+            //-------------------------------------------------------------
+            // ウィンドウサイズが変わっていたら組み直す（最大化・元に戻すなど）。
+            // 表示した直後のフレームは上で組んだばかりなので、ここへは来ない
+            //-------------------------------------------------------------
+            const float currentWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
+            const float currentHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
+            if(currentWidth != result.layoutWidth || currentHeight != result.layoutHeight)
+                LayoutResultScreen(registry, *ctx, result);
 
             if(result.openedThisFrame) {
                 result.openedThisFrame = false;
@@ -321,10 +352,7 @@ namespace CombatAndroid::ECS {
                     result.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
 
-                    const float screenWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
-                    const float screenHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
-                    ShowGameMenu(registry, *ctx, result.menu, screenWidth * 0.5f, screenHeight * 0.5f + kMenuTopOffsetY, kMenuLabels,
-                                 result.cursorIndex);
+                    LayoutResultScreen(registry, *ctx, result);
                 }
             }
 

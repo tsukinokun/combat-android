@@ -8,6 +8,7 @@
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 
 #include <array>
+#include <string>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
@@ -56,5 +57,18 @@ namespace CombatAndroid::ECS {
 
         std::array<RunResultStatRow, kRunResultStatRowCount> statRows{};    //!< 成績の行
         GameMenuWidget                                       menu;          //!< リトライ／タイトルへ
+
+        //-------------------------------------------------------------
+        // 表示内容のスナップショット。リザルトを出した時に確定する。
+        // ウィンドウサイズが変わったとき、同じ内容を新しい画面中心へ置き直すために持つ
+        //-------------------------------------------------------------
+        bool                                                 cleared = false;    //!< クリアで終わったか（見出しの文言と色）
+        std::array<std::wstring, kRunResultStatRowCount>     statValues{};       //!< 成績の値
+        std::array<bool, kRunResultStatRowCount>             statNewRecords{};   //!< 記録を更新した行（「NEW RECORD」を出す）
+        std::wstring                                         skillsText;         //!< 取ったスキルの一覧。空なら出さない
+        std::wstring                                         bestText;           //!< ベスト記録の1行
+
+        float layoutWidth  = 0.0f;    //!< 最後に配置したときの画面の幅。現在の幅と違えば置き直す
+        float layoutHeight = 0.0f;    //!< 同じく高さ
     };
 }    // namespace CombatAndroid::ECS
