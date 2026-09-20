@@ -286,7 +286,7 @@ namespace CombatAndroid::ECS {
             pickup.displayName      = definition.displayName;
         }
 
-        // レベルアップ時・ピックアップ対象時のリムライト発光演出（PickupSystem）の土台。
+        // レベルアップ時・ピックアップ対象時のリムグロー（PickupSystem）の土台。
         // active既定falseのため通常時の見た目には影響しない
         registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(weaponEntity);
 
@@ -330,7 +330,7 @@ namespace CombatAndroid::ECS {
         }
 
         // 既にPickupComponentを持っている（＝二重にドロップされた）場合は付け直さない。
-        // AddComponentし直すと拾いかけのハイライト演出の状態が飛んでしまう
+        // AddComponentし直すと拾いかけのリムグローの状態が飛んでしまう
         if(!registry.HasComponent<PickupComponent>(weaponEntity)) {
             PickupComponent& pickup = registry.AddComponent<PickupComponent>(weaponEntity);
             pickup.displayName      = GetWeaponSpawnDefinition(weapon.weaponId).displayName;

@@ -99,12 +99,12 @@ namespace CombatAndroid::ECS {
             player.levelUpInvincibleTimer     = std::max(player.levelUpInvincibleTimer - deltaTime, 0.0f);
             player.levelUpInvinciblePulseTime += deltaTime;
 
-            auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
-            if(!highlight)
+            auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
+            if(!rimGlow)
                 return;
 
             if(player.levelUpInvincibleTimer <= 0.0f) {
-                highlight->active = false;
+                rimGlow->active = false;
                 return;
             }
 
@@ -114,11 +114,11 @@ namespace CombatAndroid::ECS {
             float wave  = std::sin(player.levelUpInvinciblePulseTime * kLevelUpInvinciblePulseSpeed);
             float pulse = wave * wave;
 
-            highlight->active       = true;
-            highlight->rimColor     = kLevelUpInvincibleRimColor;
-            highlight->rimIntensity = kLevelUpInvincibleRimIntensityMax * fadeEase;
-            highlight->rimPower     = kLevelUpInvincibleRimPower;
-            highlight->glow         = (kLevelUpInvincibleGlowMin + (kLevelUpInvincibleGlowMax - kLevelUpInvincibleGlowMin) * pulse) * fadeEase;
+            rimGlow->active       = true;
+            rimGlow->rimColor     = kLevelUpInvincibleRimColor;
+            rimGlow->rimIntensity = kLevelUpInvincibleRimIntensityMax * fadeEase;
+            rimGlow->rimPower     = kLevelUpInvincibleRimPower;
+            rimGlow->glow         = (kLevelUpInvincibleGlowMin + (kLevelUpInvincibleGlowMax - kLevelUpInvincibleGlowMin) * pulse) * fadeEase;
         }
 
         //-------------------------------------------------------------
@@ -321,7 +321,7 @@ namespace CombatAndroid::ECS {
 
             if(!select.isActive && select.pendingLevelUps <= 0) {
                 //-------------------------------------------------------------
-                // レベルアップ後無敵の消化と発光演出。全てのスキル選択が終わり切った
+                // レベルアップ後無敵の消化とリムグロー。全てのスキル選択が終わり切った
                 // 瞬間（下の決定処理でlevelUpInvincibleTimerを立てる）から実時間で
                 // 減衰させる。既存の溜め攻撃リムライト（PlayerAnimationSystem）と
                 // 同じRimGlowComponentを流用するが、あちらは溜め中しか書き込まないため

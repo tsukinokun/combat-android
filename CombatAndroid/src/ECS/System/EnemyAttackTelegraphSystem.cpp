@@ -61,7 +61,7 @@ namespace CombatAndroid::ECS {
 
         view.each([&registry](Tsukino::ECS::Entity entity, EnemyComponent&, const EnemyAnimationSetComponent& animSet,
                               const EnemyAttackHitboxComponent& hitbox, const HealthComponent& health,
-                              Tsukino::BuiltIn::ECS::RimGlowComponent& highlight) {
+                              Tsukino::BuiltIn::ECS::RimGlowComponent& rimGlow) {
             //-------------------------------------------------------------
             // 平常時の発光。エリートは紫を纏い、それ以外は消灯。
             // 死亡中は死亡演出（フェード）の邪魔になるので、エリートでも消す
@@ -88,11 +88,11 @@ namespace CombatAndroid::ECS {
                 strength = std::clamp((windupProgress - kStartRatio) / (1.0f - kStartRatio), 0.0f, 1.0f);
             }
 
-            highlight.rimColor     = hlslpp::lerp(rest.color, kTelegraphColor, strength);
-            highlight.rimIntensity = rest.intensity + (kRimIntensityMax - rest.intensity) * strength;
-            highlight.rimPower     = kRimPower;
-            highlight.glow         = rest.glow + (kGlowMax - rest.glow) * strength;
-            highlight.active       = highlight.rimIntensity > 0.0f || highlight.glow > 0.0f;
+            rimGlow.rimColor     = hlslpp::lerp(rest.color, kTelegraphColor, strength);
+            rimGlow.rimIntensity = rest.intensity + (kRimIntensityMax - rest.intensity) * strength;
+            rimGlow.rimPower     = kRimPower;
+            rimGlow.glow         = rest.glow + (kGlowMax - rest.glow) * strength;
+            rimGlow.active       = rimGlow.rimIntensity > 0.0f || rimGlow.glow > 0.0f;
         });
     }
 }    // namespace CombatAndroid::ECS

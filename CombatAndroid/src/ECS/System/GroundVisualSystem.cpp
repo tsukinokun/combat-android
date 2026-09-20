@@ -194,8 +194,7 @@ namespace CombatAndroid::ECS {
         materialData.metallic   = 0.0f;
         materialData.roughness  = 0.95f;
         materialData.specular   = 0.1f;
-        materialData.rimColor   = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f);
-        materialData.rimParams  = hlslpp::float4(1.0f, 0.0f, 0.0f, 0.0f);    // z=alphaCutoff。土はくり抜かないので0
+        // リムとalphaCutoffは上のゼロ初期化のままでよい（土はくり抜かないし光らない）
 
         //--------------------------------------------------------------
         // 描画コマンドを1本だけ積む。

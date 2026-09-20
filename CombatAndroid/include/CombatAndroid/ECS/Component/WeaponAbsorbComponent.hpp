@@ -10,7 +10,7 @@ namespace CombatAndroid::ECS {
     //! @struct WeaponAbsorbComponent
     //! @brief  レベルアップの糧になった武器（拾った側）に付与し、装備中の同種武器へ
     //!         吸い寄せている間だけ存在するコンポーネント。PickupSystemが毎フレーム
-    //!         targetへ向けて移動させ、到達したらレベル加算・リムライト発光を行って
+    //!         targetへ向けて移動させ、到達したらレベル加算・リムグローを行って
     //!         このコンポーネントを外す（＝吸い寄せ終了の合図）
     //-------------------------------------------------------------
     struct WeaponAbsorbComponent {

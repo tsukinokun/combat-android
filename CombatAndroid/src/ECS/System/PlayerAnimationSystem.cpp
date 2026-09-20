@@ -609,12 +609,12 @@ namespace CombatAndroid::ECS {
             // ここでは点灯中の値の書き込みのみ行う
             //-------------------------------------------------------------
             if(willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
-                auto& highlight         = registry.GetComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
-                highlight.active       = true;
-                highlight.rimColor     = ResolveChargeRimColor(ResolveChargeStage(animSet.chargeTimer, player));
-                highlight.rimIntensity = 5.0f;
-                highlight.rimPower     = 2.5f;
-                highlight.glow         = 0.3f;
+                auto& rimGlow = registry.GetComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
+                rimGlow.active       = true;
+                rimGlow.rimColor     = ResolveChargeRimColor(ResolveChargeStage(animSet.chargeTimer, player));
+                rimGlow.rimIntensity = 5.0f;
+                rimGlow.rimPower     = 2.5f;
+                rimGlow.glow         = 0.3f;
             }
 
             //-------------------------------------------------------------

@@ -34,15 +34,15 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kHighlightBlendSpeed = 10.0f;    //!< highlightBlendが0↔1へ遷移する速さ（大きいほど素早く切り替わる）
-        constexpr float kPulseSpeed          = 3.0f;     //!< 白発光の脈動速度（rad/sec相当）
-        constexpr float kRimColorR           = 0.3f;     //!< ネオン風リムカラー（シアン系）
-        constexpr float kRimColorG           = 0.9f;
-        constexpr float kRimColorB           = 1.0f;
-        constexpr float kRimIntensityMax     = 4.0f;     //!< 完全点灯時のリム強度
-        constexpr float kRimPower            = 2.5f;     //!< リムの鋭さ
-        constexpr float kGlowMin             = 0.05f;    //!< 白発光の脈動の下限
-        constexpr float kGlowMax             = 0.35f;    //!< 白発光の脈動の上限
+        constexpr float kRimGlowBlendSpeed = 10.0f;    //!< rimGlowBlendが0↔1へ遷移する速さ（大きいほど素早く切り替わる）
+        constexpr float kPulseSpeed        = 3.0f;     //!< 白発光の脈動速度（rad/sec相当）
+        constexpr float kRimColorR         = 0.3f;     //!< ネオン風リムカラー（シアン系）
+        constexpr float kRimColorG         = 0.9f;
+        constexpr float kRimColorB         = 1.0f;
+        constexpr float kRimIntensityMax   = 4.0f;     //!< 完全点灯時のリム強度
+        constexpr float kRimPower          = 2.5f;     //!< リムの鋭さ
+        constexpr float kGlowMin           = 0.05f;    //!< 白発光の脈動の下限
+        constexpr float kGlowMax           = 0.35f;    //!< 白発光の脈動の上限
 
         constexpr float kFloatSpacing = 70.0f;     //!< 浮遊武器を横に並べる間隔（隣同士のx距離）
         constexpr float kFloatHeight  = 170.0f;    //!< 浮遊武器の高さ（既存の初期配置に合わせる）
@@ -58,8 +58,8 @@ namespace CombatAndroid::ECS {
         constexpr float kAbsorbMaxDuration     = 2.0f;       //!< 万一追いつけない場合の保険（この秒数で強制的に到達扱いにする）
         constexpr float kAbsorbRotationLerpSpeed = 8.0f;     //!< 装備武器の姿勢へ回転補間で近づく速さ（WeaponComponent::attachRotationLerpSpeedと同じ指数減衰の考え方）
 
-        // レベルアップ完了の瞬間に装備武器へ焼くリムライト発光のチューニング値。
-        // 拾える武器のシアン系ハイライトと見分けられるよう暖色系（ゴールド）にしている
+        // レベルアップ完了の瞬間に装備武器へ焼くリムグローのチューニング値。
+        // 拾える武器のシアン系リムグローと見分けられるよう暖色系（ゴールド）にしている
         constexpr float kLevelUpFlashDuration   = 0.45f;    //!< 発光が続く時間（秒）。この時間でrimIntensity/glowが0まで減衰する
         constexpr float kLevelUpRimColorR       = 1.0f;
         constexpr float kLevelUpRimColorG       = 0.85f;
@@ -124,7 +124,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // レベルアップの糧として吸い寄せられている武器を進める。
         // 装備中の同種武器（target）へ加速しながら直線移動し、重なったら消えて
-        // targetのレベルを上げ、リムライト発光を焼く（ExpOrbSystemのHoming演出と同じ考え方）
+        // targetのレベルを上げ、リムグローを焼く（ExpOrbSystemのHoming演出と同じ考え方）
         //-------------------------------------------------------------
         {
             std::vector<entt::entity> finishedAbsorptions;
@@ -203,7 +203,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         {
             auto flashView = registry.View<WeaponComponent, Tsukino::BuiltIn::ECS::RimGlowComponent>();
-            flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::RimGlowComponent& highlight) {
+            flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::RimGlowComponent& rimGlow) {
                 // 手持ちの進化済み武器は、発光が減衰し切った後もこの弱さで光らせ続ける
                 const bool  keepsEvolvedGlow = weapon.evolved && weapon.owner != entt::null;
                 const float restRim          = keepsEvolvedGlow ? kEvolvedRimIntensity : 0.0f;
@@ -211,11 +211,11 @@ namespace CombatAndroid::ECS {
 
                 if(weapon.levelUpFlashTimer <= 0.0f) {
                     if(keepsEvolvedGlow) {
-                        highlight.active       = true;
-                        highlight.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
-                        highlight.rimIntensity = restRim;
-                        highlight.rimPower     = kRimPower;
-                        highlight.glow         = restGlow;
+                        rimGlow.active       = true;
+                        rimGlow.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
+                        rimGlow.rimIntensity = restRim;
+                        rimGlow.rimPower     = kRimPower;
+                        rimGlow.glow         = restGlow;
                     }
                     return;
                 }
@@ -223,19 +223,19 @@ namespace CombatAndroid::ECS {
                 weapon.levelUpFlashTimer -= deltaTime;
                 if(weapon.levelUpFlashTimer <= 0.0f) {
                     weapon.levelUpFlashTimer = 0.0f;
-                    highlight.active           = keepsEvolvedGlow;
-                    highlight.rimIntensity     = restRim;
-                    highlight.glow             = restGlow;
+                    rimGlow.active       = keepsEvolvedGlow;
+                    rimGlow.rimIntensity = restRim;
+                    rimGlow.glow         = restGlow;
                     return;
                 }
 
                 // 減衰の行き先は消灯ではなく常時発光の強さ（進化済みでなければ0）
                 float ease = SmoothStep01(weapon.levelUpFlashTimer / kLevelUpFlashDuration);
-                highlight.active       = true;
-                highlight.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
-                highlight.rimIntensity = restRim + (kLevelUpRimIntensityMax - restRim) * ease;
-                highlight.rimPower     = kRimPower;
-                highlight.glow         = restGlow + (kLevelUpGlowMax - restGlow) * ease;
+                rimGlow.active       = true;
+                rimGlow.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
+                rimGlow.rimIntensity = restRim + (kLevelUpRimIntensityMax - restRim) * ease;
+                rimGlow.rimPower     = kRimPower;
+                rimGlow.glow         = restGlow + (kLevelUpGlowMax - restGlow) * ease;
             });
         }
 
@@ -280,25 +280,25 @@ namespace CombatAndroid::ECS {
         player->pickupTarget = nearest;
 
         //-------------------------------------------------------------
-        // 全ての拾えるアイテムのハイライト演出を更新する。
+        // 全ての拾えるアイテムのリムグローを更新する。
         // 対象になっているものだけ0→1へ、それ以外は1→0へ滑らかに戻す
         //-------------------------------------------------------------
         pickupView.each([&](entt::entity entity, PickupComponent& pickup, Tsukino::BuiltIn::ECS::TransformComponent& transform) {
             float target = (entity == nearest) ? 1.0f : 0.0f;
-            float t      = 1.0f - std::exp(-kHighlightBlendSpeed * deltaTime);
-            pickup.highlightBlend += (target - pickup.highlightBlend) * t;
+            float t      = 1.0f - std::exp(-kRimGlowBlendSpeed * deltaTime);
+            pickup.rimGlowBlend += (target - pickup.rimGlowBlend) * t;
             pickup.pulseTime += deltaTime;
 
             // 0→1→0を往復する脈動。sinを2乗して滑らかな山にする
             float wave  = std::sin(pickup.pulseTime * kPulseSpeed);
             float pulse = wave * wave;
 
-            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
-                highlight->active       = pickup.highlightBlend > 0.001f;
-                highlight->rimColor     = hlslpp::float3(kRimColorR, kRimColorG, kRimColorB);
-                highlight->rimIntensity = kRimIntensityMax * pickup.highlightBlend;
-                highlight->rimPower     = kRimPower;
-                highlight->glow         = (kGlowMin + (kGlowMax - kGlowMin) * pulse) * pickup.highlightBlend;
+            if(auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
+                rimGlow->active       = pickup.rimGlowBlend > 0.001f;
+                rimGlow->rimColor     = hlslpp::float3(kRimColorR, kRimColorG, kRimColorB);
+                rimGlow->rimIntensity = kRimIntensityMax * pickup.rimGlowBlend;
+                rimGlow->rimPower     = kRimPower;
+                rimGlow->glow         = (kGlowMin + (kGlowMax - kGlowMin) * pulse) * pickup.rimGlowBlend;
             }
         });
 
@@ -323,7 +323,7 @@ namespace CombatAndroid::ECS {
 
                 if(existingWeaponEntity != entt::null) {
                     // 2本目以降は新規枠を増やさず、装備中の個体へ吸い寄せてレベルアップさせる。
-                    // レベル加算・リムライト発光は吸い寄せが完了した瞬間（Update冒頭の吸収処理）で行う。
+                    // レベル加算・リムグローは吸い寄せが完了した瞬間（Update冒頭の吸収処理）で行う。
                     // Scene::DestroyEntity()を経由しないSystemからの直接破棄は前例が無く、
                     // EffectSystem/PhysicsSystem側にScene経由の破棄を前提にした注意書きがあるため、
                     // 吸収完了時も非表示化のみ行い、以後owner=entt::nullのまま放置する
@@ -352,8 +352,8 @@ namespace CombatAndroid::ECS {
             }
 
             // 演出とワールド判定を止める（PickupComponentを外すのでこれ以降候補に上がらない）
-            if(auto* highlight = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(nearest)) {
-                highlight->active = false;
+            if(auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(nearest)) {
+                rimGlow->active = false;
             }
             registry.RemoveComponent<PickupComponent>(nearest);
             player->pickupTarget = entt::null;

@@ -413,7 +413,7 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         // 地面に落ちている武器の生成（Fキーで拾える）。
         // ownerを設定しないため、CombatSystemの追従処理（owner != entt::nullが条件）には入らず
-        // その場に留まる。PickupSystemが範囲内・最近傍の1本だけをハイライトし、Fキーで
+        // その場に留まる。PickupSystemが範囲内・最近傍の1本だけを強調し、Fキーで
         // WeaponComponent::ownerをプレイヤーへ設定して浮遊武器へ昇格させる。
         // 動作確認用に近い位置へまとめて置き、「同時に範囲内でも1つだけ光る」ことを
         // 確認できるようにしている
@@ -1033,18 +1033,21 @@ namespace CombatAndroid {
             auto&                fog       = registry.AddComponent<Tsukino::BuiltIn::ECS::FogComponent>(fogEntity);
 
             // 距離フォグ：戦闘範囲（〜500）は素通しで、そこから奥を徐々に霞ませる。
-            // density / heightDensityはEnemySpawnDirectorSystemの湧き半径（900〜1300）が
-            // 確実に隠れるよう、既定値（0.00030 / 0.00050）から引き上げてある
+            // EnemySpawnDirectorSystemの湧き半径（900〜1300）を隠す役目は、
+            // heightDensityではなくdensity（startDistance=500以遠にしか効かない）に寄せてある。
+            // heightDensityは地面の高さに一様にかかるため、上げると湧きを隠す前に
+            // 足元の草の色まで灰色へ潰してしまう（既定値は 0.00030 / 0.00050）
             fog.color         = hlslpp::float3(0.55f, 0.60f, 0.65f);
-            fog.density       = 0.00060f;
+            fog.density       = 0.00105f;
             fog.startDistance = 500.0f;
             fog.maxOpacity    = 1.0f;
 
-            // 高さフォグ：地面（y = -5）付近に溜め、カメラの高さ（y ≒ 205）では薄くする
+            // 高さフォグ：地面（y = -5）付近に溜め、カメラの高さ（y ≒ 205）では薄くする。
+            // 近景の草が色を保てる上限として 0.00030 に置いている
             fog.heightFogEnabled = true;
             fog.height           = 0.0f;
             fog.heightFalloff    = 0.004f;
-            fog.heightDensity    = 0.00070f;
+            fog.heightDensity    = 0.00030f;
 
             // 太陽方向の前方散乱
             fog.sunColor        = hlslpp::float3(1.0f, 0.85f, 0.65f);
