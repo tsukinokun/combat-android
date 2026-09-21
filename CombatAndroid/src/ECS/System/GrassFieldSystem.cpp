@@ -264,6 +264,73 @@ namespace CombatAndroid::ECS {
         }
 
         //--------------------------------------------------------------
+        //! 根元ほど暗いAO（環境遮蔽）ランプを取得します。
+        //! @param  [in,out] context エンジンコンテキスト
+        //! @return AOランプのSRV。作れなければ nullptr
+        //! @note   草は castsShadow=false でシャドウマップに書かれず、自己遮蔽を
+        //!         一切持たない。そのままだと根元の葉まで空のアンビエントを満額
+        //!         受け取り、草むらが平板に光って見える。
+        //!
+        //!         アルベドのrootColorを下げるのでは代用にならない。AOは
+        //!         IBL.hlsliでアンビエントにだけ掛かるので、「草の間に空が
+        //!         見えない」ぶんだけを落とせて、日向の直接光＝鮮やかさを損なわない。
+        //!
+        //!         レイアウトはグラデーションと同じ帯構成にすること。頂点シェーダーが
+        //!         種ごとにずらしたV座標を1つだけ出していて、アルベドとAOで
+        //!         共用するため。帯の中身はどの種も同じでよい
+        //--------------------------------------------------------------
+        ID3D11ShaderResourceView* GetAOSRV(Tsukino::EngineIntegration::EngineContext& context) {
+            if(!context.assetManager || !context.renderer)
+                return nullptr;
+
+            // 色に依存しないのでキーは固定でよい
+            const Tsukino::Asset::AssetHandle handle = Tsukino::Asset::AssetHandleGenerator::GenerateFromKey("procedural|grass|ao");
+
+            if(Tsukino::Core::Ref<Tsukino::Asset::IAsset> existing = context.assetManager->Get(handle)) {
+                auto texture = std::static_pointer_cast<Tsukino::Asset::TextureAsset>(existing);
+                return context.renderer->GetResources().GetTextureSRV(*texture);
+            }
+
+            constexpr float kRootAO = 0.35f;    // 根元の遮蔽量（0=真っ暗, 1=遮蔽なし）
+
+            const Tsukino::u32 totalHeight = kGradientHeight * kSpeciesCount;
+
+            auto texture    = std::make_shared<Tsukino::Asset::TextureAsset>();
+            texture->width  = kGradientWidth;
+            texture->height = totalHeight;
+            texture->format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            texture->pixels.resize(static_cast<size_t>(kGradientWidth) * totalHeight * 4);
+
+            for(Tsukino::u32 speciesIndex = 0; speciesIndex < kSpeciesCount; ++speciesIndex) {
+                for(Tsukino::u32 row = 0; row < kGradientHeight; ++row) {
+                    const float t = static_cast<float>(row) / static_cast<float>(kGradientHeight - 1);
+
+                    // t*t で根元側を広く暗くする。線形だと中腹まで暗くなりすぎる
+                    const float       ao    = kRootAO + (1.0f - kRootAO) * t * t;
+                    const Tsukino::u8 value = static_cast<Tsukino::u8>(std::clamp(ao, 0.0f, 1.0f) * 255.0f + 0.5f);
+
+                    const Tsukino::u32 y = speciesIndex * kGradientHeight + row;
+
+                    for(Tsukino::u32 x = 0; x < kGradientWidth; ++x) {
+                        const size_t offset = (static_cast<size_t>(y) * kGradientWidth + x) * 4;
+
+                        // GBuffer.ps.hlsl はrだけ読むが、他の用途で覗いたときに
+                        // グレースケールとして見えるようrgbすべてに入れておく
+                        texture->pixels[offset + 0] = value;
+                        texture->pixels[offset + 1] = value;
+                        texture->pixels[offset + 2] = value;
+                        texture->pixels[offset + 3] = 255;
+                    }
+                }
+            }
+
+            texture->SetHandle(handle);
+            context.assetManager->RegisterAsset(handle, texture);
+
+            return context.renderer->GetResources().GetTextureSRV(*texture);
+        }
+
+        //--------------------------------------------------------------
         //! 草を並べる格子の分け方
         //--------------------------------------------------------------
         struct GrassGrid {
@@ -546,7 +613,9 @@ namespace CombatAndroid::ECS {
         material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, ctx->renderer->GetResources().GetFlatNormalTextureSRV());
         material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, ctx->renderer->GetResources().GetWhiteTextureSRV());
         material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, ctx->renderer->GetResources().GetWhiteTextureSRV());
-        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ctx->renderer->GetResources().GetWhiteTextureSRV());
+        // AOは根元ほど暗いランプ。草は自己影を持たないので、これが唯一の遮蔽情報になる
+        ID3D11ShaderResourceView* aoSRV = GetAOSRV(*ctx);
+        material.SetTexture(Tsukino::Renderer::SRVSlot::AO, aoSRV ? aoSRV : ctx->renderer->GetResources().GetWhiteTextureSRV());
 
         //--------------------------------------------------------------
         // マテリアル定数。草は金属ではないので metallic は0、

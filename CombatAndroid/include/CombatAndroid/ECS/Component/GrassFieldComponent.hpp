@@ -101,9 +101,9 @@ namespace CombatAndroid::ECS {
         //!       前提に float4.xyz / グラデーションテクスチャの3段を
         //!       決め打ちしているため、そちらも合わせて直すこと
         std::array<GrassSpecies, 3> species = {{
-            {34.0f, 1.00f, hlslpp::float3(0.10f, 0.22f, 0.06f), hlslpp::float3(0.42f, 0.62f, 0.20f)},    // 標準の緑
-            {22.0f, 0.85f, hlslpp::float3(0.16f, 0.17f, 0.05f), hlslpp::float3(0.55f, 0.52f, 0.16f)},    // 丈の低い、乾いた黄金色
-            {46.0f, 1.15f, hlslpp::float3(0.05f, 0.13f, 0.05f), hlslpp::float3(0.18f, 0.42f, 0.20f)},    // 丈の高い、濃い緑
+            {34.0f, 1.00f, hlslpp::float3(0.07f, 0.30f, 0.05f), hlslpp::float3(0.30f, 0.66f, 0.13f)},    // 標準の緑
+            {22.0f, 0.85f, hlslpp::float3(0.14f, 0.22f, 0.04f), hlslpp::float3(0.52f, 0.56f, 0.10f)},    // 丈の低い、乾いた黄金色
+            {46.0f, 1.15f, hlslpp::float3(0.03f, 0.17f, 0.04f), hlslpp::float3(0.12f, 0.46f, 0.14f)},    // 丈の高い、濃い緑
         }};
 
         float bladeWidth     = 3.5f;     // 根元の幅の基準値。各種の widthScale がこれに掛かる

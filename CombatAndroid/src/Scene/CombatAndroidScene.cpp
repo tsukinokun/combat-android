@@ -1037,17 +1037,20 @@ namespace CombatAndroid {
             // heightDensityではなくdensity（startDistance=500以遠にしか効かない）に寄せてある。
             // heightDensityは地面の高さに一様にかかるため、上げると湧きを隠す前に
             // 足元の草の色まで灰色へ潰してしまう（既定値は 0.00030 / 0.00050）
-            fog.color         = hlslpp::float3(0.55f, 0.60f, 0.65f);
+            // 霧の色はHDR値なので、草より明るいと「霞ませる」ではなく「上から塗る」に
+            // なってしまう。0.55/0.60/0.65は草の中間シェードより明るく、かつBが最大で
+            // 彩度を直接殺していたため、草の明るさより下かつ青寄りを弱めた値にしてある
+            fog.color         = hlslpp::float3(0.42f, 0.46f, 0.52f);
             fog.density       = 0.00105f;
             fog.startDistance = 500.0f;
             fog.maxOpacity    = 1.0f;
 
             // 高さフォグ：地面（y = -5）付近に溜め、カメラの高さ（y ≒ 205）では薄くする。
-            // 近景の草が色を保てる上限として 0.00030 に置いている
+            // 近景の草が色を保てる上限として 0.00018 に置いている
             fog.heightFogEnabled = true;
             fog.height           = 0.0f;
             fog.heightFalloff    = 0.004f;
-            fog.heightDensity    = 0.00030f;
+            fog.heightDensity    = 0.00018f;
 
             // 太陽方向の前方散乱
             fog.sunColor        = hlslpp::float3(1.0f, 0.85f, 0.65f);
@@ -1146,14 +1149,19 @@ namespace CombatAndroid {
             grass.groundHeight      = 0.0f;    // 地面コライダーの上面
             grass.distantWidthBoost = 2.5f;    // 外周では幅3.5倍。遠景の隙間を埋める
 
-            // 3種の草を塊で生やす。根元を暗く先端を明るくして、草の間に
-            // 光が届かない様子（疑似アンビエントオクルージョン）を各種で出す
-            grass.species[0] = {34.0f, 1.00f, hlslpp::float3(0.10f, 0.22f, 0.06f),
-                                hlslpp::float3(0.42f, 0.62f, 0.20f)};    // 標準の緑
-            grass.species[1] = {22.0f, 0.85f, hlslpp::float3(0.16f, 0.17f, 0.05f),
-                                hlslpp::float3(0.55f, 0.52f, 0.16f)};    // 丈の低い、乾いた黄金色
-            grass.species[2] = {46.0f, 1.15f, hlslpp::float3(0.05f, 0.13f, 0.05f),
-                                hlslpp::float3(0.18f, 0.42f, 0.20f)};    // 丈の高い、濃い緑
+            // 3種の草を塊で生やす。根元を暗く先端を明るくして株の立体感を出す
+            // （草の間に光が届かない遮蔽そのものはGrassFieldSystemのAOランプが担当する）。
+            //
+            // Bを低めに置いてあるのは、空由来のアンビエントが青に偏っていて
+            // 実効ゲインがR:0.78 / G:0.87 / B:1.08と青だけ3割強いため。
+            // 「全体を明るくする」方向で彩度を出そうとすると露出後の値がACESのニーに
+            // 乗って先に白くなるので、RとBを削ってGを残すほうが鮮やかに見える
+            grass.species[0] = {34.0f, 1.00f, hlslpp::float3(0.07f, 0.30f, 0.05f),
+                                hlslpp::float3(0.30f, 0.66f, 0.13f)};    // 標準の緑
+            grass.species[1] = {22.0f, 0.85f, hlslpp::float3(0.14f, 0.22f, 0.04f),
+                                hlslpp::float3(0.52f, 0.56f, 0.10f)};    // 丈の低い、乾いた黄金色
+            grass.species[2] = {46.0f, 1.15f, hlslpp::float3(0.03f, 0.17f, 0.04f),
+                                hlslpp::float3(0.12f, 0.46f, 0.14f)};    // 丈の高い、濃い緑
 
             // 草は半径0.6〜2.5mの不定形の草むらにまとめて、ランダムな位置へ散らす。
             // 正方形の区画で種を切り替えていた頃は田んぼの碁盤目に見えていた。

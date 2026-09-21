@@ -468,28 +468,53 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     worldPos.y = bladeParams.z + t * height * (1.0f - bendCurve * bendCurve * 0.35f);
 
     //----------------------------------------------------------
-    // 法線。刃の面向きを基準に、曲がりに合わせて前へ倒す。
-    // 平らな板のままだと全部の草が同じ明るさになって書き割りに見えるので、
-    // 幅方向に沿って法線を少し外へ開き（丸め）、1本の中に陰影を作る。
+    // 法線。刃の面向きではなく、株全体を地面の一部とみなした「ほぼ真上」を基準にする。
+    //
+    // 面の向きをそのまま法線にしてはいけない。クロスビルボードの2枚は水平かつ
+    // 互いに90度違う法線を持つので、太陽（L=(0,0.447,0.894)で水平成分が支配的）に
+    // 対して片面がNdotL≒0.9、もう片面が0に割れる。2枚は根元で交差して画面上の
+    // 同じ場所を占めるため、1本の草が「白い面と濃い緑の面」に分かれて見えていた。
+    //
+    // 【kHorizontalWeightを上げすぎてはいけない】
+    // 太陽の仰角は26.57度なので、法線が水平から63.43度より寝ると風下側の面の
+    // NdotLがsaturateで0に張り付き、元の白黒の割れが戻る。lerp換算で上向き2/3が
+    // その下限。実測では0.22（＝上向きバイアス4.5相当）でもまだ割れが見えたので、
+    // 0.12まで寝かせてある（NdotLの振れ幅は約1.6倍に収まる）。
+    //
+    // 水平成分には次の3つを混ぜて、平板に見えないようにする:
+    //   面の向き   … 葉ごとの個性
+    //   幅方向の丸め … 1本の中の左右の陰影
+    //   風の曲がり  … 風上へ倒す。風の波が明るさの帯として草原を渡る
     //
     // クロスビルボードなので、頂点がどちらの面に属すかをinput.normalのx/z成分
     // （どちらかが1、もう片方が0のone-hot）で読み分ける。面0(normal.z=1)は
-    // 従来通りfacingDir向き・幅方向sideDir、面1(normal.x=1)はその90度回転版
-    // （sideDir向き・幅方向facingDir）になる
+    // facingDir向き・幅方向sideDir、面1(normal.x=1)はその90度回転版になる
     //----------------------------------------------------------
+    static const float kHorizontalWeight = 0.12f;    // 上向き1.0に対して水平成分をどれだけ残すか
+    static const float kRoundOut         = 0.35f;    // 幅方向の丸め（水平成分の向きを方位角で振る量）
+    static const float kBendTilt         = 0.25f;    // 曲がりに応じて風上へ倒す量
+
     const float2 faceNormalXZ = input.normal.x * sideDir + input.normal.z * facingDir;
     const float2 widthAxisXZ  = input.normal.z * sideDir + input.normal.x * facingDir;
 
-    const float3 faceNormal = float3(faceNormalXZ.x, 0.0f, faceNormalXZ.y);
-    const float3 bendNormal = normalize(faceNormal + float3(0.0f, bendCurve, 0.0f));
-    const float3 roundOut   = float3(widthAxisXZ.x, 0.0f, widthAxisXZ.y) * (input.uv.x * 2.0f - 1.0f) * 0.5f;
+    // 曲がった葉の上面法線は風下と逆へ倒れるのでbendDirを引く。
+    // 旧実装は+Y方向へ持ち上げていたが、向きが物理的に違ううえ、
+    // bendCurveが風で時間変化するぶん仰角が動いて明るさがちらついていた
+    float2 shadeXZ = faceNormalXZ
+                   + widthAxisXZ * ((input.uv.x * 2.0f - 1.0f) * kRoundOut)
+                   - bendDir * (bendCurve * kBendTilt);
+
+    // 重みを掛ける前に長さを1へ揃える。ここを省くと上の3成分の合計長が
+    // 葉ごと・フレームごとに変わり、仰角がばらついてちらつきの原因になる
+    const float shadeLen = length(shadeXZ);
+    shadeXZ = (shadeLen > 1.0e-4f) ? (shadeXZ / shadeLen) : float2(0.0f, 0.0f);
 
     // アルベドのグラデーションテクスチャは種ごとの帯が縦に並んでいるので、
     // vを自分の帯（speciesIndex番目）の中へ押し込む。texel中心をサンプルする
     // ようにすると、t=0/1でも隣の帯の色とブレンドされずに済む
     const float gradientV = (speciesIndex * kGradientRows + t * (kGradientRows - 1.0f) + 0.5f) / (kGradientRows * (float)kSpeciesCount);
 
-    output.normal   = normalize(bendNormal + roundOut);
+    output.normal   = normalize(float3(shadeXZ.x * kHorizontalWeight, 1.0f, shadeXZ.y * kHorizontalWeight));
     output.worldPos = worldPos;
     output.uv       = float2(input.uv.x, gradientV);
 
@@ -498,9 +523,11 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     output.position = clipPos;
     output.curClip  = clipPos;
 
-    // 草は毎フレーム形が変わるが、前フレームの姿勢を持っていないので
-    // 速度ゼロとして扱う（モーションブラーで尾を引かせない）
-    output.prevClip = clipPos;
+    // 草は前フレームの姿勢を持っていないので、風の揺れは速度に載せられない。
+    // ただし現在のworldPosを前フレームのviewProjへ通せば、カメラ移動ぶんの
+    // 速度だけは正しく出る。ここをclipPosにしていると草の速度が常に0になり、
+    // カメラを振ったとき地面だけが流れて草が固まって見える
+    output.prevClip = mul(float4(worldPos, 1.0f), prevViewProj);
 
     return output;
 }
