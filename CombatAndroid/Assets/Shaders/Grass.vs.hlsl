@@ -19,26 +19,9 @@
 // フォグ・モーションブラーが全部そのまま乗る。
 #pragma pack_matrix(row_major)
 
-//--------------------------------------------------------------
-// 定数バッファ：シーン (b0)
-// PBR.hlsliのCBufferSceneと同じ並び。末尾のprevViewProjまで使うので
-// 全メンバを宣言する
-//--------------------------------------------------------------
-cbuffer CBufferScene : register(b0)
-{
-    matrix view;
-    matrix projection;
-    matrix viewProj;
-    matrix invViewProj;
-    matrix lightViewProj;
-    float4 lightDir;
-    float4 lightColor;
-    float4 cameraPos;
-    matrix prevViewProj;
-    float4 timeParams;      // x: 経過秒, y: 前フレームからの経過秒, z: sin(x), w: cos(x)
-    float4 screenParams;    // xy: 解像度, zw: その逆数
-    float4 shadowParams;    // x: シャドウマップの一辺, y: その逆数
-};
+// シーン定数バッファ(b0)。エンジン側のTsukino.BuiltIn/Assets/Shaders/Scene.hlsliを
+// 取り込む（ShaderImporterがエンジンのShadersも探すので、相対パスは要らない）
+#include "Scene.hlsli"
 
 //--------------------------------------------------------------
 // 定数バッファ：草 (b12 = CBSlot::User0 のゲーム予約枠)

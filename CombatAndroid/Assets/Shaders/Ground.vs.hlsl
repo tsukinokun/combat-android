@@ -17,22 +17,9 @@
 // 既存の GBuffer.ps.hlsl をそのまま使える。
 #pragma pack_matrix(row_major)
 
-//--------------------------------------------------------------
-// 定数バッファ：シーン (b0)
-// ModelStatic.vs.hlslのCBufferSceneと同じ並び
-//--------------------------------------------------------------
-cbuffer CBufferScene : register(b0)
-{
-    matrix view;
-    matrix projection;
-    matrix viewProj;
-    matrix invViewProj;
-    matrix lightViewProj;
-    float4 lightDir;
-    float4 lightColor;
-    float4 cameraPos;
-    matrix prevViewProj;
-};
+// シーン定数バッファ(b0)。エンジン側のTsukino.BuiltIn/Assets/Shaders/Scene.hlsliを
+// 取り込む（ShaderImporterがエンジンのShadersも探すので、相対パスは要らない）
+#include "Scene.hlsli"
 
 //--------------------------------------------------------------
 // 定数バッファ：トランスフォーム (b1)
