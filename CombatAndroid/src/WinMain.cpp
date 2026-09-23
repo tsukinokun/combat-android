@@ -41,6 +41,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In
     if(lpCmdLine != nullptr && std::strstr(lpCmdLine, "--stress-benchmark") != nullptr) {
         CombatAndroid::ECS::EnemyStressTestSystem::RequestAutoBenchmark();
     }
+
+    //--------------------------------------------------------------
+    // --no-shadow-cull 付きなら、シャドウパスの間引きを切って起動する。
+    // カスケードシャドウの間引きがどれだけ効いているかを、同じビルドで
+    // 比較するためのもの
+    //--------------------------------------------------------------
+    if(lpCmdLine != nullptr && std::strstr(lpCmdLine, "--no-shadow-cull") != nullptr) {
+        CombatAndroid::ECS::EnemyStressTestSystem::RequestShadowCullingDisabled();
+    }
 #else
     (void)lpCmdLine;
 #endif

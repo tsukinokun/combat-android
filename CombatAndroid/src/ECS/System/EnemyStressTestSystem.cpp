@@ -59,6 +59,7 @@ namespace CombatAndroid::ECS {
         //! WinMainがコマンドライン引数を見てSystemの生成より先に立てるため、
         //! インスタンスのメンバではなく静的変数で受ける
         bool s_AutoBenchmarkRequested = false;
+        bool s_ShadowCullingDisabled  = false;    // --no-shadow-cull で立つ
 
         //-------------------------------------------------------------
         //! @brief  i番目の敵の出現位置を求める関数
@@ -117,8 +118,15 @@ namespace CombatAndroid::ECS {
             if(ctx->renderer)
                 ctx->renderer->SetVSyncEnabled(false);
 
+            // --no-shadow-cull 付きで起動された場合はここで反映する
+            if(ctx->renderer) {
+                m_shadowCulling = !s_ShadowCullingDisabled;
+                ctx->renderer->SetShadowCullingEnabled(m_shadowCulling);
+            }
+
             Respawn(registry, *ctx, kCountSteps[m_benchmarkStepIndex]);
-            Tsukino::Core::Log::Info("EnemyStressTest: auto benchmark started");
+            Tsukino::Core::Log::Info(std::string("EnemyStressTest: auto benchmark started (shadow culling ")
+                                     + (m_shadowCulling ? "ON)" : "OFF)"));
         }
 
         if(m_benchmarkPhase != BenchmarkPhase::Idle) {
@@ -164,6 +172,19 @@ namespace CombatAndroid::ECS {
             Tsukino::Core::Log::Info(m_dense ? "EnemyStressTest: layout DENSE" : "EnemyStressTest: layout SPREAD");
         }
 
+        //---------------------------------------------------------
+        // F5：シャドウパスのカリングの切り替え。
+        // カスケードシャドウはカスケードの枚数だけ同じ形を描き直すため、
+        // 「間引きがどれだけ効いているか」を同じビルドで比べられるようにしてある。
+        // 見た目が変わるなら間引きすぎているということ
+        //---------------------------------------------------------
+        if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F5) && ctx->renderer) {
+            m_shadowCulling = !m_shadowCulling;
+            ctx->renderer->SetShadowCullingEnabled(m_shadowCulling);
+
+            Tsukino::Core::Log::Info(m_shadowCulling ? "EnemyStressTest: shadow culling ON" : "EnemyStressTest: shadow culling OFF");
+        }
+
         UpdateHud(registry, *ctx, toggleHud);
     }
 
@@ -172,6 +193,13 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void EnemyStressTestSystem::RequestAutoBenchmark() {
         s_AutoBenchmarkRequested = true;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief シャドウパスのカリングを無効にして起動するよう予約する
+    //-------------------------------------------------------------
+    void EnemyStressTestSystem::RequestShadowCullingDisabled() {
+        s_ShadowCullingDisabled = true;
     }
 
     //-------------------------------------------------------------
