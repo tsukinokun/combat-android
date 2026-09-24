@@ -37,6 +37,10 @@ namespace CombatAndroid::ECS {
 
         constexpr float kTextGapX = 12.0f;    //!< バー右端からテキストまでの余白
 
+        //! HP・EXPの数値テキストの拡大率。2本のバーの間隔（24px）に収まる大きさにしないと、
+        //! 上下の行が重なって読めなくなる（既定の1.0は危険度テキストと同じ大きさ）
+        constexpr float kHudTextFontScale = 0.5f;
+
         const hlslpp::float4 kBarBackgroundColor = hlslpp::float4(0.12f, 0.12f, 0.12f, 0.85f);    //!< 背景（暗いグレー半透明）
         const hlslpp::float4 kExpBarFillColor    = hlslpp::float4(0.35f, 0.65f, 1.0f, 1.0f);       //!< EXPバーの残量色（水色）
 
@@ -133,6 +137,7 @@ namespace CombatAndroid::ECS {
                 if(auto* hpTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.hpTextEntity)) {
                     hpTextTransform->position =
                         hlslpp::float3(kHpBarLeftX + kHpBarWidth + kTextGapX, kHpBarTopY + kHpBarHeight * 0.5f, 0.0f);
+                    hpTextTransform->scale = hlslpp::float3(kHudTextFontScale, kHudTextFontScale, 1.0f);
                     hpTextTransform->dirty = true;
                 }
             }
@@ -145,6 +150,7 @@ namespace CombatAndroid::ECS {
                 if(auto* expTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.expTextEntity)) {
                     expTextTransform->position =
                         hlslpp::float3(kExpBarLeftX + kExpBarWidth + kTextGapX, kExpBarTopY + kExpBarHeight * 0.5f, 0.0f);
+                    expTextTransform->scale = hlslpp::float3(kHudTextFontScale, kHudTextFontScale, 1.0f);
                     expTextTransform->dirty = true;
                 }
             }

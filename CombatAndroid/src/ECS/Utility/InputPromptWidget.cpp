@@ -113,6 +113,11 @@ namespace CombatAndroid::ECS {
 
             Tsukino::BuiltIn::ECS::TransformComponent& transform =
                 registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
+
+            // 矩形と同じくscale=0で作る。キーの文字（glyph）は生成時に中身を入れたきり
+            // 消さない（幅の計算に使う）ので、ここを既定の1.0のままにすると、
+            // 一度も表示されていないプロンプトの文字が原寸で画面左上（0,0）に描かれてしまう
+            transform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);
             transform.dirty = true;
 
             Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
