@@ -4,6 +4,11 @@
 //-------------------------------------------------------------
 #pragma once
 #include <Tsukino/EngineIntegration/Scene/GameSceneBase.hpp>
+#include <Tsukino/Core/ECS/Registry/Registry.hpp>
+
+namespace Tsukino::EngineIntegration {
+    struct EngineContext;
+}    // namespace Tsukino::EngineIntegration
 
 // 名前空間 : CombatAndroid
 namespace CombatAndroid {
@@ -43,5 +48,13 @@ namespace CombatAndroid {
         //! @param  api [in] エンジンから提供されるAPIへの参照
         //-------------------------------------------------------------
         void OnInitialize(Tsukino::EngineIntegration::EngineAPI& api) override;
+
+        //-------------------------------------------------------------
+        //! @brief  背景の3D（カメラ・夕日・空・霧・地面・草・武器）を組む
+        //! @param  registry [in,out] ECSレジストリ
+        //! @param  context  [in]     エンジンコンテキスト
+        //! @note   演出そのものはTitleStageSystemが進める。ここは置くだけ
+        //-------------------------------------------------------------
+        void BuildStage(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context);
     };
 }    // namespace CombatAndroid

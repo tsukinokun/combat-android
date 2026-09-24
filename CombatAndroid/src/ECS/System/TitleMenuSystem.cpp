@@ -70,15 +70,23 @@ namespace CombatAndroid::ECS {
         };
 
         //-------------------------------------------------------------
-        // レイアウト（画面中心からのピクセル）
+        // レイアウト（画面中心からのピクセル）。
+        // タイトル・メニューは画面の左寄りの1列にまとめ、右半分は3Dの武器（TitleStageSystem）へ譲る
         //-------------------------------------------------------------
+        constexpr float kLeftColumnRatio = 0.26f;    //!< 文字の列の中心（画面幅に対する割合）
+
+        //! メニューの強調帯の幅。既定（440）より細くして、帯の右に出るキーの案内を左半分へ収める
+        constexpr float kMenuHighlightWidth = 360.0f;
+
+        //! 左側を暗くする板の幅（画面幅に対する割合）と、そこから背景へぼかす帯の幅
+        constexpr float kBackdropWidthRatio = 0.42f;
+        constexpr float kBackdropFadeRatio  = 0.30f;
+
         constexpr float kTitleOffsetY    = -250.0f;
-        constexpr float kSubtitleOffsetY = -150.0f;
         constexpr float kMenuTopOffsetY  = -20.0f;
         constexpr float kBestOffsetY     = 280.0f;
 
         constexpr float kTitleFontScale    = 3.2f;
-        constexpr float kSubtitleFontScale = 1.1f;
         constexpr float kBestFontScale     = 0.85f;
 
         constexpr float kControlsPanelWidth     = 980.0f;
@@ -92,9 +100,12 @@ namespace CombatAndroid::ECS {
         constexpr float kControlsHeaderScale    = 1.6f;
         constexpr float kControlsLineScale      = 0.95f;
 
-        const hlslpp::float4 kBackdropColor      = hlslpp::float4(0.03f, 0.04f, 0.07f, 1.0f);    //!< SetClearColorと同じ紺
+        //! 文字の下を暗くする色。背景の草原を透かすため不透明にはしない
+        const hlslpp::float4 kBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.72f);
+
+        //! 操作説明・オプションを開いている間、画面全体を覆う色（板と文字が背景と混ざらないよう濃くする）
+        const hlslpp::float4 kFullBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.92f);
         const hlslpp::float4 kTitleColor         = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kSubtitleColor      = hlslpp::float4(1.0f, 0.85f, 0.45f, 1.0f);
         const hlslpp::float4 kBestColor          = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
         const hlslpp::float4 kControlsPanelColor = hlslpp::float4(0.09f, 0.10f, 0.15f, 1.0f);
         const hlslpp::float4 kControlsActionColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
@@ -131,8 +142,39 @@ namespace CombatAndroid::ECS {
             const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
             const float screenCenterY = screenHeight * 0.5f;
+            const float columnX       = screenWidth * kLeftColumnRatio;
 
-            StretchSprite(registry, context, title.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
+            //-------------------------------------------------------------
+            // 背景の板。普段は文字のある左側だけを暗くし、右端は段々に薄くして
+            // 3Dの背景へなじませる。操作説明・オプションの間は画面全体を覆う
+            //-------------------------------------------------------------
+            const bool coverWholeScreen = title.options.isOpen || title.showingControls;
+
+            if(coverWholeScreen) {
+                StretchSprite(registry, context, title.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight,
+                              kFullBackdropColor);
+                for(Tsukino::ECS::Entity fadeEntity : title.backdropFadeEntities)
+                    HideUiSprite(registry, fadeEntity);
+            } else {
+                const float backdropWidth = screenWidth * kBackdropWidthRatio;
+                StretchSprite(registry, context, title.backdropEntity, backdropWidth * 0.5f, screenCenterY, backdropWidth, screenHeight,
+                              kBackdropColor);
+
+                // 帯を等分し、右へ行くほど薄くする
+                const int   fadeCount = static_cast<int>(title.backdropFadeEntities.size());
+                const float bandWidth = screenWidth * kBackdropFadeRatio / static_cast<float>(fadeCount);
+
+                for(int i = 0; i < fadeCount; ++i) {
+                    const float bandCenterX = backdropWidth + bandWidth * (static_cast<float>(i) + 0.5f);
+                    const float alphaScale  = 1.0f - (static_cast<float>(i) + 0.5f) / static_cast<float>(fadeCount);
+
+                    hlslpp::float4 bandColor = kBackdropColor;
+                    bandColor.w              = kBackdropColor.w * alphaScale;
+
+                    StretchSprite(registry, context, title.backdropFadeEntities[i], bandCenterX, screenCenterY, bandWidth, screenHeight,
+                                  bandColor);
+                }
+            }
 
             //-------------------------------------------------------------
             // オプション画面を開いている間は、その板と文字が重ならないようタイトル側を全部隠す
@@ -140,20 +182,18 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(title.options.isOpen) {
                 HideUiText(registry, title.titleEntity);
-                HideUiText(registry, title.subtitleEntity);
                 HideUiText(registry, title.bestEntity);
                 HideGameMenu(registry, title.menu);
                 return;
             }
 
             if(!title.showingControls) {
-                PlaceUiText(registry, title.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"人造人間0号機", kTitleColor);
-                PlaceUiText(registry, title.subtitleEntity, screenCenterX, screenCenterY + kSubtitleOffsetY, kSubtitleFontScale,
-                            L"迫りくる群れの中で、" + std::to_wstring(static_cast<int>(kRunClearSeconds) / 60) + L"分間生き延びろ",
-                            kSubtitleColor);
-                PlaceUiText(registry, title.bestEntity, screenCenterX, screenCenterY + kBestOffsetY, kBestFontScale, FormatBestRecord(), kBestColor);
+                PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"人造人間0号機", kTitleColor);
+                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + kBestOffsetY, kBestFontScale, FormatBestRecord(), kBestColor);
 
-                ShowGameMenu(registry, context, title.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, title.cursorIndex);
+                // 強調帯を既定（440）より細くして、その右に並ぶキーの案内を武器へ被せない
+                ShowGameMenu(registry, context, title.menu, columnX, screenCenterY + kMenuTopOffsetY, kMenuLabels, title.cursorIndex,
+                             kMenuHighlightWidth);
 
                 HideUiSprite(registry, title.controlsPanelEntity);
                 HideUiText(registry, title.controlsHeaderEntity);
@@ -167,7 +207,6 @@ namespace CombatAndroid::ECS {
 
             // 操作説明の板と文字が重なって読みにくくならないよう、タイトル側の文字は隠す
             HideUiText(registry, title.titleEntity);
-            HideUiText(registry, title.subtitleEntity);
             HideUiText(registry, title.bestEntity);
             HideGameMenu(registry, title.menu);
 

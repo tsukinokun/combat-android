@@ -28,11 +28,16 @@ namespace CombatAndroid::ECS {
         //! 切り替えた先の画面でそのまま拾わないようにする1フレーム待ち
         bool changedThisFrame = true;
 
-        //! 画面全体を覆う背景の板（Sprite）。戦闘シーンから戻ってきたとき、Rendererに残った
-        //! 空の設定で背景に空が描かれてしまうため、起動直後と同じ見た目になるよう不透明な板で覆う
+        //! 文字を載せる左側を暗くする板（Sprite）。背景は3Dの草原（TitleStageSystem）なので、
+        //! 全面ではなく文字の下だけを暗くして、右側の武器を見せたままにする。
+        //! 操作説明・オプションを開いている間だけは画面全体を覆う
         Tsukino::ECS::Entity backdropEntity = entt::null;
+
+        //! 左側の板から背景へつなぐぼかし用の板（Sprite）。細い帯を並べて1枚ずつ薄くし、
+        //! 板の右端が直線で切れて見えないようにする。枚数が少ないと明るい空を背にしたとき
+        //! 階段状の縞に見えるため、1段あたりの濃さの差が分からない枚数にしてある
+        std::array<Tsukino::ECS::Entity, 40> backdropFadeEntities{};
         Tsukino::ECS::Entity titleEntity    = entt::null;    //!< ゲーム名（Font）
-        Tsukino::ECS::Entity subtitleEntity = entt::null;    //!< 副題（Font）
         Tsukino::ECS::Entity bestEntity     = entt::null;    //!< ベスト記録（Font）
         GameMenuWidget       menu;                           //!< はじめる／操作説明／終了
 
