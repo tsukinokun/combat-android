@@ -6,6 +6,8 @@
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
+#include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
+#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
@@ -94,6 +96,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::CameraSystem>(), 1);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SpriteRenderSystem>(), 2);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FontRendererSystem>(), 3);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), 4);
 
         //--------------------------------------------------------------
         // 画面固定UI用の2Dカメラ（タイトル・戦闘シーンと同じ設定）
@@ -121,6 +124,9 @@ namespace CombatAndroid {
             spinner = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kLoadingParts);
         m_labelEntity   = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
         m_percentEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
+
+        // 場面の切り替わりを繋ぐ黒。タイトルの暗転を受けてここから明ける
+        CombatAndroid::ECS::CreateScreenFade(registry, *context);
 
         RefreshUi();
 
@@ -167,11 +173,12 @@ namespace CombatAndroid {
 
         StopWorker();    // 終わっているので待たずに合流できる
 
-        auto* context = m_scene.GetRegistry().GetContext<Tsukino::EngineIntegration::EngineContext*>();
-        if(context && context->gameSceneManager) {
-            context->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>(m_showTutorial));
-            m_changeRequested = true;
-        }
+        // 黒く覆ってから切り替える（ScreenFadeSystemが暗転しきった時点でChangeSceneを呼ぶ）
+        const bool showTutorial = m_showTutorial;
+        CombatAndroid::ECS::RequestSceneChangeWithFade(
+            m_scene.GetRegistry(), [showTutorial]() { return std::make_unique<CombatAndroid::CombatAndroidScene>(showTutorial); });
+
+        m_changeRequested = true;
     }
 
     //-------------------------------------------------------------

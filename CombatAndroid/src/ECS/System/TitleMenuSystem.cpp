@@ -7,8 +7,9 @@
 #include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/RunRecord.hpp>
+#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
-#include <CombatAndroid/Scene/LoadingScene.hpp>
+#include <CombatAndroid/ECS/Component/TitleStageComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
@@ -132,6 +133,31 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  「はじめる」の見せ場が始まっているか
+        //! @param  registry [in] ECSレジストリ
+        //! @return 始まっていればtrue
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool IsTitleLaunching(Tsukino::ECS::Registry& registry) {
+            bool launching = false;
+
+            auto view = registry.View<TitleStageComponent>();
+            view.each([&](entt::entity, const TitleStageComponent& stage) { launching = launching || stage.launchRequested; });
+
+            return launching;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  「はじめる」の見せ場を始めるよう頼む
+        //! @param  registry [in,out] ECSレジストリ
+        //! @note   進行と、ロード画面への切り替えはTitleStageSystemが行う
+        //-------------------------------------------------------------
+        void RequestTitleLaunch(Tsukino::ECS::Registry& registry) {
+            auto view = registry.View<TitleStageComponent>();
+            view.each([](entt::entity, TitleStageComponent& stage) { stage.launchRequested = true; });
+        }
+
+        //-------------------------------------------------------------
         //! @brief  今の状態に合わせて画面を組み直す
         //! @param  registry [in] ECSレジストリ
         //! @param  context  [in] エンジンコンテキスト
@@ -246,6 +272,10 @@ namespace CombatAndroid::ECS {
                 continue;
             }
 
+            // 見せ場や暗転が始まったら、もう入力は拾わない（連打で二重に始めないため）
+            if(IsTitleLaunching(registry) || IsScreenFadingOut(registry))
+                continue;
+
             if(!ctx->inputSystem)
                 continue;
 
@@ -289,12 +319,13 @@ namespace CombatAndroid::ECS {
 
             switch(static_cast<TitleMenuItem>(title.cursorIndex)) {
             case TitleMenuItem::Start:
-                // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭で行われる。
-                // 戦闘で使うアセットはロード画面が裏スレッドで読み、読み終えてから戦闘シーンへ移る
-                // （直接切り替えると、戦闘シーンの初期化で読み込む間ずっと画面が止まる）。
-                // タイトルから始めたときだけ操作の案内を出す（リトライからは出さない）
-                if(ctx->gameSceneManager)
-                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::LoadingScene>(true));
+                //-------------------------------------------------------------
+                // ここでは場面を切り替えず、武器が飛んでくる見せ場を頼むだけにする。
+                // 見せ場が終わった時点でTitleStageSystemがロード画面へ切り替える
+                // （戦闘で使うアセットはロード画面が裏スレッドで読む。直接戦闘シーンへ
+                // 切り替えると、その初期化で読み込む間ずっと画面が止まる）
+                //-------------------------------------------------------------
+                RequestTitleLaunch(registry);
                 break;
 
             case TitleMenuItem::Controls:

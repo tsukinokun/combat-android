@@ -29,6 +29,13 @@ namespace CombatAndroid::ECS {
         float          bobPhase    = 0.0f;                  //!< 浮いている間の上下動の初期位相
 
         bool burst = false;    //!< 土煙と効果音を出したか（1本につき1回だけ）
+
+        //-------------------------------------------------------------
+        // 「はじめる」でカメラへ飛んでくるときの状態（1本ごと）
+        //-------------------------------------------------------------
+        hlslpp::float3 launchStart{0.0f, 0.0f, 0.0f};    //!< 飛び出すときの位置（選ばれた瞬間の位置）
+        bool           launchStarted = false;            //!< 飛び出す位置を控えたか
+        bool           launchBurst   = false;            //!< 目の前で弾けたか（1本につき1回だけ）
     };
 
     //-------------------------------------------------------------
@@ -47,5 +54,13 @@ namespace CombatAndroid::ECS {
 
         hlslpp::float3 cameraBasePosition{0.0f, 0.0f, 0.0f};    //!< カメラの基準位置（ここを中心に揺らす）
         hlslpp::float3 cameraLookAt{0.0f, 0.0f, 0.0f};          //!< カメラの注視点
+
+        //-------------------------------------------------------------
+        // 「はじめる」を選んでからロード画面へ移るまでの見せ場。
+        // TitleMenuSystemがlaunchRequestedを立て、進行と場面の切り替えはTitleStageSystemが行う
+        //-------------------------------------------------------------
+        bool  launchRequested = false;    //!< 「はじめる」が選ばれたか
+        bool  launchHandedOff = false;    //!< ロード画面への切り替えを頼んだか（1回だけ）
+        float launchElapsed   = 0.0f;     //!< 選ばれてからの経過秒数
     };
 }    // namespace CombatAndroid::ECS

@@ -4,8 +4,15 @@
 //-------------------------------------------------------------
 #pragma once
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
+
+namespace Tsukino::EngineIntegration {
+    struct EngineContext;
+}    // namespace Tsukino::EngineIntegration
+
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    struct TitleStageComponent;
+
     //-------------------------------------------------------------
     //! @class  TitleStageSystem
     //! @brief  タイトル画面の3D演出を進めるシステム。TitleSceneにだけ登録する
@@ -21,5 +28,16 @@ namespace CombatAndroid::ECS {
         //! @param deltaTime [in] デルタタイム
         //-------------------------------------------------------------
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
+
+    private:
+        //-------------------------------------------------------------
+        //! @brief  「はじめる」の見せ場（武器がカメラへ飛んで弾ける）を1フレーム進める
+        //! @param  registry [in,out] ECSレジストリ
+        //! @param  context  [in]     エンジンコンテキスト
+        //! @param  stage    [in,out] タイトルの演出の状態
+        //! @note   白く覆いきったところでロード画面へ切り替える。ロード画面は同じ白から
+        //!         明けるので、切り替わりの継ぎ目は見えない
+        //-------------------------------------------------------------
+        void UpdateLaunch(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, TitleStageComponent& stage);
     };
 }    // namespace CombatAndroid::ECS

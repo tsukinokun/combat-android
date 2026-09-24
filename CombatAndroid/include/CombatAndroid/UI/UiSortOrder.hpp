@@ -93,6 +93,10 @@ namespace CombatAndroid::UI {
     constexpr int kLoadingParts    = 110;    //!< 進捗バーの溝(+0)・中身(+1)、回る印
     constexpr int kLoadingText     = 120;    //!< 「NOW LOADING」・進捗の数字
 
+    //! 場面の切り替わりの黒フェード（ScreenFadeSystem）。どのシーンでも使うので、
+    //! オプション（700番台）より手前、デバッグHUD（900番台）より奥に置く
+    constexpr int kScreenFade = 800;
+
     //! デバッグHUD。調査用なので常に全ての演出より手前に出す
     //! （既定値0のままだと暗転板やフラッシュの下へ沈む）
     constexpr int kDebugWeaponGripHud  = 900;    //!< 武器の握り位置調整HUD（F6）

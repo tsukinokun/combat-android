@@ -41,6 +41,7 @@
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -806,6 +807,9 @@ namespace CombatAndroid {
                 CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center);
             pauseMenu.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kPauseMenuBase);
             pauseMenu.options = CombatAndroid::ECS::CreateOptionsMenu(registry, *context, CombatAndroid::UI::kPauseOptionsBase);
+
+            // 場面の切り替わりを繋ぐ黒。ロード画面の暗転を受けてここから明ける
+            CombatAndroid::ECS::CreateScreenFade(registry, *context);
 
             // 操作の案内。タイトルの「はじめる」から来たときだけ出す（リトライでは出さない）
             if(m_showTutorial)

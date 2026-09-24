@@ -30,6 +30,7 @@
 #include <CombatAndroid/ECS/System/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/System/InputPromptSystem.hpp>
 #include <CombatAndroid/ECS/System/TutorialSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
@@ -162,6 +163,8 @@ namespace CombatAndroid {
             enemyWeaponDropSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
+        // 場面の切り替わりを繋ぐ黒。TransformUIより前に板の位置を書く必要があるのでここに置く
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), (int)ECS::SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptSystem>(), (int)ECS::SystemPriority::InputPrompt);
         // タイトルから始めたときだけ出す操作の案内（TutorialComponentが無ければ何もしない）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TutorialSystem>(), (int)ECS::SystemPriority::Tutorial);

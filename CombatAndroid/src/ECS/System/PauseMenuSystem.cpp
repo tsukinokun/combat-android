@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
@@ -184,6 +185,10 @@ namespace CombatAndroid::ECS {
                 }
             }
 
+            // 暗転が始まったら、もう選択は受け付けない（連打で二重に切り替えないため）
+            if(IsScreenFadingOut(registry))
+                continue;
+
             const bool resumeByEscape = input.IsKeyPressed(Tsukino::Input::KeyCode::Escape);
             if(!resumeByEscape && !IsGameMenuConfirmPressed(input))
                 continue;
@@ -193,15 +198,13 @@ namespace CombatAndroid::ECS {
 
             switch(selected) {
             case PauseMenuItem::Retry:
-                // ChangeScene()は次のシーンを予約するだけで、実際の切り替えは次フレーム頭
-                //（GameSceneManager::Update）で行われるため、System内から直接呼んでよい
-                if(ctx->gameSceneManager)
-                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::CombatAndroidScene>());
+                // 黒く覆ってから切り替える。実際のChangeSceneは暗転しきった時点で
+                // ScreenFadeSystemが呼ぶ（リトライでは操作の案内を出さない）
+                RequestSceneChangeWithFade(registry, []() { return std::make_unique<CombatAndroid::CombatAndroidScene>(); });
                 break;
 
             case PauseMenuItem::Title:
-                if(ctx->gameSceneManager)
-                    ctx->gameSceneManager->ChangeScene(std::make_unique<CombatAndroid::TitleScene>());
+                RequestSceneChangeWithFade(registry, []() { return std::make_unique<CombatAndroid::TitleScene>(); });
                 break;
 
             case PauseMenuItem::Options:

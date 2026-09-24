@@ -11,10 +11,12 @@
 #include <CombatAndroid/ECS/System/GrassFieldSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
 #include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/System/TitleStageSystem.hpp>
 #include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/SystemPriority.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
+#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
@@ -100,6 +102,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::Transform);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleStageSystem>(), (int)SystemPriority::Gameplay);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleMenuSystem>(), (int)SystemPriority::PlayerHud);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), (int)SystemPriority::PlayerHud);
 
         // 武器とカメラが書いた位置をworldMatrixへ反映してから、カメラ行列を作る
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);
@@ -138,6 +141,9 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GrassFieldSystem>(), (int)SystemPriority::GrassField);
 
         BuildStage(registry, *context);
+
+        // 場面の切り替わりを繋ぐ黒。起動直後もここから明ける
+        CombatAndroid::ECS::CreateScreenFade(registry, *context);
 
         //--------------------------------------------------------------
         // 画面固定UI用の2Dカメラ（戦闘シーンと同じ設定）
