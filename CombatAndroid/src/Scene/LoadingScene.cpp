@@ -1,9 +1,9 @@
 //-------------------------------------------------------------
 //! @file    LoadingScene.cpp
-//! @brief   戦闘シーンの前に挟むロード画面のシーンの実装
+//! @brief   起動直後、タイトルの前に挟むロード画面のシーンの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/Scene/LoadingScene.hpp>
-#include <CombatAndroid/Scene/CombatAndroidScene.hpp>
+#include <CombatAndroid/Scene/TitleScene.hpp>
 
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 #include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
@@ -125,7 +125,7 @@ namespace CombatAndroid {
         m_labelEntity   = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
         m_percentEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
 
-        // 場面の切り替わりを繋ぐ黒。タイトルの暗転を受けてここから明ける
+        // 場面の切り替わりを繋ぐ黒。起動直後もここから明ける
         CombatAndroid::ECS::CreateScreenFade(registry, *context);
 
         RefreshUi();
@@ -166,7 +166,7 @@ namespace CombatAndroid {
         m_scene.Update(deltaTime);
 
         //--------------------------------------------------------------
-        // 読み終えたら戦闘シーンへ。ChangeSceneは予約だけで、実際の切り替えは次フレーム頭
+        // 読み終えたらタイトルシーンへ。ChangeSceneは予約だけで、実際の切り替えは次フレーム頭
         //--------------------------------------------------------------
         if(m_changeRequested || !m_finished.load() || m_elapsed < kMinDisplaySeconds)
             return;
@@ -174,9 +174,7 @@ namespace CombatAndroid {
         StopWorker();    // 終わっているので待たずに合流できる
 
         // 黒く覆ってから切り替える（ScreenFadeSystemが暗転しきった時点でChangeSceneを呼ぶ）
-        const bool showTutorial = m_showTutorial;
-        CombatAndroid::ECS::RequestSceneChangeWithFade(
-            m_scene.GetRegistry(), [showTutorial]() { return std::make_unique<CombatAndroid::CombatAndroidScene>(showTutorial); });
+        CombatAndroid::ECS::RequestSceneChangeWithFade(m_scene.GetRegistry(), []() { return std::make_unique<CombatAndroid::TitleScene>(); });
 
         m_changeRequested = true;
     }

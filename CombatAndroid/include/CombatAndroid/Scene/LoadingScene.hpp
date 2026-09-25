@@ -1,6 +1,6 @@
 //-------------------------------------------------------------
 //! @file    LoadingScene.hpp
-//! @brief   戦闘シーンの前に挟むロード画面のシーンの宣言
+//! @brief   起動直後、タイトルの前に挟むロード画面のシーンの宣言
 //-------------------------------------------------------------
 #pragma once
 #include <Tsukino/EngineIntegration/Scene/GameSceneBase.hpp>
@@ -15,23 +15,15 @@
 namespace CombatAndroid {
     //-------------------------------------------------------------
     //! @class   LoadingScene
-    //! @brief   タイトルの「はじめる」から戦闘シーンへ移る間に入るロード画面。
-    //!          戦闘で使うアセット（AssetPreloaderの列）を裏スレッドで読み、その間は
-    //!          「NOW LOADING」・回る印・進捗バーを動かし続ける。読み終えたら戦闘シーンへ切り替える
+    //! @brief   起動してからタイトルシーンへ移る間に入るロード画面。
+    //!          タイトル・戦闘で使うアセット（AssetPreloaderの列）を裏スレッドで読み、その間は
+    //!          「NOW LOADING」・回る印・進捗バーを動かし続ける。読み終えたらタイトルシーンへ切り替える
     //! @note    シーン切り替えは同期（GameSceneManagerが次シーンのInitializeをその場で呼ぶ）なので、
-    //!          読み込みを戦闘シーンの初期化で行うと画面が止まる。ここで先に読んでおけば、
-    //!          AssetManagerのキャッシュに残るため、戦闘シーン側のPreloadAssetsは表を引くだけになる
+    //!          読み込みを各シーンの初期化で行うと画面が止まる。ここで先に読んでおけば、
+    //!          AssetManagerのキャッシュに残るため、タイトル・戦闘シーン側は表を引くだけになる
     //-------------------------------------------------------------
     class LoadingScene : public Tsukino::EngineIntegration::GameSceneBase {
     public:
-        //-------------------------------------------------------------
-        //! @brief  コンストラクタ
-        //! @param  showTutorial [in] 読み終えた後の戦闘シーンで操作の案内を出すか
-        //-------------------------------------------------------------
-        explicit LoadingScene(bool showTutorial)
-            : m_showTutorial(showTutorial) {
-        }
-
         //-------------------------------------------------------------
         //! @brief  デストラクタ（読み込み中なら止めて待つ）
         //-------------------------------------------------------------
@@ -67,8 +59,6 @@ namespace CombatAndroid {
         //-------------------------------------------------------------
         void RefreshUi();
 
-        bool m_showTutorial = false;    //!< 戦闘シーンで操作の案内を出すか
-
         std::vector<std::function<void()>> m_steps;             //!< 裏スレッドで実行する読み込みの列
         std::thread                        m_worker;            //!< 読み込みの裏スレッド
         std::atomic<int>                   m_completedSteps{0}; //!< 終わったステップ数（進捗バー用）
@@ -77,7 +67,7 @@ namespace CombatAndroid {
 
         float m_elapsed          = 0.0f;     //!< 表示してからの経過秒数（アニメーションと最低表示時間）
         float m_displayedProgress = 0.0f;    //!< 画面に出している進捗（実際の進捗へ滑らかに追いつかせる）
-        bool  m_changeRequested  = false;    //!< 戦闘シーンへの切り替えを頼んだか
+        bool  m_changeRequested  = false;    //!< タイトルシーンへの切り替えを頼んだか
 
         Tsukino::ECS::Entity m_backdropEntity    = entt::null;    //!< 背景の板
         Tsukino::ECS::Entity m_labelEntity       = entt::null;    //!< 「NOW LOADING...」

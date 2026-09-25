@@ -7,7 +7,7 @@
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/SoundTable.hpp>
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
-#include <CombatAndroid/Scene/LoadingScene.hpp>
+#include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/EffectSystem.hpp>
@@ -347,13 +347,13 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        // 3本とも弾けて余韻も過ぎたら、黒フェードでロード画面へ渡す。
+        // 3本とも弾けて余韻も過ぎたら、黒フェードで戦闘シーンへ渡す（アセットは起動時のロード画面で読み済み）。
         // タイトルから始めたときだけ操作の案内を出す（リトライからは出さない）
         //-------------------------------------------------------------
         if(!stage.launchHandedOff && stage.launchElapsed >= kLaunchTotal) {
             stage.launchHandedOff = true;
 
-            RequestSceneChangeWithFade(registry, []() { return std::make_unique<CombatAndroid::LoadingScene>(true); });
+            RequestSceneChangeWithFade(registry, []() { return std::make_unique<CombatAndroid::CombatAndroidScene>(true); });
         }
     }
 }    // namespace CombatAndroid::ECS

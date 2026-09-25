@@ -37,6 +37,9 @@ namespace CombatAndroid::ECS {
             "CombatAndroid/Assets/Textures/UI/ExpOrb.png",
             "CombatAndroid/Assets/Textures/UI/WhitePixel.png",
 
+            // タイトル画面の武器が抜けるときの土煙（TitleStageSystem）
+            "CombatAndroid/Assets/Effect/greatswordAttackCombo3.efkefc",
+
             // プレイヤー（CombatAndroidScene::OnInitializeが直接読む）。ロード画面で先に読んでおけば、
             // 戦闘シーンの初期化はキャッシュから引くだけになり、切り替えの瞬間に止まらない
             "CombatAndroid/Assets/Models/Player.fbx",
@@ -132,14 +135,16 @@ namespace CombatAndroid::ECS {
             loadPath(path);
 
         //-------------------------------------------------------------
-        // 戦闘中のBGM。利用者が置く素材なので、置かれていなければ読まない
+        // タイトル・戦闘中のBGM。利用者が置く素材なので、置かれていなければ読まない
         // （無いファイルのLoadは失敗が覚えておかれず、毎回インポートを試みて遅い）
         //-------------------------------------------------------------
-        steps.push_back([assetManager] {
-            const Tsukino::Core::Path bgmPath(kBattleBgmPath);
-            if(Tsukino::IO::FileSystem::Exists(Tsukino::IO::FileSystem::GetAssetRootPath() / bgmPath))
-                (void)assetManager->Load(bgmPath);
-        });
+        for(const char* bgm : {kTitleBgmPath, kBattleBgmPath}) {
+            steps.push_back([assetManager, bgm] {
+                const Tsukino::Core::Path bgmPath(bgm);
+                if(Tsukino::IO::FileSystem::Exists(Tsukino::IO::FileSystem::GetAssetRootPath() / bgmPath))
+                    (void)assetManager->Load(bgmPath);
+            });
+        }
 
         return steps;
     }
