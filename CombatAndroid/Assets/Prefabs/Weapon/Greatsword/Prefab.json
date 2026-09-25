@@ -1,0 +1,24 @@
+{
+    "Components": [
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/ModelComponent.json"
+        },
+        {
+            "key": "PickupComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/PickupComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/RimGlowComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/TransformComponent.json"
+        },
+        {
+            "key": "WeaponComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/WeaponComponent.json"
+        }
+    ]
+}

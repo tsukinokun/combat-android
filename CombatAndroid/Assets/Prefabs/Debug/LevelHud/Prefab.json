@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/LevelHud/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/LevelHud/TransformComponent.json"
+        },
+        {
+            "key": "WeaponLevelDebugComponent",
+            "value": "null"
+        }
+    ]
+}

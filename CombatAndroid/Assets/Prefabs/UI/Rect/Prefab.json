@@ -1,0 +1,12 @@
+{
+    "Components": [
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/Rect/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/Rect/TransformComponent.json"
+        }
+    ]
+}

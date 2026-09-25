@@ -13,176 +13,183 @@
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/PaladinWeaponAttackSerialization.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
-#include <CombatAndroid/UI/UiSortOrder.hpp>
 
+#include <Tsukino/Core/Log.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 
-#include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CollisionComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/RigidBodyComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/SkeletonOutputComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 
 #include <entt/entt.hpp>
 
+#include <cereal/archives/json.hpp>
+
+#include <array>
+#include <fstream>
 #include <iterator>
 #include <random>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    namespace {
+        //-------------------------------------------------------------
+        // Paladinは武器を持って湧く敵で、持っている武器によって攻撃モーション・間合い・威力が変わる。
+        // その武器ごとの値は Assets/Prefabs/Enemy/PaladinWeaponAttacks.json が持つ（キーは武器名）。
+        // 攻撃クリップは常に1本（EnemyAnimationSetComponent::attackClip）で、エリートが持ち替えるときは
+        // その1本と判定の値を差し替える。EnemyAnimState側へ攻撃ステートを増やす必要はない。
+        //
+        // 手ボーンから武器先端までの距離（hitboxReach）は、プレイヤーが振るときの当たり判定の長さ
+        // （WeaponComponent::range＝グリップから刃先までの到達距離）と同じ値にしてある。
+        // attackRangeは接触距離（bodyRadius37＋プレイヤー半径35＝72）よりだいぶ外だが、判定が
+        // 「手→武器先端のカプセル」で前へ大きく張り出すため届く。リーチの長い武器ほど手前で足を止めさせ、
+        // 間合いの違いを見た目に出している
+        //-------------------------------------------------------------
+        constexpr const char* kPaladinWeaponAttackFile = "CombatAndroid/Assets/Prefabs/Enemy/PaladinWeaponAttacks.json";
+
+        //! JSON上の武器名（WeaponIdの並び順）
+        constexpr const char* kPaladinWeaponKeys[] = {"Warhammer", "Greatsword", "Battleaxe"};
+
+        static_assert(std::size(kPaladinWeaponKeys) == static_cast<size_t>(WeaponId::Count),
+                      "WeaponId に種類を足したら kPaladinWeaponKeys とPaladinWeaponAttacks.jsonにも足すこと");
+
+        //-------------------------------------------------------------
+        //! @brief  Paladinの武器ごとの攻撃パラメータのJSONを読む関数
+        //! @return WeaponIdの並び順のパラメータ
+        //-------------------------------------------------------------
+        std::array<PaladinWeaponAttack, static_cast<size_t>(WeaponId::Count)> LoadPaladinWeaponAttacks() {
+            std::array<PaladinWeaponAttack, static_cast<size_t>(WeaponId::Count)> attacks{};
+
+            for(size_t i = 0; i < attacks.size(); ++i)
+                attacks[i].weaponId = static_cast<WeaponId>(i);
+
+            std::ifstream is(kPaladinWeaponAttackFile);
+            if(!is.is_open()) {
+                Tsukino::Core::Log::Error(std::string("Paladin weapon attacks not found: ") + kPaladinWeaponAttackFile);
+                return attacks;
+            }
+
+            try {
+                cereal::JSONInputArchive archive(is);
+                for(size_t i = 0; i < attacks.size(); ++i)
+                    archive(cereal::make_nvp(kPaladinWeaponKeys[i], attacks[i]));
+            } catch(const cereal::Exception& exception) {
+                Tsukino::Core::Log::Error(std::string("Paladin weapon attacks are broken: ") + kPaladinWeaponAttackFile + " (" + exception.what() + ")");
+            }
+
+            return attacks;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  敵の頭上HPバーを1本生成する関数
+        //! @param  registry    [in,out] エンティティレジストリ
+        //! @param  context     [in]     エンジンコンテキスト
+        //! @param  prefabName  [in]     HPバーのPrefab（背景 or 残量）
+        //! @param  enemyEntity [in]     貼り付け先の敵
+        //! @param  capsuleTop  [in]     敵の足元からカプセル上端までの高さ
+        //! @return 生成したエンティティ
+        //! @note   Prefabのworldオフセット（カプセル上端からの余白）へ、個体ごとのカプセルの高さを足す
+        //-------------------------------------------------------------
+        Tsukino::ECS::Entity SpawnHpBar(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                        const char* prefabName, Tsukino::ECS::Entity enemyEntity, float capsuleTop) {
+            Tsukino::ECS::Entity barEntity = InstantiatePrefab(registry, context, prefabName);
+
+            Tsukino::BuiltIn::ECS::WorldAnchorComponent& anchor = registry.GetComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(barEntity);
+            anchor.target = enemyEntity;
+            anchor.worldOffset.y += capsuleTop;
+
+            return barEntity;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  Prefabの値へ危険度・エリートの倍率を掛ける関数
+        //! @note   大きさの倍率は、見た目（Transform）・体の当たり（Enemy/Collision）・
+        //!         攻撃範囲・判定半径へまとめて掛ける
+        //-------------------------------------------------------------
+        void ApplyScales(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity enemyEntity, const EnemySpawnConfig& config) {
+            EnemyComponent&             enemy  = registry.GetComponent<EnemyComponent>(enemyEntity);
+            HealthComponent&            health = registry.GetComponent<HealthComponent>(enemyEntity);
+            EnemyAttackHitboxComponent& hitbox = registry.GetComponent<EnemyAttackHitboxComponent>(enemyEntity);
+
+            if(config.detectRange > 0.0f)
+                enemy.detectRange = config.detectRange;
+
+            health.maxHealth *= config.healthScale;
+            health.currentHealth = health.maxHealth;
+
+            enemy.expReward *= config.expScale;
+            enemy.knockbackDamageThreshold *= config.knockbackThresholdScale;
+            enemy.moveSpeed *= config.moveSpeedScale;
+            hitbox.damage *= config.attackScale;
+
+            if(config.sizeScale != 1.0f) {
+                Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity);
+                Tsukino::BuiltIn::ECS::CollisionComponent& collision = registry.GetComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(enemyEntity);
+
+                transform.scale          = transform.scale * config.sizeScale;
+                collision.extent         = collision.extent * config.sizeScale;
+                collision.offsetPosition = collision.offsetPosition * config.sizeScale;
+                enemy.bodyRadius *= config.sizeScale;
+                enemy.attackRange *= config.sizeScale;
+                hitbox.radius *= config.sizeScale;
+            }
+        }
+    }    // namespace
+
     //-------------------------------------------------------------
     //! @brief 敵を1体生成する
     //-------------------------------------------------------------
     Tsukino::ECS::Entity SpawnBehaviorEnemy(Tsukino::ECS::Registry& registry,
                                             Tsukino::EngineIntegration::EngineContext& context,
                                             const EnemySpawnConfig& config) {
-        Tsukino::ECS::Entity enemyEntity = registry.CreateEntity();
+        //-------------------------------------------------------------
+        // 本体。見た目・当たり（Kinematicのカプセルセンサー）・HP・攻撃判定・アニメーション一式は
+        // Prefab（Assets/Prefabs/Enemy/<名前>/）が持つ。
+        // センサーはTransform位置＝足元とみなし、カプセル中心をそこから上へオフセットしてある
+        //-------------------------------------------------------------
+        Tsukino::ECS::Entity enemyEntity = InstantiatePrefab(registry, context, config.prefabName);
 
-        Tsukino::BuiltIn::ECS::TransformComponent& enemyTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity);
-        enemyTransform.position                                   = config.spawnPosition;
-        enemyTransform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
-        enemyTransform.scale                                      = config.scale;
-        enemyTransform.dirty                                      = true;
-        enemyTransform.parent                                     = entt::null;
+        Tsukino::BuiltIn::ECS::TransformComponent& enemyTransform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity);
+        enemyTransform.position = config.spawnPosition;
+        enemyTransform.dirty    = true;
 
-        Tsukino::Asset::AssetHandle            enemyModelHandle = context.assetManager->Load(config.modelPath);
-        Tsukino::BuiltIn::ECS::ModelComponent& enemyModel       = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(enemyEntity);
-        enemyModel.modelHandle                                  = enemyModelHandle;
-        enemyModel.visible                                      = true;
+        // 武器を持つ敵は、攻撃モーション・間合い・判定を武器のものへ差し替えてから倍率を掛ける
+        // （危険度・エリートの補正は武器ごとの素の値に対して掛かる）
+        if(config.hasHeldWeapon)
+            ApplyHeldWeaponAttack(registry, context, enemyEntity, config.heldWeaponId, 1.0f, 1.0f);
 
-        CombatAndroid::ECS::EnemyComponent& enemy = registry.AddComponent<CombatAndroid::ECS::EnemyComponent>(enemyEntity);
-        enemy.moveSpeed                           = config.moveSpeed;
-        enemy.bodyRadius                          = config.bodyRadius;
-        enemy.attackRange                         = config.attackRange;
-        enemy.knockbackDamageThreshold            = config.knockbackDamageThreshold;
-        enemy.detectRange                         = config.detectRange;
-        enemy.expReward                           = config.expReward;
-
-        CombatAndroid::ECS::HealthComponent& enemyHealth = registry.AddComponent<CombatAndroid::ECS::HealthComponent>(enemyEntity);
-        enemyHealth.maxHealth                            = config.maxHealth;
-        enemyHealth.currentHealth                        = config.maxHealth;
-
-        // 武器のヒット判定（CombatSystemのOverlapCapsule）に拾わせるためのカプセルセンサー。
-        // Kinematicにすることで、EnemyBehaviorSystemが毎フレーム書き換えるTransformへPhysicsSystemが
-        // 追従してくれる（Static/RigidbodyComponent無しだと初期位置に固定されたままになる）。
-        // isSensor=trueなので物理的な押し出し（ブロッキング）は発生しない
-        // 攻撃の振りかぶりで赤く光らせるための土台（EnemyAttackTelegraphSystem）。
-        // 既定はactive=falseなので、予兆を出していない間の見た目は変わらない
-        registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(enemyEntity);
-
-        Tsukino::BuiltIn::ECS::RigidbodyComponent& enemyRigidbody = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(enemyEntity);
-        enemyRigidbody.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
-
-        Tsukino::BuiltIn::ECS::CollisionComponent& enemyCollision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(enemyEntity);
-        enemyCollision.type                                       = Tsukino::BuiltIn::ECS::ColliderType::Capsule;
-        enemyCollision.extent                                     = hlslpp::float3(config.bodyRadius, config.bodyHalfHeight, 0.0f);
-        enemyCollision.isSensor                                   = true;
-        // Transform位置＝足元とみなし、カプセル中心をそこから上へオフセットする
-        // （CharacterControllerComponent::centerOffsetと同じ考え方）
-        enemyCollision.offsetPosition = hlslpp::float3(0.0f, config.bodyHalfHeight + config.bodyRadius, 0.0f);
+        ApplyScales(registry, enemyEntity, config);
 
         //-------------------------------------------------------------
-        // 頭上HPバー（背景＋残量の2エンティティ）。カプセル上端（2*(bodyHalfHeight+bodyRadius)）より
-        // 少し上に浮かせる。WorldAnchorSystemが毎フレームスクリーン座標へ投影し、
-        // HealthBarSystemが残量に応じて見た目を更新する（被弾時のみ表示）
-        //
-        // 単色テクスチャは全ての敵で使い回す。AssetManagerがパスでキャッシュするため、
-        // 2体目以降のLoadはハンドルを引くだけで再ロードは発生しない
+        // 頭上HPバー（背景＋残量の2エンティティ）。カプセル上端（中心の高さの2倍）より上に浮かせる。
+        // WorldAnchorSystemが毎フレームスクリーン座標へ投影し、HealthBarSystemが残量に応じて見た目を更新する
         //-------------------------------------------------------------
-        Tsukino::Asset::AssetHandle hpBarTextureHandle =
-            context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+        const float capsuleTop =
+            static_cast<float>(registry.GetComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(enemyEntity).offsetPosition.y) * 2.0f;
 
-        hlslpp::float3 hpBarWorldOffset = hlslpp::float3(0.0f, (config.bodyHalfHeight + config.bodyRadius) * 2.0f + 20.0f, 0.0f);
+        const Tsukino::ECS::Entity backgroundEntity = SpawnHpBar(registry, context, "Enemy/HpBarBackground", enemyEntity, capsuleTop);
+        const Tsukino::ECS::Entity fillEntity       = SpawnHpBar(registry, context, "Enemy/HpBarFill", enemyEntity, capsuleTop);
 
-        Tsukino::ECS::Entity hpBarBackgroundEntity = registry.CreateEntity();
-        {
-            Tsukino::BuiltIn::ECS::TransformComponent& t = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hpBarBackgroundEntity);
-            t.scale                                      = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 非表示状態で開始（被弾時にHealthBarSystemが表示する）
-
-            Tsukino::BuiltIn::ECS::WorldAnchorComponent& anchor =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(hpBarBackgroundEntity);
-            anchor.target      = enemyEntity;
-            anchor.worldOffset = hpBarWorldOffset;
-
-            Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(hpBarBackgroundEntity);
-            sprite.textureHandle                           = hpBarTextureHandle;
-            sprite.tintColor                               = hlslpp::float4(0.15f, 0.15f, 0.15f, 0.9f);    // 暗いグレー
-            sprite.sortOrder                               = CombatAndroid::UI::kEnemyHpBarBackground;
-        }
-
-        Tsukino::ECS::Entity hpBarFillEntity = registry.CreateEntity();
-        {
-            Tsukino::BuiltIn::ECS::TransformComponent& t = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(hpBarFillEntity);
-            t.scale                                      = hlslpp::float3(0.0f, 0.0f, 0.0f);
-
-            Tsukino::BuiltIn::ECS::WorldAnchorComponent& anchor = registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(hpBarFillEntity);
-            anchor.target                                       = enemyEntity;
-            anchor.worldOffset                                  = hpBarWorldOffset;
-
-            Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(hpBarFillEntity);
-            sprite.textureHandle                           = hpBarTextureHandle;
-            sprite.tintColor                               = hlslpp::float4(0.0f, 1.0f, 0.0f, 1.0f);    // 満タン時は緑
-            sprite.sortOrder                               = CombatAndroid::UI::kEnemyHpBarFill;
-        }
-
-        enemyHealth.hpBarBackgroundEntity = hpBarBackgroundEntity;
-        enemyHealth.hpBarFillEntity       = hpBarFillEntity;
+        // HPバーを作るとComponentの格納先が動き得るので、ここで参照を取り直して結ぶ
+        HealthComponent& health      = registry.GetComponent<HealthComponent>(enemyEntity);
+        health.hpBarBackgroundEntity = backgroundEntity;
+        health.hpBarFillEntity       = fillEntity;
 
         //-------------------------------------------------------------
-        // アニメーション再生・制御用コンポーネント（初期状態はIdle。以後はEnemyAnimationSystemが管理する）
+        // アニメーション（初期状態は歩き。以後はEnemyAnimationSystemが管理する）と
+        // ビヘイビアツリー本体（歩く→射程内で攻撃、被弾でノックバック、死亡でフェードアウト）
         //-------------------------------------------------------------
         Tsukino::BuiltIn::ECS::AnimationPlayerComponent& animPlayer =
-            registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(enemyEntity);
-        animPlayer.current_clip_id       = config.walkClip;
-        animPlayer.animation_index       = 1;    // Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
-        animPlayer.elapsed_time          = config.initialAnimationTime;
-        animPlayer.playback_speed        = 1.0f;
-        animPlayer.is_looping            = true;
-        animPlayer.is_playing            = true;
-        animPlayer.in_place              = true;    // その場足踏み（移動はEnemyBehaviorSystemがTransformを直接書く）
-        animPlayer.root_motion_node_name = "mixamorig:Hips";
+            registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(enemyEntity);
+        animPlayer.current_clip_id = registry.GetComponent<EnemyAnimationSetComponent>(enemyEntity).walkClip;
+        animPlayer.elapsed_time    = config.initialAnimationTime;
 
-        // クリップの切り替え（AnimationSystemが読む「次に再生するクリップ」の受け皿）
-        registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(enemyEntity);
-
-        // 計算されたボーン行列の出力先（スキニング用）コンポーネント。
-        // これが無いとAnimationSystemのView<AnimationPlayerComponent, SkeletonOutputComponent>に
-        // 乗らずアニメーションが再生されない
-        registry.AddComponent<Tsukino::BuiltIn::ECS::SkeletonOutputComponent>(enemyEntity);
-
-        // EnemyAnimationSystemが参照する、ステートごとのアニメーションクリップ一式
-        CombatAndroid::ECS::EnemyAnimationSetComponent& animSet =
-            registry.AddComponent<CombatAndroid::ECS::EnemyAnimationSetComponent>(enemyEntity);
-        animSet.walkClip      = config.walkClip;
-        animSet.attackClip    = config.attackClip;
-        animSet.knockbackClip = config.knockbackClip;
-        animSet.deathClip     = config.deathClip;
-
-        // 敵の攻撃当たり判定。指定ボーン（頭部・腕など、敵ごとに異なる攻撃部位）に
-        // EnemyAttackHitboxComponent::radiusの判定球（またはendBoneName設定時はカプセル）を出し、
-        // Attackステートのhit窓（hitStartTime〜+hitDuration）の間だけプレイヤーへダメージを与える
-        CombatAndroid::ECS::EnemyAttackHitboxComponent& hitbox =
-            registry.AddComponent<CombatAndroid::ECS::EnemyAttackHitboxComponent>(enemyEntity);
-        hitbox.boneName           = config.boneName;
-        hitbox.boneLocalOffset    = config.hitboxLocalOffset;
-        hitbox.endBoneName        = config.endBoneName;
-        hitbox.endBoneLocalOffset = config.endBoneLocalOffset;
-        hitbox.radius             = config.hitboxRadius;
-        hitbox.damage             = config.hitboxDamage;
-        hitbox.hitStartTime       = config.hitStartTime;
-        hitbox.hitDuration        = config.hitDuration;
-
-        // ビヘイビアツリー本体（歩く→射程内で攻撃、被弾でノックバック、死亡でフェードアウト）
-        CombatAndroid::ECS::BehaviorTreeComponent& behaviorTree =
-            registry.AddComponent<CombatAndroid::ECS::BehaviorTreeComponent>(enemyEntity);
-        behaviorTree.root = CombatAndroid::ECS::BuildZombieTree();
+        registry.GetComponent<BehaviorTreeComponent>(enemyEntity).root = BuildZombieTree();
 
         //-------------------------------------------------------------
         // 手に持つ武器（Paladin等）。プレイヤーの武器とまったく同じ経路で作り、
@@ -194,26 +201,15 @@ namespace CombatAndroid::ECS {
         // EnemyAttackHitboxComponent（手→武器先端のカプセル）が担当する
         //-------------------------------------------------------------
         if(config.hasHeldWeapon) {
-            Tsukino::ECS::Entity heldWeaponEntity =
-                CombatAndroid::ECS::SpawnWeapon(registry, context, config.heldWeaponId, config.spawnPosition, enemyEntity);
+            Tsukino::ECS::Entity heldWeaponEntity = SpawnWeapon(registry, context, config.heldWeaponId, config.spawnPosition, enemyEntity);
 
-            CombatAndroid::ECS::WeaponComponent& heldWeapon = registry.GetComponent<CombatAndroid::ECS::WeaponComponent>(heldWeaponEntity);
+            // 持ち方はプレイヤーとまったく同じにする（非攻撃時は肩の斜め上で浮遊、攻撃中は手ボーンへ追従）。
+            // 常時手ボーン追従にすると、待機・歩行クリップの腕の振りに合わせて武器が暴れる
+            registry.GetComponent<WeaponComponent>(heldWeaponEntity).floatEnabled = true;
 
-            // 持ち方はプレイヤーとまったく同じにする。SpawnWeaponが入れた既定の追従パラメータ
-            // （非攻撃時は手ボーンへ追従せず、ルートTransformから見て肩の斜め上）をそのまま使い、
-            // 浮遊演出だけを立てる。攻撃中は EnemyAnimationSystem が立てる
-            // WeaponComponent::isAttacking から CombatSystem が attackBlend を作り、
-            // 手ボーン追従（attackHandTrackingWeight / attackLocalOffset）側へ連続的に切り替わる。
-            //
-            // 常時手ボーン追従にしていた頃は、待機・歩行クリップの手ボーン姿勢に武器がそのまま
-            // 乗ってしまい、腕の振りに合わせて武器が暴れていた（プレイヤー側で
-            // handTrackingWeight=0にしているのと同じ理由）
-            heldWeapon.floatEnabled = true;
-
-            CombatAndroid::ECS::EnemyHeldWeaponComponent& heldWeaponRef =
-                registry.AddComponent<CombatAndroid::ECS::EnemyHeldWeaponComponent>(enemyEntity);
-            heldWeaponRef.weaponEntity = heldWeaponEntity;
-            heldWeaponRef.weaponId     = config.heldWeaponId;
+            EnemyHeldWeaponComponent& heldWeaponRef = registry.AddComponent<EnemyHeldWeaponComponent>(enemyEntity);
+            heldWeaponRef.weaponEntity              = heldWeaponEntity;
+            heldWeaponRef.weaponId                  = config.heldWeaponId;
         }
 
         return enemyEntity;
@@ -222,218 +218,80 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief SmallZombie 1体分の生成パラメータを作る
     //-------------------------------------------------------------
-    EnemySpawnConfig MakeSmallZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
-        Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
-
-        // SmallZombie.fbxの実寸を計測したところ身長はY=約-1.7〜201（約203ユニット）で、
-        // プレイヤー（Y=0〜100の100ユニット）のほぼ2倍のスケールでモデリングされていた。
-        // 旧値（scale=2.0）はこれを踏まえずプレイヤーと同じ感覚でスケールを置いていたため、
-        // 実際の身長がプレイヤー（scale 2.1×100=210）の約2倍（406）になっていた。
-        // プレイヤーと同じ「身長210」を狙ってscale=210/203≒1.04に補正し、カプセルも
-        // プレイヤーと同じradius=35, halfHeight=70（合計210）に合わせる。
-        // ノックバック・死亡クリップは両方ともMixamoの標準ヒューマノイドリグ（mixamorig:）で
-        // 作られているため、専用クリップの無いBigZombie側にもそのまま流用している
+    EnemySpawnConfig MakeSmallZombieConfig(Tsukino::EngineIntegration::EngineContext& /*context*/, const hlslpp::float3& spawnPosition) {
         EnemySpawnConfig config{};
-        config.spawnPosition            = spawnPosition;
-        config.moveSpeed                = 100.0f;
-        config.maxHealth                = 40.0f;
-        config.modelPath                = Tsukino::Core::Path("CombatAndroid/Assets/Models/SmallZombie.fbx");
-        assetManager.Load(config.modelPath);
-        config.scale                    = hlslpp::float3(1.04f, 1.04f, 1.04f);
-        config.bodyRadius               = 35.0f;
-        config.bodyHalfHeight           = 70.0f;
-        // 攻撃射程＝MoveToPlayerが足を止める距離でもある（ZombieBehavior参照）。頭部は体の中心軸上にあり
-        // 手ボーンより判定中心が後退するため、接触距離（bodyRadius35+プレイヤー半径35＝70）のすぐ外まで
-        // 詰めさせて、振りかぶりの間にプレイヤーが多少下がっても当たる余裕を持たせる
-        config.attackRange              = 78.0f;
-        // 旧値40.0fはmaxHealth(40.0f)と完全に一致しており、閾値を満たす一撃は常にその場で
-        // 満タンHPを0以下にして即死＝Death分岐がKnockback分岐より優先されるため、ひるみモーションが
-        // 実質的に一度も再生されない不具合があった。maxHealthより明確に低い値へ下げ、
-        // 致死未満の一撃でも生き残ってひるめるようにする
-        config.knockbackDamageThreshold = 30.0f;
-        config.expReward                = 10.0f;
-        config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Swagger Walk.fbx"));
-        config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx"));
-        config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));
-        config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx"));
-        // SmallZombieの攻撃（Zombie Attack＝噛みつき）は頭から突っ込むモーションのため、
-        // 判定は手ではなく頭部ボーンへ球1つで出す（endBoneNameは空のまま＝球モード）
-        config.boneName                 = "mixamorig:Head";
-        config.hitboxRadius             = 30.0f;
-        //-------------------------------------------------------------
-        // 判定窓は頭部ボーンの動きを実測して決めた。Zombie Attack.fbx は頭を2回大きく突き出す：
-        //   0.0〜0.6秒  前へ出ながら頭を沈めて噛みつく（モデルローカルの前後 z: 7→59、高さ 177→115）
-        //   1.3〜2.5秒  もう一度、さらに低く突っ込む（z: -3→62、高さ 174→80）
-        // 当てるのは1回目。0.25秒から頭が沈み込みながら突き出し始めるので、その途中の
-        // 0.30秒（z=50、高さ143）から判定を出し、一番前に出た後に半分ほど戻る0.62秒で閉じる。
-        //
-        // 以前はエンジンのアニメーション適用で背骨・腕の回転が捨てられており（Assimpの
-        // ピボット補助ノード名の食い違い。AnimationSystem::ResolveChannelTable参照）、
-        // 1回目は小さな前傾にしか見えなかったため2回目（1.45秒〜）に合わせていた。
-        // 振りかぶり（EnemyAttackTelegraphSystem の赤い予兆）もこの開始時刻まで続く
-        //-------------------------------------------------------------
-        config.hitStartTime             = 0.30f;
-        config.hitDuration              = 0.32f;
-
+        config.prefabName    = "Enemy/SmallZombie";
+        config.spawnPosition = spawnPosition;
         return config;
     }
 
     //-------------------------------------------------------------
     //! @brief BigZombie 1体分の生成パラメータを作る
     //-------------------------------------------------------------
-    EnemySpawnConfig MakeBigZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
-        Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
-
-        // BigZombie.fbxの実寸を計測したところ身長はY=約0〜204（約204ユニット）で、
-        // SmallZombie同様プレイヤーの約2倍のスケールでモデリングされていた。
-        // 旧値（scale=2.2）はこれを踏まえておらず、実際の身長がプレイヤー（210）の
-        // 約2倍（449）になっていた。「Bigゾンビ＝プレイヤーよりひとまわり大きい」という
-        // 意図（旧scale比 2.2/2.1）を保ったまま、scale=220/204≒1.08に補正して
-        // 身長220（プレイヤー比+約5%）に合わせる。カプセルもradius=37, halfHeight=73（合計220）
-        // に縮小し、見た目とコリジョンの整合を取る
-        // Idle用クリップが無いため、待機はMutant Walkingをin_place再生（その場足踏み）にして流用する
+    EnemySpawnConfig MakeBigZombieConfig(Tsukino::EngineIntegration::EngineContext& /*context*/, const hlslpp::float3& spawnPosition) {
         EnemySpawnConfig config{};
-        config.spawnPosition  = spawnPosition;
-        config.moveSpeed      = 70.0f;
-        config.maxHealth      = 150.0f;
-        config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/BigZombie.fbx");
-        assetManager.Load(config.modelPath);
-        config.scale          = hlslpp::float3(1.08f, 1.08f, 1.08f);
-        config.bodyRadius     = 37.0f;
-        config.bodyHalfHeight = 73.0f;
-        // SmallZombieと同じ理由で接触距離（bodyRadius37+プレイヤー半径35＝72）のすぐ外まで詰めさせる。
-        // BigZombieの攻撃（Mutant Swiping）は右腕を振り抜くモーションのため、手が体軸から
-        // 大きく前へ出る。距離100でもカプセル芯線（肩〜手）の最近点はプレイヤーへ十分届く
-        config.attackRange              = 100.0f;
-        config.knockbackDamageThreshold = 60.0f;
-        config.expReward                = 30.0f;
-        config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Walking.fbx"));
-        config.attackClip               = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx"));
-        config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx"));
-        config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx"));
-        // 判定は右腕（肩〜手）へ出す。RightArm（肩）1点の球だと判定中心が体側へ寄りすぎて
-        // 振り抜きを表現できないため、RightArm→RightHandを芯線とするカプセルにする
-        config.boneName                 = "mixamorig:RightArm";
-        config.endBoneName              = "mixamorig:RightHand";
-        config.hitboxRadius             = 25.0f;
-        config.hitboxDamage             = 15.0f;
-        // SmallZombieと同じ理由で判定窓を広めに取る（EnemyAttackHitboxComponentのコメント参照）
-        config.hitStartTime             = 0.30f;
-        config.hitDuration              = 0.60f;
-
+        config.prefabName    = "Enemy/BigZombie";
+        config.spawnPosition = spawnPosition;
         return config;
     }
-
-    namespace {
-        //-------------------------------------------------------------
-        // Paladinは武器を持って湧く敵で、持っている武器によって攻撃モーション・間合い・威力が変わる。
-        // 攻撃クリップは常に1本（EnemyAnimationSetComponent::attackClip）で、エリートが持ち替えるときは
-        // その1本と判定の値を差し替える。EnemyAnimState側へ攻撃ステートを増やす必要はない
-        //-------------------------------------------------------------
-        using PaladinWeaponVariant = PaladinWeaponAttack;
-
-        //-------------------------------------------------------------
-        // 手ボーンから武器先端までの距離。プレイヤーが振るときの当たり判定の長さ
-        // （WeaponComponent::range＝グリップから刃先までの到達距離）と同じ値にしてある。
-        // 武器メッシュも敵の手に付くときのスケールも共通なので、実際の刃先までの距離は同じになる
-        //-------------------------------------------------------------
-        constexpr float kPaladinWeaponReach = 90.0f;
-
-        //-------------------------------------------------------------
-        // 武器ごとの攻撃パラメータ。attackRangeは接触距離（bodyRadius37＋プレイヤー半径35＝72）より
-        // だいぶ外だが、判定が「手→武器先端のカプセル」で前へ大きく張り出すため届く。
-        // リーチの長い武器ほど手前で足を止めさせ、間合いの違いを見た目に出している。
-        // 判定窓（hitStartTime〜+hitDuration）は既存敵と同じく広めに取ってから実機で詰める
-        //-------------------------------------------------------------
-        constexpr PaladinWeaponVariant kPaladinWeaponVariants[] = {
-            {WeaponId::Greatsword, "CombatAndroid/Assets/Anims/Paladin/greatSwordAttack.fbx", 150.0f, kPaladinWeaponReach, 26.0f, 22.0f, 0.45f, 0.55f},
-            {WeaponId::Battleaxe, "CombatAndroid/Assets/Anims/Paladin/battleAxeAttack.fbx", 140.0f, kPaladinWeaponReach, 28.0f, 25.0f, 0.45f, 0.55f},
-            {WeaponId::Warhammer, "CombatAndroid/Assets/Anims/Paladin/hammerAttack.fbx", 130.0f, kPaladinWeaponReach, 30.0f, 28.0f, 0.50f, 0.55f},
-        };
-
-        //-------------------------------------------------------------
-        //! @brief  識別子からPaladinの武器バリアントを引く関数
-        //! @note   kPaladinWeaponVariantsはWeaponIdの並び順とは無関係（間合いの長い順）なので、
-        //!         添字ではなく線形走査で引く。要素数は高々数個なのでこれで十分
-        //-------------------------------------------------------------
-        const PaladinWeaponVariant& FindPaladinWeaponVariant(WeaponId weaponId) {
-            for(const PaladinWeaponVariant& variant : kPaladinWeaponVariants) {
-                if(variant.weaponId == weaponId)
-                    return variant;
-            }
-
-            return kPaladinWeaponVariants[0];
-        }
-    }    // namespace
 
     //-------------------------------------------------------------
     //! @brief 武器の種類からPaladinの攻撃パラメータを引く
     //-------------------------------------------------------------
     const PaladinWeaponAttack& GetPaladinWeaponAttack(WeaponId weaponId) {
-        return FindPaladinWeaponVariant(weaponId);
+        // 初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全
+        static const auto attacks = LoadPaladinWeaponAttacks();
+
+        int index = static_cast<int>(weaponId);
+        if(index < 0 || index >= static_cast<int>(WeaponId::Count))
+            index = 0;
+
+        return attacks[static_cast<size_t>(index)];
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 敵の攻撃モーション・間合い・判定を、持っている武器のものへ書き換える
+    //-------------------------------------------------------------
+    void ApplyHeldWeaponAttack(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                               Tsukino::ECS::Entity enemyEntity, WeaponId weaponId, float sizeScale, float damageScale) {
+        const PaladinWeaponAttack& attack = GetPaladinWeaponAttack(weaponId);
+
+        // クリップは先読み済み（AssetPreloader）なので、ここでのLoadはキャッシュから引くだけ
+        registry.GetComponent<EnemyAnimationSetComponent>(enemyEntity).attackClip =
+            context.assetManager->Load(Tsukino::Core::Path(attack.attackClipPath));
+        registry.GetComponent<EnemyComponent>(enemyEntity).attackRange = attack.attackRange * sizeScale;
+
+        //-------------------------------------------------------------
+        // 判定は「手→武器先端」のカプセル。始点と終点に同じボーン（Prefab）を指定し、
+        // endBoneLocalOffsetで武器の長さぶんだけ伸ばすことで、専用の先端ボーンが無くても
+        // 武器の形を判定に反映できる。
+        // オフセットが手ボーンのローカル+X方向なのは、武器の姿勢が
+        // 「手ボーンの姿勢 × 握り補正（WeaponComponent::attackGripRotationOffset）」で決まり、
+        // 武器メッシュの刃方向であるローカル+Yを握り補正で回すと+Xを向くため。
+        // なおboneLocalOffset/endBoneLocalOffsetには敵のscaleが掛からない（CombatSystem参照）ので、
+        // ここの値はそのままワールド単位（1ユニット≒1cm）になる
+        //-------------------------------------------------------------
+        EnemyAttackHitboxComponent& hitbox = registry.GetComponent<EnemyAttackHitboxComponent>(enemyEntity);
+        hitbox.endBoneLocalOffset          = hlslpp::float3(attack.hitboxReach, 0.0f, 0.0f);
+        hitbox.radius                      = attack.hitboxRadius * sizeScale;
+        hitbox.damage                      = attack.hitboxDamage * damageScale;
+        hitbox.hitStartTime                = attack.hitStartTime;
+        hitbox.hitDuration                 = attack.hitDuration;
     }
 
     //-------------------------------------------------------------
     //! @brief Paladin 1体分の生成パラメータを作る（武器を明示指定する版）
     //-------------------------------------------------------------
-    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context,
+    EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& /*context*/,
                                        const hlslpp::float3& spawnPosition,
                                        WeaponId weaponId) {
-        Tsukino::Asset::AssetManager& assetManager = *context.assetManager;
-
-        const PaladinWeaponVariant& variant = FindPaladinWeaponVariant(weaponId);
-
-        // Paladin.fbxの実寸を計測したところ身長はY=約0〜172.5（約172.5ユニット）で、
-        // プレイヤー（Y=0〜100の100ユニット）ともゾンビ系（約203）とも違うスケールで
-        // モデリングされていた。「レア敵＝ひとまわり大きい」を狙ってBigZombieと同じ
-        // 身長220に合わせ、scale=220/172.5≒1.275に補正する。
-        // カプセルもradius=37, halfHeight=73（合計220の半分）に揃え、見た目とコリジョンの整合を取る。
-        // Idle用クリップが無いため、待機はWalkingをin_place再生（その場足踏み）にして流用する
         EnemySpawnConfig config{};
-        config.spawnPosition  = spawnPosition;
-        config.moveSpeed      = 110.0f;
-        config.maxHealth      = 200.0f;
-        config.modelPath      = Tsukino::Core::Path("CombatAndroid/Assets/Models/Paladin.fbx");
-        assetManager.Load(config.modelPath);
-        config.scale          = hlslpp::float3(1.275f, 1.275f, 1.275f);
-        config.bodyRadius     = 37.0f;
-        config.bodyHalfHeight = 73.0f;
-        config.attackRange    = variant.attackRange;
-        // maxHealth(200)より十分低い値にして、致死未満の一撃でも生き残ってひるめるようにする
-        // （閾値をmaxHealthと同じにするとひるみモーションが一度も再生されない。
-        //   MakeSmallZombieConfigのコメント参照）。
-        // ウォーハンマー3段目（38×2.0＝76）とバトルアックス3段目（30×2.0＝60）で怯む値
-        config.knockbackDamageThreshold = 60.0f;
-        config.expReward                = 60.0f;
-        config.walkClip                 = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Walking.fbx"));
-        config.attackClip               = assetManager.Load(Tsukino::Core::Path(variant.attackClipPath));
-        config.knockbackClip            = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Head Hit.fbx"));
-        config.deathClip                = assetManager.Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Paladin/Dying.fbx"));
+        config.prefabName    = "Enemy/Paladin";
+        config.spawnPosition = spawnPosition;
 
-        //-------------------------------------------------------------
-        // 判定は「右手→武器先端」のカプセル。始点と終点に同じボーンを指定し、
-        // endBoneLocalOffsetで武器の長さぶんだけ伸ばすことで、専用の先端ボーンが無くても
-        // 武器の形を判定に反映できる（EnemyAttackHitboxComponentは始点・終点それぞれ別に
-        // 解決キャッシュを持つため、同じボーン名を2回指定しても正しく解決される）。
-        //
-        // オフセットが手ボーンのローカル+X方向なのは、武器の姿勢が
-        // 「手ボーンの姿勢 × 握り補正（WeaponSpawnerのkCommonAttackGripRotation）」で決まり、
-        // 武器メッシュの刃方向であるローカル+Yを握り補正で回すと+Xを向くため。
-        // なおboneLocalOffset/endBoneLocalOffsetには敵のscaleが掛からない（CombatSystem参照）ので、
-        // ここの値はそのままワールド単位（1ユニット≒1cm）になる
-        //-------------------------------------------------------------
-        config.boneName           = "mixamorig:RightHand";
-        config.endBoneName        = "mixamorig:RightHand";
-        config.endBoneLocalOffset = hlslpp::float3(variant.hitboxReach, 0.0f, 0.0f);
-        config.hitboxRadius       = variant.hitboxRadius;
-        config.hitboxDamage       = variant.hitboxDamage;
-        config.hitStartTime       = variant.hitStartTime;
-        config.hitDuration        = variant.hitDuration;
-
-        // 抽選された武器を実際に手へ持たせる（SpawnBehaviorEnemyが武器エンティティを作る）
+        // 抽選された武器を実際に手へ持たせる（SpawnBehaviorEnemyが武器エンティティを作り、攻撃を武器のものにする）
         config.hasHeldWeapon = true;
         config.heldWeaponId  = weaponId;
-
         return config;
     }
 
@@ -442,13 +300,11 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition) {
         // EnemyConfigFactoryは乱数生成器を引数に取らないため、ここだけは
-        // ファイルローカルな生成器を持つ（各Systemが自前のmt19937を持っているのと同じ流儀）。
-        // 抽選を伴わない決定的な処理は全て上のオーバーロード側にあるので、
-        // シーンの手置きや動作確認では武器を明示して呼べばよい
+        // ファイルローカルな生成器を持つ（各Systemが自前のmt19937を持っているのと同じ流儀）
         static std::mt19937 s_weaponRng{std::random_device{}()};
 
-        std::uniform_int_distribution<size_t> distribution(0, std::size(kPaladinWeaponVariants) - 1);
+        std::uniform_int_distribution<int> distribution(0, static_cast<int>(WeaponId::Count) - 1);
 
-        return MakePaladinConfig(context, spawnPosition, kPaladinWeaponVariants[distribution(s_weaponRng)].weaponId);
+        return MakePaladinConfig(context, spawnPosition, static_cast<WeaponId>(distribution(s_weaponRng)));
     }
 }    // namespace CombatAndroid::ECS

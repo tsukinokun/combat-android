@@ -1,0 +1,34 @@
+{
+    "AmbientParticleComponent": {
+        "enabled": true,
+        "count": 2000,
+        "volumeSize": {
+            "x": 2400.0,
+            "y": 900.0,
+            "z": 2400.0
+        },
+        "seed": 12345,
+        "color": {
+            "x": 1.0,
+            "y": 0.3199999928474426,
+            "z": 0.05999999865889549
+        },
+        "intensity": 1.0,
+        "minSize": 0.800000011920929,
+        "maxSize": 3.5,
+        "minBrightness": 0.15000000596046449,
+        "maxBrightness": 1.600000023841858,
+        "twinkle": 0.6000000238418579,
+        "driftVelocity": {
+            "x": 10.0,
+            "y": 20.0,
+            "z": 3.0
+        },
+        "swayAmplitude": 14.0,
+        "swayFrequency": 0.800000011920929,
+        "minSpeedScale": 0.3499999940395355,
+        "maxSpeedScale": 1.7000000476837159,
+        "edgeFadeStart": 0.6499999761581421,
+        "nearFadeDistance": 60.0
+    }
+}

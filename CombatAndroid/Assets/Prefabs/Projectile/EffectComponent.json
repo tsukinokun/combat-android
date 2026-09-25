@@ -1,0 +1,9 @@
+{
+    "EffectComponent": {
+        "effectAsset": "",
+        "playSpeed": 1.0,
+        "looping": false,
+        "scale": 1.0,
+        "followRotation": true
+    }
+}

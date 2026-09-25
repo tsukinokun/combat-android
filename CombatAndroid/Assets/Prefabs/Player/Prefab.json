@@ -1,0 +1,64 @@
+{
+    "Components": [
+        {
+            "key": "AnimationControllerComponent",
+            "value": "null"
+        },
+        {
+            "key": "SkeletonOutputComponent",
+            "value": "null"
+        },
+        {
+            "key": "PlayerExperienceComponent",
+            "value": "null"
+        },
+        {
+            "key": "PlayerSkillComponent",
+            "value": "null"
+        },
+        {
+            "key": "AnimationPlayerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/AnimationPlayerComponent.json"
+        },
+        {
+            "key": "CharacterControllerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/CharacterControllerComponent.json"
+        },
+        {
+            "key": "CollisionComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/CollisionComponent.json"
+        },
+        {
+            "key": "HealthComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/HealthComponent.json"
+        },
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/ModelComponent.json"
+        },
+        {
+            "key": "PlayerAnimationSetComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/PlayerAnimationSetComponent.json"
+        },
+        {
+            "key": "PlayerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/PlayerComponent.json"
+        },
+        {
+            "key": "RigidbodyComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/RigidbodyComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/RimGlowComponent.json"
+        },
+        {
+            "key": "SpringBoneComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/SpringBoneComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Player/TransformComponent.json"
+        }
+    ]
+}

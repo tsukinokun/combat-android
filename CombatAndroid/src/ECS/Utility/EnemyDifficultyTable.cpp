@@ -165,9 +165,9 @@ namespace CombatAndroid::ECS {
     void ApplyEnemyDifficulty(EnemySpawnConfig& config, int rank) {
         const EnemyDifficultyEntry scale = GetEnemyDifficultyScale(rank);
 
-        config.maxHealth *= scale.healthScale;
-        config.expReward *= scale.expScale;
-        config.hitboxDamage *= scale.attackScale;
+        config.healthScale *= scale.healthScale;
+        config.expScale *= scale.expScale;
+        config.attackScale *= scale.attackScale;
 
         //---------------------------------------------------------
         // ひるみ閾値はHPと必ず連動させる。据え置くと、伸びたプレイヤーの
@@ -175,6 +175,6 @@ namespace CombatAndroid::ECS {
         // 到達しなくなる。上げたHPが実質クラウドコントロールとして返金され、
         // 難易度カーブが一番効かせたい所で平らになってしまう
         //---------------------------------------------------------
-        config.knockbackDamageThreshold *= scale.knockbackThresholdScale;
+        config.knockbackThresholdScale *= scale.knockbackThresholdScale;
     }
 }    // namespace CombatAndroid::ECS

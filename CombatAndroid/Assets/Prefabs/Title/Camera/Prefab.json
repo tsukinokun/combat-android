@@ -1,0 +1,12 @@
+{
+    "Components": [
+        {
+            "key": "CameraComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Camera/CameraComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Camera/TransformComponent.json"
+        }
+    ]
+}

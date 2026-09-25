@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "SkyAtmosphereComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Sky/SkyAtmosphereComponent.json"
+        }
+    ]
+}

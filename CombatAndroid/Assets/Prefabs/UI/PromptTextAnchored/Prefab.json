@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/PromptTextAnchored/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/PromptTextAnchored/TransformComponent.json"
+        },
+        {
+            "key": "WorldAnchorComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/PromptTextAnchored/WorldAnchorComponent.json"
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "Components": [
+        {
+            "key": "CameraComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/UiCamera2D/CameraComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/UiCamera2D/TransformComponent.json"
+        }
+    ]
+}

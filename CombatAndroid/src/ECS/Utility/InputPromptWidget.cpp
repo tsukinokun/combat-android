@@ -3,6 +3,7 @@
 //! @brief  操作を促すUI（キーキャップ・マウス・矢印・長押しゲージ）の組み立てと更新の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/InputPromptWidget.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -65,75 +66,42 @@ namespace CombatAndroid::ECS {
 
         constexpr float kPi = 3.14159265f;
 
-        //! WhitePixel.png。UI用テクスチャはこれとExpOrb.pngしか無く、単色矩形は全てこれをtintColorで着色して作る
-        constexpr const char* kWhitePixelPath = "CombatAndroid/Assets/Textures/UI/WhitePixel.png";
-
         //-------------------------------------------------------------
         //! @brief  単色矩形スプライト用のエンティティを1つ作る
         //! @param  registry      [in] ECSレジストリ
-        //! @param  textureHandle [in] WhitePixel.pngのハンドル
+        //! @param  context       [in] エンジンコンテキスト
         //! @param  sortOrder     [in] 描画層
-        //! @param  worldAnchored [in] WorldAnchorComponentを付けるか
+        //! @param  worldAnchored [in] ワールド座標へ貼り付けるか（UI/RectAnchoredを使う）
         //! @return 作ったエンティティ
-        //! @note   scale=0で作る（SpriteRenderSystemが面積ゼロのスプライトを描画から外すため、
-        //!         表示されるまで1ドローコールも積まれない）
+        //! @note   Prefabはscale=0（SpriteRenderSystemが面積ゼロのスプライトを描画から外すため、
+        //!         表示されるまで1ドローコールも積まれない）の白い1ピクセル
         //-------------------------------------------------------------
         [[nodiscard]]
-        Tsukino::ECS::Entity CreateRectEntity(Tsukino::ECS::Registry& registry, const Tsukino::Asset::AssetHandle& textureHandle,
+        Tsukino::ECS::Entity CreateRectEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
                                               int sortOrder, bool worldAnchored) {
-            Tsukino::ECS::Entity entity = registry.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& transform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-            transform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);
-            transform.dirty = true;
-
-            Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity);
-            sprite.textureHandle                            = textureHandle;
-            sprite.sortOrder                                = sortOrder;
-
-            if(worldAnchored)
-                registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(entity);
-
+            Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, worldAnchored ? "UI/RectAnchored" : "UI/Rect");
+            registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity).sortOrder = sortOrder;
             return entity;
         }
 
         //-------------------------------------------------------------
         //! @brief  文字用のエンティティを1つ作る
         //! @param  registry      [in] ECSレジストリ
+        //! @param  context       [in] エンジンコンテキスト
         //! @param  sortOrder     [in] 描画層
-        //! @param  worldAnchored [in] WorldAnchorComponentを付けるか
+        //! @param  worldAnchored [in] ワールド座標へ貼り付けるか（UI/PromptTextAnchoredを使う）
         //! @return 作ったエンティティ
-        //! @note   fontHandle未設定 → builtinAssetsのdefaultFont（動的フォントアトラス）が
-        //!         使われるので日本語をそのまま渡してよい。空文字の間は描画されない
+        //! @note   Prefabは中央揃え・明るい縁取り（明るいキーキャップの面の上に濃い文字を置くため）。
+        //!         矩形と同じくscale=0で作る。キーの文字（glyph）は生成時に中身を入れたきり
+        //!         消さない（幅の計算に使う）ので、既定の1.0のままにすると、
+        //!         一度も表示されていないプロンプトの文字が原寸で画面左上（0,0）に描かれてしまう。
+        //!         fontHandle未設定 → builtinAssetsのdefaultFontが使われるので日本語をそのまま渡してよい
         //-------------------------------------------------------------
         [[nodiscard]]
-        Tsukino::ECS::Entity CreateTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, bool worldAnchored) {
-            Tsukino::ECS::Entity entity = registry.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& transform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-
-            // 矩形と同じくscale=0で作る。キーの文字（glyph）は生成時に中身を入れたきり
-            // 消さない（幅の計算に使う）ので、ここを既定の1.0のままにすると、
-            // 一度も表示されていないプロンプトの文字が原寸で画面左上（0,0）に描かれてしまう
-            transform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);
-            transform.dirty = true;
-
-            Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
-            font.sortOrder                              = sortOrder;
-
-            // キーキャップの面の中央に載せたいので、文字列の中心を描画位置に合わせる
-            font.horizontalAlign = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
-            font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-
-            // 明るい面の上に濃い文字を置くため、縁取りは明るい色にして輪郭を立てる
-            font.outlineColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 0.85f);
-            font.outlineWidth = 1.5f;
-
-            if(worldAnchored)
-                registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(entity);
-
+        Tsukino::ECS::Entity CreateTextEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                              int sortOrder, bool worldAnchored) {
+            Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, worldAnchored ? "UI/PromptTextAnchored" : "UI/PromptText");
+            registry.GetComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity).sortOrder = sortOrder;
             return entity;
         }
 
@@ -407,12 +375,6 @@ namespace CombatAndroid::ECS {
         widget.useMouse = desc.useMouse;
         widget.chevron  = desc.chevron;
 
-        if(!context.assetManager)
-            return widget;
-
-        // AssetManagerはパスでキャッシュするので、何度Loadを呼んでも実読み込みは1回
-        Tsukino::Asset::AssetHandle whitePixelHandle = context.assetManager->Load(Tsukino::Core::Path(kWhitePixelPath));
-
         //-------------------------------------------------------------
         // 描画層はsortOrderBaseから+4までの5層を使う。
         // 奥から: リングのトラック → リングの点灯 → キャップ外枠 → キャップ面・矢印 → 文字
@@ -424,16 +386,16 @@ namespace CombatAndroid::ECS {
 
         if(desc.useHoldRing) {
             for(auto& ringEntity : widget.ringEntities)
-                ringEntity = CreateRectEntity(registry, whitePixelHandle, ringSortOrder, desc.worldAnchored);
+                ringEntity = CreateRectEntity(registry, context, ringSortOrder, desc.worldAnchored);
         }
 
         if(desc.useMouse || !desc.keyLabel.empty()) {
-            widget.capBorderEntity = CreateRectEntity(registry, whitePixelHandle, borderSortOrder, desc.worldAnchored);
-            widget.capFaceEntity   = CreateRectEntity(registry, whitePixelHandle, faceSortOrder, desc.worldAnchored);
+            widget.capBorderEntity = CreateRectEntity(registry, context, borderSortOrder, desc.worldAnchored);
+            widget.capFaceEntity   = CreateRectEntity(registry, context, faceSortOrder, desc.worldAnchored);
         }
 
         if(!desc.useMouse && !desc.keyLabel.empty()) {
-            widget.glyphEntity = CreateTextEntity(registry, glyphSortOrder, desc.worldAnchored);
+            widget.glyphEntity = CreateTextEntity(registry, context, glyphSortOrder, desc.worldAnchored);
 
             // キーの文字は変わらないのでここで入れ、以後は位置と色だけ更新する
             if(auto* glyphFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(widget.glyphEntity))
@@ -441,12 +403,12 @@ namespace CombatAndroid::ECS {
         }
 
         if(desc.chevron != PromptChevron::None) {
-            widget.chevronArmAEntity = CreateRectEntity(registry, whitePixelHandle, faceSortOrder, desc.worldAnchored);
-            widget.chevronArmBEntity = CreateRectEntity(registry, whitePixelHandle, faceSortOrder, desc.worldAnchored);
+            widget.chevronArmAEntity = CreateRectEntity(registry, context, faceSortOrder, desc.worldAnchored);
+            widget.chevronArmBEntity = CreateRectEntity(registry, context, faceSortOrder, desc.worldAnchored);
         }
 
         if(desc.useCaption) {
-            widget.captionEntity = CreateTextEntity(registry, glyphSortOrder, desc.worldAnchored);
+            widget.captionEntity = CreateTextEntity(registry, context, glyphSortOrder, desc.worldAnchored);
 
             // 対象名は背景がワールドなので、濃い縁取りで抜く（キーの文字とは逆）
             if(auto* captionFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(widget.captionEntity)) {

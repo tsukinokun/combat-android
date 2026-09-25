@@ -1,0 +1,13 @@
+{
+    "EnemyComponent": {
+        "moveSpeed": 100.0,
+        "detectRange": 600.0,
+        "bodyRadius": 35.0,
+        "attackRange": 78.0,
+        "attackCooldown": 1.5,
+        "expReward": 10.0,
+        "knockbackDamageThreshold": 30.0,
+        "knockbackDecayRate": 8.0,
+        "deathFadeDuration": 0.800000011920929
+    }
+}

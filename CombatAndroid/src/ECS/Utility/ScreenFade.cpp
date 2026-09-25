@@ -3,6 +3,8 @@
 //! @brief  場面の切り替わりを黒で繋ぐ共通処理の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
+
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
@@ -16,14 +18,16 @@ namespace CombatAndroid::ECS {
     //! @brief 黒フェード用のエンティティを作り、黒から明ける状態で始める
     //-------------------------------------------------------------
     void CreateScreenFade(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context) {
-        Tsukino::ECS::Entity entity = registry.CreateEntity();
+        // 板の位置と濃さは毎フレームScreenFadeSystemが書く（ウィンドウの大きさに追従させるため）
+        const Tsukino::ECS::Entity panelEntity = CreateUiRectEntity(registry, context, CombatAndroid::UI::kScreenFade);
 
-        ScreenFadeComponent& fade = registry.AddComponent<ScreenFadeComponent>(entity);
+        // Prefab（System/ScreenFade）は実行時状態だけの束。黒から明ける状態で始める
+        const Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, "System/ScreenFade");
+
+        ScreenFadeComponent& fade = registry.GetComponent<ScreenFadeComponent>(entity);
         fade.state                = ScreenFadeState::FadingIn;
         fade.elapsed              = 0.0f;
-
-        // 板の位置と濃さは毎フレームScreenFadeSystemが書く（ウィンドウの大きさに追従させるため）
-        fade.panelEntity = CreateUiRectEntity(registry, context, CombatAndroid::UI::kScreenFade);
+        fade.panelEntity          = panelEntity;
     }
 
     //-------------------------------------------------------------

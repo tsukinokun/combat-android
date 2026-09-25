@@ -1,0 +1,56 @@
+{
+    "Components": [
+        {
+            "key": "AnimationControllerComponent",
+            "value": "null"
+        },
+        {
+            "key": "AnimationPlayerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/AnimationPlayerComponent.json"
+        },
+        {
+            "key": "BehaviorTreeComponent",
+            "value": "null"
+        },
+        {
+            "key": "CollisionComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/CollisionComponent.json"
+        },
+        {
+            "key": "EnemyAnimationSetComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/EnemyAnimationSetComponent.json"
+        },
+        {
+            "key": "EnemyAttackHitboxComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/EnemyAttackHitboxComponent.json"
+        },
+        {
+            "key": "EnemyComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/EnemyComponent.json"
+        },
+        {
+            "key": "HealthComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/HealthComponent.json"
+        },
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/ModelComponent.json"
+        },
+        {
+            "key": "RigidbodyComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/RigidbodyComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/RimGlowComponent.json"
+        },
+        {
+            "key": "SkeletonOutputComponent",
+            "value": "null"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Paladin/TransformComponent.json"
+        }
+    ]
+}

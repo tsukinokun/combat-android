@@ -1,0 +1,20 @@
+{
+    "EnemyAttackHitboxComponent": {
+        "boneName": "mixamorig:Head",
+        "boneLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "endBoneName": "",
+        "endBoneLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "radius": 30.0,
+        "damage": 15.0,
+        "hitStartTime": 0.30000001192092898,
+        "hitDuration": 0.3199999928474426
+    }
+}

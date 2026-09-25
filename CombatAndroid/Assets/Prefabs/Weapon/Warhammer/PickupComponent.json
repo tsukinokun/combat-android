@@ -1,0 +1,7 @@
+{
+    "PickupComponent": {
+        "radius": 150.0,
+        "displayName": "ウォーハンマー",
+        "labelHeight": 120.0
+    }
+}

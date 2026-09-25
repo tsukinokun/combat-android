@@ -1,0 +1,29 @@
+{
+    "Warhammer": {
+        "attackClipPath": "CombatAndroid/Assets/Anims/Paladin/hammerAttack.fbx",
+        "attackRange": 130.0,
+        "hitboxReach": 90.0,
+        "hitboxRadius": 30.0,
+        "hitboxDamage": 28.0,
+        "hitStartTime": 0.5,
+        "hitDuration": 0.550000011920929
+    },
+    "Greatsword": {
+        "attackClipPath": "CombatAndroid/Assets/Anims/Paladin/greatSwordAttack.fbx",
+        "attackRange": 150.0,
+        "hitboxReach": 90.0,
+        "hitboxRadius": 26.0,
+        "hitboxDamage": 22.0,
+        "hitStartTime": 0.44999998807907107,
+        "hitDuration": 0.550000011920929
+    },
+    "Battleaxe": {
+        "attackClipPath": "CombatAndroid/Assets/Anims/Paladin/battleAxeAttack.fbx",
+        "attackRange": 140.0,
+        "hitboxReach": 90.0,
+        "hitboxRadius": 28.0,
+        "hitboxDamage": 25.0,
+        "hitStartTime": 0.44999998807907107,
+        "hitDuration": 0.550000011920929
+    }
+}

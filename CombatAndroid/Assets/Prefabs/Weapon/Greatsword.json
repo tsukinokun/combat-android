@@ -1,0 +1,45 @@
+{
+    "WeaponDefinition": {
+        "modelPath": "CombatAndroid/Assets/Models/greatsword.fbx",
+        "displayName": "グレートソード",
+        "gripPointLocal": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 10.0
+        },
+        "attackLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "attackGripRotationOffset": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": -0.5,
+            "w": 0.5
+        },
+        "playerAttackClipPath": "CombatAndroid/Assets/Anims/Player/Great Sword Slash.fbx",
+        "attackClipDuration": 3.5332999229431154,
+        "chargeAttackEnabled": false,
+        "areaAttackRadius": 180.0,
+        "areaAttackEffectPath": "CombatAndroid/Assets/Effect/greatswordAttackCombo3.efkefc",
+        "areaAttackEffectScale": 100.0,
+        "knockbackIgnoresThreshold": true,
+        "knockbackSpeed": 260.0,
+        "knockbackStun": 0.15000000596046449,
+        "areaKnockbackSpeed": 700.0,
+        "areaKnockbackStun": 0.44999998807907107,
+        "projectileEffectPath": "",
+        "projectileEffectScale": 1.0,
+        "projectileEffectPlaySpeed": 1.0,
+        "projectileSpeed": 0.0,
+        "projectileRadius": 0.0,
+        "projectileLifetime": 0.0,
+        "projectileMaxDistance": 0.0,
+        "projectileDamageMultiplier": 1.0,
+        "projectilePierceMinChargeStage": 2,
+        "projectileSpawnDelay": 0.0,
+        "projectileSpawnHeight": 0.0,
+        "projectileSpawnForward": 0.0
+    }
+}

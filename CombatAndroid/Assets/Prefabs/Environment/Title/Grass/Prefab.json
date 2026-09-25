@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "GrassFieldComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Title/Grass/GrassFieldComponent.json"
+        }
+    ]
+}

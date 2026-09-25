@@ -1,0 +1,12 @@
+{
+    "Components": [
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/Text/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/Text/TransformComponent.json"
+        }
+    ]
+}

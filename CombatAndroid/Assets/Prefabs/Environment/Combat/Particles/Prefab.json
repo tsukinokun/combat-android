@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "AmbientParticleComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Particles/AmbientParticleComponent.json"
+        }
+    ]
+}

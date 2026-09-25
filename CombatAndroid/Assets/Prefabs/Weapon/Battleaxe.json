@@ -1,0 +1,45 @@
+{
+    "WeaponDefinition": {
+        "modelPath": "CombatAndroid/Assets/Models/battleaxe.fbx",
+        "displayName": "バトルアックス",
+        "gripPointLocal": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 10.0
+        },
+        "attackLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "attackGripRotationOffset": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": -0.5,
+            "w": 0.5
+        },
+        "playerAttackClipPath": "CombatAndroid/Assets/Anims/Player/Standing Melee Attack Backhand.fbx",
+        "attackClipDuration": 3.5332999229431154,
+        "chargeAttackEnabled": true,
+        "areaAttackRadius": 0.0,
+        "areaAttackEffectPath": "",
+        "areaAttackEffectScale": 1.0,
+        "knockbackIgnoresThreshold": false,
+        "knockbackSpeed": 0.0,
+        "knockbackStun": 0.0,
+        "areaKnockbackSpeed": 0.0,
+        "areaKnockbackStun": 0.0,
+        "projectileEffectPath": "CombatAndroid/Assets/Effect/battleaxeAttackEffect.efkefc",
+        "projectileEffectScale": 100.0,
+        "projectileEffectPlaySpeed": 1.0,
+        "projectileSpeed": 700.0,
+        "projectileRadius": 70.0,
+        "projectileLifetime": 1.2000000476837159,
+        "projectileMaxDistance": 1000.0,
+        "projectileDamageMultiplier": 1.0,
+        "projectilePierceMinChargeStage": 2,
+        "projectileSpawnDelay": 0.25,
+        "projectileSpawnHeight": 100.0,
+        "projectileSpawnForward": 60.0
+    }
+}

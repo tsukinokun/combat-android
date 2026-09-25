@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "GameLogComponent",
+            "value": "null"
+        },
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/GameLogPanel/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/GameLogPanel/TransformComponent.json"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/GripHud/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/GripHud/TransformComponent.json"
+        },
+        {
+            "key": "WeaponGripDebugComponent",
+            "value": "null"
+        }
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "CameraComponent": {
+        "projectionType": 1,
+        "orthoSize": 1000.0,
+        "fov": 45.0,
+        "aspectRatio": 1.7777777910232545,
+        "nearZ": 0.10000000149011612,
+        "farZ": 1000.0,
+        "useLookAt": false,
+        "lookAtTarget": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "isPrimary": false
+    }
+}

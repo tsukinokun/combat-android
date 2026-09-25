@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/TutorialComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
@@ -178,7 +179,8 @@ namespace CombatAndroid::ECS {
             tutorial.prompts[static_cast<size_t>(i)] = CreateInputPromptWidget(registry, context, desc);
         }
 
-        registry.AddComponent<TutorialComponent>(registry.CreateEntity(), tutorial);
+        // Prefab（System/Tutorial）は実行時状態だけの束。組み立てた中身を入れる
+        registry.GetComponent<TutorialComponent>(InstantiatePrefab(registry, context, "System/Tutorial")) = tutorial;
     }
 
     //-------------------------------------------------------------

@@ -1,0 +1,14 @@
+{
+    "CharacterControllerComponent": {
+        "radius": 35.0,
+        "halfHeight": 70.0,
+        "maxSlopeDeg": 45.0,
+        "mass": 70.0,
+        "gravityFactor": 100.0,
+        "centerOffset": {
+            "x": 0.0,
+            "y": 105.0,
+            "z": 0.0
+        }
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "Components": [
+        {
+            "key": "CollisionComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Ground/CollisionComponent.json"
+        },
+        {
+            "key": "GroundFollowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Ground/GroundFollowComponent.json"
+        },
+        {
+            "key": "RigidbodyComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Ground/RigidbodyComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Ground/TransformComponent.json"
+        }
+    ]
+}

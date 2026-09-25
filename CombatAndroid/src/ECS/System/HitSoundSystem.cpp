@@ -25,8 +25,8 @@ namespace CombatAndroid::ECS {
         //! @param weapon   [in] WeaponHitEvent::weapon（ヒットした武器、または斬撃弾のエンティティ）
         //! @return true: 鈍器（ウォーハンマー）向けの音を鳴らす
         //! @note   斬撃弾（ProjectileComponent）はWeaponComponentを持たない。
-        //!         斬撃弾を撃てるのはバトルアックスの溜め攻撃だけ（WeaponSpawnDefinition::
-        //!         projectileEffectPath参照）なので、WeaponComponentが見つからない場合は
+        //!         斬撃弾を撃てるのはバトルアックスの溜め攻撃だけ（Weapon/Battleaxe Prefabの
+        //!         projectileEffect参照）なので、WeaponComponentが見つからない場合は
         //!         「刃物」側（false）として扱えば正しい
         //-------------------------------------------------------------
         bool IsBluntWeapon(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity weapon) {

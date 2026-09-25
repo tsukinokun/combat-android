@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "FogComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Combat/Fog/FogComponent.json"
+        }
+    ]
+}

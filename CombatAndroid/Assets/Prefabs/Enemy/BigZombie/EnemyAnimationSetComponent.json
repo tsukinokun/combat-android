@@ -1,0 +1,12 @@
+{
+    "EnemyAnimationSetComponent": {
+        "walkClip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Walking.fbx",
+        "attackClip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx",
+        "knockbackClip": "CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx",
+        "deathClip": "CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx",
+        "animationIndex": 1,
+        "attackTimeoutSafety": 3.0,
+        "knockbackTimeoutSafety": 1.5,
+        "deathTimeoutSafety": 3.0
+    }
+}

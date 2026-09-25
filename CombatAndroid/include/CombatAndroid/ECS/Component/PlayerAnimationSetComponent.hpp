@@ -4,7 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #pragma once
-#include <Tsukino/Engine/Asset/AssetHandle.hpp>
+#include <Tsukino/Engine/Asset/AssetRef.hpp>
 #include <Tsukino/Core/typedef.hpp>
 #include <hlsl++.h>
 // 名前空間 : CombatAndroid::ECS
@@ -44,7 +44,7 @@ namespace CombatAndroid::ECS {
     //!         attackClipを持つ場合はそちらのクリップ・時間レンジへ差し替わる（WeaponComponent.hpp参照）
     //-------------------------------------------------------------
     struct AttackStep {
-        Tsukino::Asset::AssetHandle clip;
+        Tsukino::Asset::AssetRef clip;
         Tsukino::u32   animationIndex   = 1;      //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
         float startTime        = 0.0f;   //!< クリップ内の開始時刻（秒）
         float endTime          = 0.0f;   //!< クリップ内の終了時刻（秒）
@@ -65,11 +65,11 @@ namespace CombatAndroid::ECS {
     //!         現在のステート（PlayerAnimationSystemが管理）を保持するコンポーネント
     //-------------------------------------------------------------
     struct PlayerAnimationSetComponent {
-        Tsukino::Asset::AssetHandle idleClip;       //!< 待機
-        Tsukino::Asset::AssetHandle runClip;         //!< 通常移動
-        Tsukino::Asset::AssetHandle fastRunClip;    //!< スプリント移動
-        Tsukino::Asset::AssetHandle dodgeClip;       //!< 回避（前転）
-        Tsukino::Asset::AssetHandle deathClip;       //!< 死亡（Falling Back Death）
+        Tsukino::Asset::AssetRef idleClip;       //!< 待機
+        Tsukino::Asset::AssetRef runClip;         //!< 通常移動
+        Tsukino::Asset::AssetRef fastRunClip;    //!< スプリント移動
+        Tsukino::Asset::AssetRef dodgeClip;       //!< 回避（前転）
+        Tsukino::Asset::AssetRef deathClip;       //!< 死亡（Falling Back Death）
 
         static constexpr Tsukino::u32 kAttackComboCount = 3;    //!< 連撃の段数
         AttackStep            attackSteps[kAttackComboCount];    //!< 各段の再生範囲

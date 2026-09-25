@@ -77,6 +77,8 @@ namespace CombatAndroid::ECS {
         // 位置はまだ動かさず、このフレームの手の姿勢を落下の始点にする
         //-------------------------------------------------------------
         auto* context = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        if(!context)
+            return;    // 武器の落ちている姿勢などをPrefabから引くのに要る
 
         for(const EnemyDiedEvent& pending : m_pending) {
             // 死亡位置は敵の足元。武器は接地高さへ置き直して横たわらせる
@@ -94,11 +96,11 @@ namespace CombatAndroid::ECS {
                 extraPosition.x += std::cos(angle) * kExtraDropSpread;
                 extraPosition.z += std::sin(angle) * kExtraDropSpread;
 
-                BeginWeaponDrop(registry, pending.extraWeaponEntities[static_cast<size_t>(i)], extraPosition);
+                BeginWeaponDrop(registry, *context, pending.extraWeaponEntities[static_cast<size_t>(i)], extraPosition);
             }
 
             if(pending.heldWeaponEntity != entt::null) {
-                BeginWeaponDrop(registry, pending.heldWeaponEntity, dropPosition);
+                BeginWeaponDrop(registry, *context, pending.heldWeaponEntity, dropPosition);
                 continue;
             }
 
@@ -108,7 +110,7 @@ namespace CombatAndroid::ECS {
             // 落ちている途中で拾えると着地の演出が飛ぶので、着地まで外しておく
             // （着地時のDropWeaponToWorldが付け直す）
             //-------------------------------------------------------------
-            if(!pending.isElite || !context || !context->assetManager)
+            if(!pending.isElite || !context->assetManager)
                 continue;
 
             std::uniform_int_distribution<int> weaponDist(0, static_cast<int>(WeaponId::Count) - 1);
@@ -121,7 +123,7 @@ namespace CombatAndroid::ECS {
             if(registry.HasComponent<PickupComponent>(weaponEntity))
                 registry.RemoveComponent<PickupComponent>(weaponEntity);
 
-            BeginWeaponDrop(registry, weaponEntity, dropPosition);
+            BeginWeaponDrop(registry, *context, weaponEntity, dropPosition);
         }
         m_pending.clear();
 
@@ -155,7 +157,7 @@ namespace CombatAndroid::ECS {
             hlslpp::float3 groundPosition = registry.GetComponent<WeaponDropFallComponent>(entity).groundPosition;
             registry.RemoveComponent<WeaponDropFallComponent>(entity);
 
-            DropWeaponToWorld(registry, entity, groundPosition);
+            DropWeaponToWorld(registry, *context, entity, groundPosition);
         }
     }
 }    // namespace CombatAndroid::ECS

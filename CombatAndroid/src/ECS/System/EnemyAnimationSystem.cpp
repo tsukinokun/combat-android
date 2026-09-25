@@ -30,7 +30,7 @@ namespace CombatAndroid::ECS {
         //! @param  fadeTime   [in] クロスフェードにかける時間（秒）
         //! @param  inPlace    [in] ルートモーションの水平成分を殺すか
         //-------------------------------------------------------------
-        StateMachine<EnemyAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetHandle EnemyAnimationSetComponent::* clipMember,
+        StateMachine<EnemyAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetRef EnemyAnimationSetComponent::* clipMember,
                                                                         bool                                                     looping,
                                                                         float                                                    fadeTime,
                                                                         bool                                                     inPlace) {

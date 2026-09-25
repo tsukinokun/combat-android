@@ -83,17 +83,13 @@ namespace CombatAndroid::ECS {
     //! @brief 生成設定をエリート用に強化する
     //-------------------------------------------------------------
     void ApplyEliteModifiers(EnemySpawnConfig& config) {
-        config.scale = config.scale * kSizeScale;
-        config.bodyRadius *= kSizeScale;
-        config.bodyHalfHeight *= kSizeScale;
-        config.attackRange *= kSizeScale;
-        config.hitboxRadius *= kSizeScale;
+        config.sizeScale *= kSizeScale;
 
-        config.maxHealth *= kHealthScale;
-        config.hitboxDamage *= kDamageScale;
-        config.knockbackDamageThreshold *= kThresholdScale;
-        config.moveSpeed *= kMoveSpeedScale;
-        config.expReward *= kExpRewardScale;
+        config.healthScale *= kHealthScale;
+        config.attackScale *= kDamageScale;
+        config.knockbackThresholdScale *= kThresholdScale;
+        config.moveSpeedScale *= kMoveSpeedScale;
+        config.expScale *= kExpRewardScale;
     }
 
     //-------------------------------------------------------------
@@ -199,21 +195,8 @@ namespace CombatAndroid::ECS {
         held->weaponId          = weaponId;
 
         //-------------------------------------------------------------
-        // 攻撃モーション・間合い・判定を武器に合わせる。湧いたときの補正は掛け直す。
-        // クリップは先読み済み（AssetPreloaderが全武器ぶんのPaladinを作っている）なので、
-        // ここでのLoadはキャッシュから引くだけ
+        // 攻撃モーション・間合い・判定を武器に合わせる。湧いたときの補正は掛け直す
         //-------------------------------------------------------------
-        const PaladinWeaponAttack& attack = GetPaladinWeaponAttack(weaponId);
-
-        registry.GetComponent<EnemyAnimationSetComponent>(enemyEntity).attackClip =
-            context.assetManager->Load(Tsukino::Core::Path(attack.attackClipPath));
-        registry.GetComponent<EnemyComponent>(enemyEntity).attackRange = attack.attackRange * arsenal->sizeScale;
-
-        EnemyAttackHitboxComponent& hitbox = registry.GetComponent<EnemyAttackHitboxComponent>(enemyEntity);
-        hitbox.endBoneLocalOffset          = hlslpp::float3(attack.hitboxReach, 0.0f, 0.0f);
-        hitbox.radius                      = attack.hitboxRadius * arsenal->sizeScale;
-        hitbox.damage                      = attack.hitboxDamage * arsenal->damageScale;
-        hitbox.hitStartTime                = attack.hitStartTime;
-        hitbox.hitDuration                 = attack.hitDuration;
+        ApplyHeldWeaponAttack(registry, context, enemyEntity, weaponId, arsenal->sizeScale, arsenal->damageScale);
     }
 }    // namespace CombatAndroid::ECS

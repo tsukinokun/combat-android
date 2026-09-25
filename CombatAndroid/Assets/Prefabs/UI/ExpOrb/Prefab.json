@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "ExpOrbComponent",
+            "value": "null"
+        },
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/ExpOrb/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/ExpOrb/TransformComponent.json"
+        }
+    ]
+}

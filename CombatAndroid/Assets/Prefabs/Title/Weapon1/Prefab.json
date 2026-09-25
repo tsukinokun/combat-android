@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Weapon1/ModelComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Weapon1/RimGlowComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Weapon1/TransformComponent.json"
+        }
+    ]
+}

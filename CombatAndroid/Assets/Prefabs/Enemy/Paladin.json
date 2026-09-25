@@ -1,0 +1,21 @@
+{
+    "EnemyDefinition": {
+        "modelPath": "CombatAndroid/Assets/Models/Paladin.fbx",
+        "scale": {
+            "x": 1.274999976158142,
+            "y": 1.274999976158142,
+            "z": 1.274999976158142
+        },
+        "moveSpeed": 110.0,
+        "maxHealth": 200.0,
+        "bodyRadius": 37.0,
+        "bodyHalfHeight": 73.0,
+        "knockbackDamageThreshold": 60.0,
+        "expReward": 60.0,
+        "walkClipPath": "CombatAndroid/Assets/Anims/Paladin/Walking.fbx",
+        "knockbackClipPath": "CombatAndroid/Assets/Anims/Paladin/Head Hit.fbx",
+        "deathClipPath": "CombatAndroid/Assets/Anims/Paladin/Dying.fbx",
+        "boneName": "mixamorig:RightHand",
+        "endBoneName": "mixamorig:RightHand"
+    }
+}

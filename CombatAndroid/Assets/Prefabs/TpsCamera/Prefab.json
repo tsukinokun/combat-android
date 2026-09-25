@@ -1,0 +1,20 @@
+{
+    "Components": [
+        {
+            "key": "CameraComponent",
+            "value": "CombatAndroid/Assets/Prefabs/TpsCamera/CameraComponent.json"
+        },
+        {
+            "key": "MotionBlurComponent",
+            "value": "CombatAndroid/Assets/Prefabs/TpsCamera/MotionBlurComponent.json"
+        },
+        {
+            "key": "TpsCameraComponent",
+            "value": "CombatAndroid/Assets/Prefabs/TpsCamera/TpsCameraComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/TpsCamera/TransformComponent.json"
+        }
+    ]
+}

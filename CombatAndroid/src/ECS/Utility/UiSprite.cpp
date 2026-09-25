@@ -4,6 +4,8 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
+
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
@@ -110,17 +112,9 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     Tsukino::ECS::Entity CreateUiRectEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
                                             int sortOrder) {
-        Tsukino::ECS::Entity entity = registry.CreateEntity();
-
-        Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-        transform.scale                                       = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 面積ゼロの間は描画されない
-        transform.dirty                                       = true;
-
-        Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity);
-        sprite.sortOrder                                = sortOrder;
-        if(context.assetManager)
-            sprite.textureHandle = context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
-
+        // Prefab（UI/Rect）：スケール0（面積ゼロの間は描画されない）の白い1ピクセル。描画順だけ個体ごとに変える
+        Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, "UI/Rect");
+        registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity).sortOrder = sortOrder;
         return entity;
     }
 
@@ -128,19 +122,14 @@ namespace CombatAndroid::ECS {
     //! @brief 画面固定の文字エンティティを非表示で作る
     //-------------------------------------------------------------
     Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align) {
-        Tsukino::ECS::Entity entity = registry.CreateEntity();
-
-        Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
-        transform.dirty                                       = true;
-
+        // Prefab（UI/Text）：黒い縁取りの文字。描画順と揃え位置だけ個体ごとに変える。
         // fontHandle未設定 → builtinAssetsの既定フォントが使われるので日本語をそのまま渡してよい
-        Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
-        font.text                                   = L"";
+        auto*                context = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        Tsukino::ECS::Entity entity  = InstantiatePrefab(registry, *context, "UI/Text");
+
+        Tsukino::BuiltIn::ECS::FontComponent& font = registry.GetComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
         font.sortOrder                              = sortOrder;
         font.horizontalAlign = (align == UiTextAlign::Center) ? Tsukino::BuiltIn::ECS::HorizontalAlign::Center : Tsukino::BuiltIn::ECS::HorizontalAlign::Left;
-        font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-        font.outlineColor    = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-        font.outlineWidth    = 3.0f;
 
         return entity;
     }

@@ -1,0 +1,24 @@
+{
+    "Components": [
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Warhammer/ModelComponent.json"
+        },
+        {
+            "key": "PickupComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Warhammer/PickupComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Warhammer/RimGlowComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Warhammer/TransformComponent.json"
+        },
+        {
+            "key": "WeaponComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Warhammer/WeaponComponent.json"
+        }
+    ]
+}

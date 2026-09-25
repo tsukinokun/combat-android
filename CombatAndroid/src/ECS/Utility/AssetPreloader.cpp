@@ -57,13 +57,13 @@ namespace CombatAndroid::ECS {
         void PreloadWeapon(Tsukino::Asset::AssetManager& assetManager, const WeaponSpawnDefinition& def) {
             assetManager.Load(Tsukino::Core::Path(def.modelPath));
 
-            if(def.playerAttackClipPath)
+            if(!def.playerAttackClipPath.empty())
                 assetManager.Load(Tsukino::Core::Path(def.playerAttackClipPath));
 
-            if(def.areaAttackRadius > 0.0f && def.areaAttackEffectPath)
+            if(def.areaAttackRadius > 0.0f && !def.areaAttackEffectPath.empty())
                 assetManager.Load(Tsukino::Core::Path(def.areaAttackEffectPath));
 
-            if(def.projectileEffectPath)
+            if(!def.projectileEffectPath.empty())
                 assetManager.Load(Tsukino::Core::Path(def.projectileEffectPath));
         }
     }    // namespace

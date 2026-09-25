@@ -1,0 +1,21 @@
+{
+    "PlayerComponent": {
+        "moveSpeed": 300.0,
+        "turnLerpSpeed": 12.0,
+        "sprintSpeedMultiplier": 1.600000023841858,
+        "dodgeSpeed": 600.0,
+        "dodgePlaybackSpeed": 1.5,
+        "dodgeInvincibleDuration": 0.30000001192092898,
+        "dodgeCooldown": 0.30000001192092898,
+        "dodgeTimeoutSafety": 2.0,
+        "levelUpInvincibleDuration": 3.0,
+        "chargeStage2Threshold": 0.6000000238418579,
+        "chargeStage3Threshold": 1.2000000476837159,
+        "chargeMaxDuration": 2.0,
+        "chargePlaybackSpeed": 0.15000000596046449,
+        "chargeReleasePlaybackSpeedMultiplier": 1.5,
+        "chargeDamageMultiplierStage1": 1.0,
+        "chargeDamageMultiplierStage2": 1.600000023841858,
+        "chargeDamageMultiplierStage3": 2.4000000953674318
+    }
+}

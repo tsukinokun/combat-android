@@ -1,0 +1,12 @@
+{
+    "EnemyAnimationSetComponent": {
+        "walkClip": "CombatAndroid/Assets/Anims/Paladin/Walking.fbx",
+        "attackClip": "CombatAndroid/Assets/Anims/Paladin/hammerAttack.fbx",
+        "knockbackClip": "CombatAndroid/Assets/Anims/Paladin/Head Hit.fbx",
+        "deathClip": "CombatAndroid/Assets/Anims/Paladin/Dying.fbx",
+        "animationIndex": 1,
+        "attackTimeoutSafety": 3.0,
+        "knockbackTimeoutSafety": 1.5,
+        "deathTimeoutSafety": 3.0
+    }
+}

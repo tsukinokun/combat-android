@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "TitleStageComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Title/Stage/TitleStageComponent.json"
+        }
+    ]
+}

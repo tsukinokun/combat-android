@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "EffectComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Projectile/EffectComponent.json"
+        },
+        {
+            "key": "ProjectileComponent",
+            "value": "null"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Projectile/TransformComponent.json"
+        }
+    ]
+}

@@ -1,0 +1,6 @@
+{
+    "HealthComponent": {
+        "maxHealth": 200.0,
+        "currentHealth": 200.0
+    }
+}

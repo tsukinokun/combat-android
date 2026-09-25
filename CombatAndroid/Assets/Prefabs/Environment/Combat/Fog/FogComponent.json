@@ -1,0 +1,32 @@
+{
+    "FogComponent": {
+        "enabled": true,
+        "color": {
+            "x": 0.41999998688697817,
+            "y": 0.46000000834465029,
+            "z": 0.5199999809265137
+        },
+        "density": 0.0010499999625608326,
+        "startDistance": 500.0,
+        "maxOpacity": 1.0,
+        "heightFogEnabled": true,
+        "height": 0.0,
+        "heightFalloff": 0.004000000189989805,
+        "heightDensity": 0.00018000000272877514,
+        "sunColor": {
+            "x": 1.0,
+            "y": 0.8500000238418579,
+            "z": 0.6499999761581421
+        },
+        "sunScatterPower": 8.0,
+        "noiseEnabled": true,
+        "noiseScale": 0.001500000013038516,
+        "noiseIntensity": 0.5,
+        "windDirection": {
+            "x": 1.0,
+            "y": 0.0,
+            "z": 0.30000001192092898
+        },
+        "windSpeed": 60.0
+    }
+}

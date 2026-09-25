@@ -1,0 +1,10 @@
+{
+    "AnimationPlayerComponent": {
+        "animation_index": 1,
+        "playback_speed": 1.0,
+        "is_looping": true,
+        "is_playing": true,
+        "in_place": true,
+        "root_motion_node_name": "mixamorig:Hips"
+    }
+}

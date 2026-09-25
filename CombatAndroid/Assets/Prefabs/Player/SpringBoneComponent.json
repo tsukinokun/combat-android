@@ -1,0 +1,47 @@
+{
+    "SpringBoneComponent": {
+        "enabled": true,
+        "chainDefs": [
+            {
+                "name": "Breast_L",
+                "anchorNodeName": "",
+                "rootNodeName": "Breast_L",
+                "excludeNodeNames": [],
+                "maxDepth": 1,
+                "stiffness": 0.3499999940395355,
+                "drag": 0.12999999523162843,
+                "inertia": 0.5,
+                "gravityScale": 1.0,
+                "gravityDir": {
+                    "x": 0.0,
+                    "y": -1.0,
+                    "z": 0.0
+                },
+                "boneRadius": 0.029999999329447748,
+                "angleLimitDeg": 26.0,
+                "collisionIterations": 2,
+                "colliders": []
+            },
+            {
+                "name": "Breast_R",
+                "anchorNodeName": "",
+                "rootNodeName": "Breast_R",
+                "excludeNodeNames": [],
+                "maxDepth": 1,
+                "stiffness": 0.3499999940395355,
+                "drag": 0.12999999523162843,
+                "inertia": 0.5,
+                "gravityScale": 1.0,
+                "gravityDir": {
+                    "x": 0.0,
+                    "y": -1.0,
+                    "z": 0.0
+                },
+                "boneRadius": 0.029999999329447748,
+                "angleLimitDeg": 26.0,
+                "collisionIterations": 2,
+                "colliders": []
+            }
+        ]
+    }
+}

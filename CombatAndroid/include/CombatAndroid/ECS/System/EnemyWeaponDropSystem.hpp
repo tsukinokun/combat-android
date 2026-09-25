@@ -21,7 +21,7 @@ namespace CombatAndroid::ECS {
     //!         （WeaponDropFallComponent）、着地するとPickupComponentを持つ「拾える武器」になり、以降は
     //!         手置きの武器とまったく同じくPickupSystemがFキーでの取得を処理する
     //! @note   武器は敵の生成時（SpawnBehaviorEnemy）に作られた実体をそのまま使い回す。
-    //!         作り直さないので、WeaponSpawner::ConfigureWeaponが焼き込んだ性能
+    //!         作り直さないので、武器Prefabから作った性能
     //!         （専用攻撃モーション・AoE・溜め攻撃）がそのまま引き継がれる。
     //!         武器を持っていないエリートを倒したときだけは、ランダムな武器を1本新しく作り、
     //!         死亡位置の上から同じ落下で落とす（武器のレベル上げ＝進化への近道にする）

@@ -1,0 +1,47 @@
+{
+    "TitleStageComponent": {
+        "cameraBasePosition": {
+            "x": -250.0,
+            "y": 205.0,
+            "z": -330.0
+        },
+        "cameraLookAt": {
+            "x": -30.0,
+            "y": 120.0,
+            "z": 40.0
+        },
+        "weapon0": {
+            "groundPosition": {
+                "x": 10.0,
+                "y": -220.0,
+                "z": 30.0
+            },
+            "hoverHeight": 120.0,
+            "burstTime": 0.8999999761581421,
+            "spinPhase": 0.0,
+            "bobPhase": 0.0
+        },
+        "weapon1": {
+            "groundPosition": {
+                "x": 155.0,
+                "y": -220.0,
+                "z": 70.0
+            },
+            "hoverHeight": 150.0,
+            "burstTime": 1.5,
+            "spinPhase": 1.7000000476837159,
+            "bobPhase": 0.8999999761581421
+        },
+        "weapon2": {
+            "groundPosition": {
+                "x": 80.0,
+                "y": -220.0,
+                "z": -70.0
+            },
+            "hoverHeight": 95.0,
+            "burstTime": 2.0999999046325685,
+            "spinPhase": 3.4000000953674318,
+            "bobPhase": 1.7999999523162842
+        }
+    }
+}

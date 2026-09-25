@@ -1,0 +1,37 @@
+{
+    "EnemyDefinition": {
+        "modelPath": "CombatAndroid/Assets/Models/SmallZombie.fbx",
+        "scale": {
+            "x": 1.0399999618530274,
+            "y": 1.0399999618530274,
+            "z": 1.0399999618530274
+        },
+        "moveSpeed": 100.0,
+        "maxHealth": 40.0,
+        "bodyRadius": 35.0,
+        "bodyHalfHeight": 70.0,
+        "attackRange": 78.0,
+        "knockbackDamageThreshold": 30.0,
+        "expReward": 10.0,
+        "walkClipPath": "CombatAndroid/Assets/Anims/SmallZombie/Swagger Walk.fbx",
+        "attackClipPath": "CombatAndroid/Assets/Anims/SmallZombie/Zombie Attack.fbx",
+        "knockbackClipPath": "CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx",
+        "deathClipPath": "CombatAndroid/Assets/Anims/SmallZombie/Stunned.fbx",
+        "boneName": "mixamorig:Head",
+        "hitboxLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "endBoneName": "",
+        "endBoneLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "hitboxRadius": 30.0,
+        "hitboxDamage": 15.0,
+        "hitStartTime": 0.30000001192092898,
+        "hitDuration": 0.3199999928474426
+    }
+}

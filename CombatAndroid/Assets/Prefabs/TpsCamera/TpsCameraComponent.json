@@ -1,0 +1,28 @@
+{
+    "TpsCameraComponent": {
+        "distance": 400.0,
+        "height": 140.0,
+        "lookHeight": 215.0,
+        "followSpringFrequency": 2.0,
+        "followSpringDamping": 0.75,
+        "followSpringResetDistance": 1500.0,
+        "shakeFrequency": 8.0,
+        "shakeDamping": 0.15000000596046449,
+        "shakeImpulse": 450.0,
+        "shakeReferenceDamage": 15.0,
+        "shakeMinScale": 0.5,
+        "shakeMaxScale": 2.5,
+        "zoomDistanceScale": 0.699999988079071,
+        "zoomFovScale": 0.8700000047683716,
+        "zoomHoldAfterImpact": 0.5,
+        "zoomInFrequency": 5.0,
+        "zoomOutFrequency": 1.5,
+        "yaw": 0.0,
+        "pitch": 0.20000000298023225,
+        "mouseSensitivity": 0.0012000000569969416,
+        "minPitch": -0.5,
+        "maxPitch": 1.2999999523162842,
+        "groundHeight": 0.0,
+        "minHeightAboveGround": 70.0
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "PlayerAnimationSetComponent": {
+        "idleClip": "CombatAndroid/Assets/Anims/Player/Idle.fbx",
+        "runClip": "CombatAndroid/Assets/Anims/Player/Run.fbx",
+        "fastRunClip": "CombatAndroid/Assets/Anims/Player/Fast Run.fbx",
+        "dodgeClip": "CombatAndroid/Assets/Anims/Player/Sprinting Forward Roll.fbx",
+        "deathClip": "CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx",
+        "attackStep0": {
+            "clip": "CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx",
+            "animationIndex": 1,
+            "startTime": 0.0,
+            "endTime": 1.1777666807174683,
+            "comboWindowStart": 0.5,
+            "hitWindowDuration": 0.699999988079071,
+            "damageMultiplier": 1.0,
+            "fadeTime": 0.05000000074505806,
+            "playbackSpeed": 1.5,
+            "inPlace": true,
+            "areaAttack": false,
+            "areaAttackDelay": 0.3499999940395355
+        },
+        "attackStep1": {
+            "clip": "CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx",
+            "animationIndex": 1,
+            "startTime": 1.1777666807174683,
+            "endTime": 1.5310965776443482,
+            "comboWindowStart": 0.5,
+            "hitWindowDuration": -1.0,
+            "damageMultiplier": 1.0,
+            "fadeTime": 0.05000000074505806,
+            "playbackSpeed": 1.5,
+            "inPlace": true,
+            "areaAttack": false,
+            "areaAttackDelay": 0.3499999940395355
+        },
+        "attackStep2": {
+            "clip": "CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx",
+            "animationIndex": 1,
+            "startTime": 1.5310965776443482,
+            "endTime": 3.5332999229431154,
+            "comboWindowStart": 0.5,
+            "hitWindowDuration": 0.6000000238418579,
+            "damageMultiplier": 2.0,
+            "fadeTime": 0.05000000074505806,
+            "playbackSpeed": 1.5,
+            "inPlace": true,
+            "areaAttack": true,
+            "areaAttackDelay": 0.3499999940395355
+        },
+        "attackTimeoutSafety": 2.5
+    }
+}

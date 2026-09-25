@@ -1,0 +1,9 @@
+{
+    "MotionBlurComponent": {
+        "enabled": true,
+        "strength": 1.0,
+        "maxBlurRadius": 0.029999999329447748,
+        "sampleCount": 8,
+        "targetFps": 60.0
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "Components": [
+        {
+            "key": "GroundFollowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Title/Ground/GroundFollowComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Title/Ground/TransformComponent.json"
+        }
+    ]
+}

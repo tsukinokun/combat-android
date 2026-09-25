@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/RectAnchored/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/RectAnchored/TransformComponent.json"
+        },
+        {
+            "key": "WorldAnchorComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/RectAnchored/WorldAnchorComponent.json"
+        }
+    ]
+}

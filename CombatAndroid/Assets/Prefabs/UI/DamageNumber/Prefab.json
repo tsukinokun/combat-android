@@ -1,0 +1,20 @@
+{
+    "Components": [
+        {
+            "key": "DamageNumberComponent",
+            "value": "null"
+        },
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/DamageNumber/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/DamageNumber/TransformComponent.json"
+        },
+        {
+            "key": "WorldAnchorComponent",
+            "value": "CombatAndroid/Assets/Prefabs/UI/DamageNumber/WorldAnchorComponent.json"
+        }
+    ]
+}

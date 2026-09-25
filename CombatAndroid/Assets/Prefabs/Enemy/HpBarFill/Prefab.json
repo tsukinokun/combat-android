@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/HpBarFill/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/HpBarFill/TransformComponent.json"
+        },
+        {
+            "key": "WorldAnchorComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/HpBarFill/WorldAnchorComponent.json"
+        }
+    ]
+}

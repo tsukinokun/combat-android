@@ -1,0 +1,7 @@
+{
+    "DebugCameraComponent": {
+        "moveSpeed": 1.0,
+        "sprintSpeed": 30.0,
+        "mouseSens": 0.15000000596046449
+    }
+}

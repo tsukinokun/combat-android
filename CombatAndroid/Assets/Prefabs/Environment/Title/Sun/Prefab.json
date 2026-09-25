@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "DirectionalLightComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Title/Sun/DirectionalLightComponent.json"
+        }
+    ]
+}

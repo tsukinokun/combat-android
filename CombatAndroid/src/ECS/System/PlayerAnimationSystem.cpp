@@ -40,7 +40,7 @@ namespace CombatAndroid::ECS {
         //! @param  looping        [in] ループ再生するか
         //! @param  fadeTime       [in] クロスフェードにかける時間（秒）
         //-------------------------------------------------------------
-        StateMachine<PlayerAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetHandle PlayerAnimationSetComponent::* clipMember,
+        StateMachine<PlayerAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetRef PlayerAnimationSetComponent::* clipMember,
                                                                         Tsukino::u32                                                        animationIndex,
                                                                         bool                                                       looping,
                                                                         float                                                      fadeTime = kAnimBlendTime,

@@ -4,15 +4,15 @@
 //! @author  山﨑愛
 //! @note    以前は CombatAndroidScene::OnInitialize 内のローカルラムダだったため
 //!          シーン構築時にしか呼べなかった。負荷試験（EnemyStressTestSystem）から
-//!          実行時に湧かせられるよう、ここへ切り出している
+//!          実行時に湧かせられるよう、ここへ切り出している。
+//!          敵の素の値は Assets/Prefabs/Enemy/<名前>/ のPrefabが持ち、ここは
+//!          「どのPrefabを・どこに・どれだけ強化して」生成するかだけを扱う
 //-------------------------------------------------------------
 #pragma once
 
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 
 #include <Tsukino/Core/ECS/Registry/Registry.hpp>
-#include <Tsukino/Core/Path.hpp>
-#include <Tsukino/Engine/Asset/AssetHandle.hpp>
 
 #include <hlsl++.h>
 
@@ -28,24 +28,17 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct EnemySpawnConfig
     //! @brief  SpawnBehaviorEnemyへ渡す1体分の生成パラメータ
+    //! @note   値そのものはPrefabにあり、ここが持つのは生成位置と、Prefabの値へ掛ける倍率だけ。
+    //!         危険度（ApplyEnemyDifficulty）とエリート（ApplyEliteModifiers）は倍率を積み、
+    //!         SpawnBehaviorEnemyが生成直後のComponentへまとめて掛ける
     //-------------------------------------------------------------
     struct EnemySpawnConfig {
-        hlslpp::float3      spawnPosition;
-        float               moveSpeed;
-        float               maxHealth;
-        Tsukino::Core::Path modelPath;
-        hlslpp::float3      scale;
-        float               bodyRadius;                  //!< 武器ヒット判定用カプセルの半径
-        float               bodyHalfHeight;              //!< 武器ヒット判定用カプセルの半高さ
-        float               attackRange;                 //!< BTが攻撃へ移る距離
-        float               knockbackDamageThreshold;    //!< この値以上の単発ダメージでノックバックする
-        float               expReward = 10.0f;           //!< 撃破時にプレイヤーへ与えるEXP量
+        const char*    prefabName = "Enemy/SmallZombie";    //!< Assets/Prefabs/ からの相対名
+        hlslpp::float3 spawnPosition{0.0f, 0.0f, 0.0f};
 
-        //! BTがプレイヤーを追跡し続ける距離。これを超えると ZombieBehavior の
-        //! MoveToPlayer / CanChase が Failure を返し、その場で待機したまま近づいてこなくなる。
-        //! 既定値は EnemyComponent のものと揃えてあるため、明示しない限り従来の挙動は変わらない。
+        //! BTがプレイヤーを追跡し続ける距離の上書き。0以下ならPrefabの値のまま。
         //! フォグの外から湧かせる場合は、湧き半径より十分大きい値を湧かせる側が入れること
-        float detectRange = 600.0f;
+        float detectRange = 0.0f;
 
         //! アニメーションの再生開始位置（秒）。
         //! 負荷試験で大量に湧かせるとき、全個体が同じ位置から再生されると
@@ -53,39 +46,30 @@ namespace CombatAndroid::ECS {
         //! キャッシュに乗りすぎて実態より軽く測れてしまう。個体ごとにずらすために使う
         float initialAnimationTime = 0.0f;
 
-        Tsukino::Asset::AssetHandle walkClip;
-        Tsukino::Asset::AssetHandle attackClip;
-        Tsukino::Asset::AssetHandle knockbackClip;
-        Tsukino::Asset::AssetHandle deathClip;
-
-        // 敵の攻撃当たり判定（EnemyAttackHitboxComponent）
-        std::string    boneName = "mixamorig:RightHand";
-        hlslpp::float3 hitboxLocalOffset{0.0f, 0.0f, 0.0f};
-        // endBoneNameが空なら従来通りboneName位置を中心とした球で判定する。
-        // 設定すると、boneName→endBoneNameを芯線とするカプセルで判定する
-        // （腕の振り抜きのように1点の球では部位を表現しきれない敵向け。EnemyAttackHitboxComponent参照）
-        std::string    endBoneName = "";
-        hlslpp::float3 endBoneLocalOffset{0.0f, 0.0f, 0.0f};
-        float          hitboxRadius = 45.0f;
-        float          hitboxDamage = 15.0f;
-        float          hitStartTime = 0.40f;    //!< Attackへ入ってからの経過秒。ここから判定が有効になる
-        float          hitDuration  = 0.20f;
+        //-------------------------------------------------------------
+        // Prefabの値へ掛ける倍率（危険度・エリート）
+        //-------------------------------------------------------------
+        float healthScale             = 1.0f;    //!< 最大HP
+        float expScale                = 1.0f;    //!< 撃破時のEXP
+        float attackScale             = 1.0f;    //!< 攻撃判定のダメージ
+        float knockbackThresholdScale = 1.0f;    //!< ひるみ閾値
+        float moveSpeedScale          = 1.0f;    //!< 移動速度
+        float sizeScale               = 1.0f;    //!< 見た目・体の当たり・攻撃範囲
 
         //-------------------------------------------------------------
         // 手に持たせる武器（Paladin等）。SpawnBehaviorEnemyが武器エンティティを別途生成し、
         // WeaponComponent::ownerをこの敵にして右手ボーンへ追従させる。
-        // 生成した武器はEnemyHeldWeaponComponentへ記録され、撃破時にドロップされる。
-        // 武器の性能はWeaponSpawner::ConfigureWeaponが決めるため、
-        // 拾ったプレイヤーは手置きの武器とまったく同じものを手に入れる
+        // 攻撃モーション・間合い・判定は武器ごとの値（PaladinWeaponAttacks.json）で上書きする。
+        // 生成した武器はEnemyHeldWeaponComponentへ記録され、撃破時にドロップされる
         //-------------------------------------------------------------
-        bool     hasHeldWeapon = false;                    //!< 手に武器を持たせるか
+        bool     hasHeldWeapon = false;                  //!< 手に武器を持たせるか
         WeaponId heldWeaponId  = WeaponId::Warhammer;    //!< 持たせる武器の種類
     };
 
     //-------------------------------------------------------------
     //! @brief  敵を1体生成する関数
     //! @param  registry [in] エンティティレジストリ
-    //! @param  context  [in] エンジンコンテキスト（AssetManagerの取得に使う）
+    //! @param  context  [in] エンジンコンテキスト（PrefabFactoryの取得に使う）
     //! @param  config   [in] 生成パラメータ
     //! @return 生成した敵本体のエンティティ
     //! @note   1体につき「本体・HPバー背景・HPバー残量」の3エンティティを生成する。
@@ -98,18 +82,16 @@ namespace CombatAndroid::ECS {
 
     //-------------------------------------------------------------
     //! @brief  SmallZombie 1体分の生成パラメータを作る関数
-    //! @param  context       [in] エンジンコンテキスト（アニメーションクリップのロードに使う）
+    //! @param  context       [in] エンジンコンテキスト（未使用。EnemyConfigFactoryと揃えるため）
     //! @param  spawnPosition [in] 出現位置
     //! @return 生成パラメータ
-    //! @note   AssetManager::Load はパスでキャッシュされるため、2体目以降は
-    //!         ハンドルを引き直すだけで再ロードは発生しない
     //-------------------------------------------------------------
     [[nodiscard]]
     EnemySpawnConfig MakeSmallZombieConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition);
 
     //-------------------------------------------------------------
     //! @brief  BigZombie 1体分の生成パラメータを作る関数
-    //! @param  context       [in] エンジンコンテキスト
+    //! @param  context       [in] エンジンコンテキスト（未使用。EnemyConfigFactoryと揃えるため）
     //! @param  spawnPosition [in] 出現位置
     //! @return 生成パラメータ
     //-------------------------------------------------------------
@@ -118,7 +100,7 @@ namespace CombatAndroid::ECS {
 
     //-------------------------------------------------------------
     //! @brief  Paladin 1体分の生成パラメータを作る関数（武器を明示指定する版）
-    //! @param  context       [in] エンジンコンテキスト
+    //! @param  context       [in] エンジンコンテキスト（未使用。EnemyConfigFactoryと揃えるため）
     //! @param  spawnPosition [in] 出現位置
     //! @param  weaponId      [in] 持たせる武器の種類
     //! @return 生成パラメータ
@@ -132,14 +114,12 @@ namespace CombatAndroid::ECS {
 
     //-------------------------------------------------------------
     //! @brief  Paladin 1体分の生成パラメータを作る関数（武器をランダムに選ぶ版）
-    //! @param  context       [in] エンジンコンテキスト
+    //! @param  context       [in] エンジンコンテキスト（未使用。EnemyConfigFactoryと揃えるため）
     //! @param  spawnPosition [in] 出現位置
     //! @return 生成パラメータ
     //! @note   EnemySpawnTableのEnemyConfigFactoryへ渡すのはこちら。
     //!         EnemyConfigFactoryは乱数生成器を引数に取らないため、抽選は.cpp側の
     //!         ファイルローカルなmt19937で行い、あとは武器を明示する上のオーバーロードへ委譲する
-    //!         （シグネチャを変えると負荷試験・シーンの手置き側にも乱数生成器が要るようになり、
-    //!         　それらは抽選を必要としないため割に合わない）
     //-------------------------------------------------------------
     [[nodiscard]]
     EnemySpawnConfig MakePaladinConfig(Tsukino::EngineIntegration::EngineContext& context, const hlslpp::float3& spawnPosition);
@@ -147,16 +127,17 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct PaladinWeaponAttack
     //! @brief  Paladinが持つ武器1種類ぶんの、攻撃まわりのパラメータ（危険度・エリートの補正前の素の値）
+    //! @note   Assets/Prefabs/Enemy/PaladinWeaponAttacks.json が持つ
     //-------------------------------------------------------------
     struct PaladinWeaponAttack {
-        WeaponId    weaponId;
-        const char* attackClipPath;
-        float       attackRange;     //!< BTが攻撃へ移る距離（＝MoveToPlayerが足を止める距離）
-        float       hitboxReach;     //!< 手ボーンから武器先端までの距離
-        float       hitboxRadius;
-        float       hitboxDamage;
-        float       hitStartTime;
-        float       hitDuration;
+        WeaponId    weaponId = WeaponId::Warhammer;
+        std::string attackClipPath;
+        float       attackRange  = 0.0f;    //!< BTが攻撃へ移る距離（＝MoveToPlayerが足を止める距離）
+        float       hitboxReach  = 0.0f;    //!< 手ボーンから武器先端までの距離
+        float       hitboxRadius = 0.0f;
+        float       hitboxDamage = 0.0f;
+        float       hitStartTime = 0.0f;
+        float       hitDuration  = 0.0f;
     };
 
     //-------------------------------------------------------------
@@ -167,4 +148,17 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     const PaladinWeaponAttack& GetPaladinWeaponAttack(WeaponId weaponId);
+
+    //-------------------------------------------------------------
+    //! @brief  敵の攻撃モーション・間合い・判定を、持っている武器のものへ書き換える関数
+    //! @param  registry    [in,out] エンティティレジストリ
+    //! @param  context     [in]     エンジンコンテキスト（攻撃クリップのロードに使う）
+    //! @param  enemyEntity [in]     対象の敵
+    //! @param  weaponId    [in]     持っている武器の種類
+    //! @param  sizeScale   [in]     間合い・判定半径へ掛ける倍率（エリートの大きさ）
+    //! @param  damageScale [in]     ダメージへ掛ける倍率（危険度×エリート）
+    //! @note   生成時（SpawnBehaviorEnemy）と、エリートの持ち替え（SwitchPaladinWeapon）の両方から呼ぶ
+    //-------------------------------------------------------------
+    void ApplyHeldWeaponAttack(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                               Tsukino::ECS::Entity enemyEntity, WeaponId weaponId, float sizeScale, float damageScale);
 }    // namespace CombatAndroid::ECS

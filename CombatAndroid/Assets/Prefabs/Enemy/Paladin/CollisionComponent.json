@@ -1,0 +1,22 @@
+{
+    "CollisionComponent": {
+        "type": 2,
+        "extent": {
+            "x": 37.0,
+            "y": 73.0,
+            "z": 0.0
+        },
+        "offsetPosition": {
+            "x": 0.0,
+            "y": 110.0,
+            "z": 0.0
+        },
+        "offsetRotation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+        },
+        "isSensor": true
+    }
+}

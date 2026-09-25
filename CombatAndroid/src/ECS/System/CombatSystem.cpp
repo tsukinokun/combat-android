@@ -16,6 +16,7 @@
 #include <CombatAndroid/ECS/Event/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Event/PlayerDamagedEvent.hpp>
 #include <CombatAndroid/ECS/Utility/CombatHit.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
@@ -746,17 +747,20 @@ namespace CombatAndroid::ECS {
 
             const WeaponComponent& sourceWeapon = registry.GetComponent<WeaponComponent>(spawn.weaponEntity);
 
-            entt::entity projectileEntity = registry.CreateEntity();
+            if(!ctx)
+                break;
+
+            // Prefab（Assets/Prefabs/Projectile）：Transform・Projectile・Effect（進行方向へ向ける）。
+            // 速さ・射程・見た目は撃った武器ごとの値なので、生成後に武器から書き込む
+            entt::entity projectileEntity = InstantiatePrefab(registry, *ctx, "Projectile");
 
             Tsukino::BuiltIn::ECS::TransformComponent& projectileTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(projectileEntity);
+                registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(projectileEntity);
             projectileTransform.position = spawn.position;
             projectileTransform.rotation = spawn.rotation;
-            projectileTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
             projectileTransform.dirty    = true;
-            projectileTransform.parent   = entt::null;
 
-            ProjectileComponent& projectile = registry.AddComponent<ProjectileComponent>(projectileEntity);
+            ProjectileComponent& projectile = registry.GetComponent<ProjectileComponent>(projectileEntity);
             projectile.owner              = sourceWeapon.owner;
             projectile.direction          = spawn.direction;
             projectile.speed              = sourceWeapon.projectileSpeed;
@@ -768,13 +772,12 @@ namespace CombatAndroid::ECS {
             projectile.piercing           = spawn.piercing;
 
             Tsukino::BuiltIn::ECS::EffectComponent& projectileEffect =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::EffectComponent>(projectileEntity);
-            projectileEffect.effectAsset    = sourceWeapon.projectileEffectAsset;
-            projectileEffect.effectPath     = sourceWeapon.projectileEffectPath;
-            projectileEffect.scale          = sourceWeapon.projectileEffectScale;
-            projectileEffect.playSpeed      = sourceWeapon.projectileEffectPlaySpeed;
-            projectileEffect.followRotation = true;    // 斬撃波を進行方向へ向ける
-            projectileEffect.active         = true;    // 次のEffectSystem::Updateが再生ハンドルを作る
+                registry.GetComponent<Tsukino::BuiltIn::ECS::EffectComponent>(projectileEntity);
+            projectileEffect.effectAsset = sourceWeapon.projectileEffectAsset;
+            projectileEffect.effectPath  = sourceWeapon.projectileEffectPath;
+            projectileEffect.scale       = sourceWeapon.projectileEffectScale;
+            projectileEffect.playSpeed   = sourceWeapon.projectileEffectPlaySpeed;
+            projectileEffect.active      = true;    // 次のEffectSystem::Updateが再生ハンドルを作る
         }
 
         //-------------------------------------------------------------

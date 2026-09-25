@@ -1,0 +1,20 @@
+{
+    "SpriteComponent": {
+        "textureHandle": "CombatAndroid/Assets/Textures/UI/WhitePixel.png",
+        "blendMode": 0,
+        "space": 0,
+        "tintColor": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0,
+            "w": 1.0
+        },
+        "uvRect": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.0,
+            "w": 1.0
+        },
+        "sortOrder": 0
+    }
+}

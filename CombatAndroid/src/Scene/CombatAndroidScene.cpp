@@ -40,6 +40,9 @@
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
+
+#include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
@@ -133,248 +136,29 @@ namespace CombatAndroid {
         // 戦闘中のBGM。素材が置かれていなければ無音のまま進む（Assets/Audio/README.md）
         CombatAndroid::ECS::PlayBgm(*context, CombatAndroid::ECS::kBattleBgmPath);
 
-        Tsukino::Asset::AssetHandle modelHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Player.fbx"));
-
-        // プレイヤーのアニメーションステートマシン（PlayerAnimationSystem）が使うクリップ。
-        // 他キャラ（BigZombie/SmallZombie）と同じくAssets/Anims/Player/以下にまとめてある
-        Tsukino::Asset::AssetHandle idleAnimHandle = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Idle.fbx"));
-        Tsukino::Asset::AssetHandle runAnimHandle  = context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Run.fbx"));
-        Tsukino::Asset::AssetHandle fastRunAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Fast Run.fbx"));
-        // 回避（前転）。クリップのルート前進はin_placeで殺し、移動はCharacterControllerが担当する
-        Tsukino::Asset::AssetHandle dodgeAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Sprinting Forward Roll.fbx"));
-        // Hammer Attack.fbx（プレイヤー既定の攻撃クリップ）は3回斬るモーションが1クリップに
-        // 入っており、連撃の各段は同じハンドルを時間レンジだけ変えて3回参照する
-        // （下のattackSteps初期化を参照）
-        Tsukino::Asset::AssetHandle hammerAttackAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Hammer Attack.fbx"));
-        // 武器ごとの専用攻撃クリップ（Great Sword Slash / Standing Melee Attack Backhand）と、
-        // ウォーハンマー3段目のAoE(範囲攻撃)エフェクトのロードは WeaponSpawner の
-        // ConfigureWeapon 側へ移した。AssetManager がパスでキャッシュするため、
-        // 何本生成しても実際のロードは1回で済む
-        // 死亡モーション（HP0でPlayerAnimationSystemがDeathステートへ遷移する。RunResultSystem参照）
-        Tsukino::Asset::AssetHandle deathAnimHandle =
-            context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Player/Falling Back Death.fbx"));
-
-        // 敵（BigZombie / SmallZombie）が使うクリップのロードは
-        // MakeBigZombieConfig / MakeSmallZombieConfig 側へ移した（EnemySpawner.cpp）。
-        // AssetManager がパスでキャッシュするため、何体生成しても実際のロードは1回で済む
 
         Tsukino::ECS::Registry& registry = m_scene.GetRegistry();
 
         //--------------------------------------------------------------
-        // 地面エンティティ
+        // 環境（地面・光・空・フォグ・環境パーティクル・草）。値は Assets/Prefabs/Environment/ 以下のPrefab JSON（README参照）
         //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity groundEntity = m_scene.CreateEntity();
-            // TransformComponent の追加と初期化
-            // JumpGameSample等と同じ「1ユニット≒1cm」規約。半径5の薄い床にして、上面がちょうどy=0に来るよう中心をy=-5に置く
-            Tsukino::BuiltIn::ECS::TransformComponent& groundTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(groundEntity);
-            groundTransform.position                                   = hlslpp::float3(0.0f, -5.0f, 0.0f);
-            groundTransform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);    // 無回転
-            groundTransform.scale                                      = hlslpp::float3(1.0f, 1.0f, 1.0f);
-            groundTransform.dirty                                      = true;          // 初回計算のためフラグを立てる
-            groundTransform.parent                                     = entt::null;    // 親なし
-
-            // コリジョンをつける（一辺4000 x 厚さ10の床。extentは半径=half-extentの流儀）。
-            // 半径2000にしてある。
-            // 地面自体がGroundFollowSystemでプレイヤーへ追従するため、これより大きくする必要はない
-            Tsukino::BuiltIn::ECS::CollisionComponent& collision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(groundEntity);
-            collision.extent                                     = {2000.0f, 5.0f, 2000.0f};
-            collision.type                                       = Tsukino::BuiltIn::ECS::ColliderType::Box;
-            collision.isSensor                                   = false;    // 明示的にソリッド判定にする（デフォルトも今はfalse）
-
-            // RBをつける。プレイヤーへ追従させて動かす（GroundFollowSystem）ため、
-            // 「プログラムから座標を直接制御する」Kinematicにする（Staticのままだと
-            // 位置を書き換えても物理側へ反映されない）
-            Tsukino::BuiltIn::ECS::RigidbodyComponent& rb = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(groundEntity);
-            rb.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
-
-            // 草原と同じく「見た目は無限に続く」を実現するため、地面自体をプレイヤーへ追従させる。
-            // 追従処理の詳細はGroundFollowSystem/GroundFollowComponent参照
-            CombatAndroid::ECS::GroundFollowComponent& groundFollow = registry.AddComponent<CombatAndroid::ECS::GroundFollowComponent>(groundEntity);
-            groundFollow.groundHeight                                = groundTransform.position.y;
-        }
+        CombatAndroid::ECS::InstantiateEnvironment(registry, *context, "Combat");
 
         //--------------------------------------------------------------
-        // プレイヤーエンティティ生成
+        // プレイヤーエンティティ生成（Prefab: Player）。
+        // Transform（position＝カプセル底面＝足元）・CharacterController・センサー用のRigidbody/Collision・
+        // Player・Health・Model・RimGlow・AnimationPlayer・PlayerAnimationSet（クリップと連撃の各段）・SpringBone は
+        // Assets/Prefabs/Player/ のJSONにある。PlayerExperience / PlayerSkill / AnimationController / SkeletonOutput は
+        // 既定値のままアタッチするだけ。実体が要る結線（最初のクリップ・武器）だけここで行う
         //--------------------------------------------------------------
-        Tsukino::ECS::Entity playerEntity = m_scene.CreateEntity();
+        Tsukino::ECS::Entity playerEntity = context->prefabFactory->Instantiate("CombatAndroid/Assets/Prefabs/Player/Prefab.json", registry);
 
-        // TransformComponent の追加と初期化
-        // CharacterControllerComponent.centerOffsetを使うため、position＝カプセル底面（足元/接地位置）
-        // を表す。地面の上面はy=0なので、埋まった状態で出現しないよう少し余裕を持たせてy=5から開始する
-        Tsukino::BuiltIn::ECS::TransformComponent& playerTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
-        playerTransform.position                                   = hlslpp::float3(0.0f, 5.0f, 0.0f);
-        playerTransform.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);    // 無回転
-        // CharaTest.fbxの実寸を計測したところ身長はY=0〜100（足元がローカルY=0）で、想定していた
-        // 「身長約210」の半分以下だったため、2.1倍(=210/100)スケールして合わせる
-        playerTransform.scale  = hlslpp::float3(2.1f, 2.1f, 2.1f);
-        playerTransform.dirty  = true;          // 初回計算のためフラグを立てる
-        playerTransform.parent = entt::null;    // 親なし
+        Tsukino::BuiltIn::ECS::TransformComponent&       playerTransform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
+        CombatAndroid::ECS::PlayerComponent&             player          = registry.GetComponent<CombatAndroid::ECS::PlayerComponent>(playerEntity);
+        CombatAndroid::ECS::PlayerAnimationSetComponent& animSet         = registry.GetComponent<CombatAndroid::ECS::PlayerAnimationSetComponent>(playerEntity);
 
-        // プレイヤーとして動かすためCharacterControllerComponentをつける
-        // （JumpGameSampleのカプセル(radius=35, halfHeight=70)と同じ規約に合わせる。
-        //   CharacterVirtualの重力計算は手動なので、gravityFactorで底上げしないとほぼ落下しない）
-        Tsukino::BuiltIn::ECS::CharacterControllerComponent& characterController =
-            registry.AddComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity);
-        characterController.radius        = 35.0f;
-        characterController.halfHeight    = 70.0f;
-        characterController.maxSlopeDeg   = 45.0f;
-        characterController.gravityFactor = 100.0f;    // 1ユニット=1cm換算でほぼ実重力(9.81m/s^2)相当
-        // jumpSpeedは設定しない（ジャンプは回避へ差し替えたため、jumpRequestedを立てる箇所が無い）
-        // カプセル中心をTransform位置から (halfHeight+radius) だけ上にずらし、
-        // Transform位置＝カプセル底面（足元）を表すようにする（モデルの足元原点と揃えるため）
-        characterController.centerOffset = hlslpp::float3(0.0f, characterController.halfHeight + characterController.radius, 0.0f);
-
-        //-------------------------------------------------------------
-        // プレイヤーはCharacterVirtual（Jolt物理のBodyではない仮想キャラクタ）で動いているため、
-        // NarrowPhaseQuery::CollideShape（=PhysicsSystem::OverlapCapsule）では検出できない。
-        // 敵の攻撃判定（CombatSystem）がプレイヤーを見つけられるよう、敵と同じ構成
-        // （Kinematic + isSensor）のセンサーカプセルを別途持たせる。isSensor=trueなので
-        // 物理的な押し出しは発生せず、移動は引き続きCharacterVirtualが担当する
-        //-------------------------------------------------------------
-        Tsukino::BuiltIn::ECS::RigidbodyComponent& playerRigidbody = registry.AddComponent<Tsukino::BuiltIn::ECS::RigidbodyComponent>(playerEntity);
-        playerRigidbody.type                                       = Tsukino::BuiltIn::ECS::RigidbodyType::Kinematic;
-
-        Tsukino::BuiltIn::ECS::CollisionComponent& playerCollision = registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(playerEntity);
-        playerCollision.type           = Tsukino::BuiltIn::ECS::ColliderType::Capsule;
-        playerCollision.extent         = hlslpp::float3(characterController.radius, characterController.halfHeight, 0.0f);
-        playerCollision.isSensor       = true;
-        playerCollision.offsetPosition = characterController.centerOffset;
-
-        // プレイヤーコンポーネントをつける（PlayerSystemが入力を読み取るための目印）
-        CombatAndroid::ECS::PlayerComponent& player = registry.AddComponent<CombatAndroid::ECS::PlayerComponent>(playerEntity);
-
-        // HPを持たせる（敵の攻撃当たり判定によるダメージ計算に使用）
-        registry.AddComponent<CombatAndroid::ECS::HealthComponent>(playerEntity);
-
-        // EXP・レベルを持たせる（画面左上のEXPバー表示、ExpOrbSystemの吸収先に使用）
-        registry.AddComponent<CombatAndroid::ECS::PlayerExperienceComponent>(playerEntity);
-
-        // 取得済みスキルを持たせる（レベルアップ時のスキル選択で伸ばし、ExpOrbSystem/CombatSystemが効果を読む）
-        registry.AddComponent<CombatAndroid::ECS::PlayerSkillComponent>(playerEntity);
-
-        // ModelComponent の追加
-        Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(playerEntity);
-        model.modelHandle                            = modelHandle;
-        model.visible                                = true;
-
-        // 溜め攻撃の段階表示（白→青→紫のリムライト）用。既定はactive=falseなので、溜めていない間は
-        // 通常のモデル描画に一切影響しない（PlayerAnimationSystemが溜め中のみ書き込む）
-        registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(playerEntity);
-
-        // アニメーションを再生・制御するコンポーネント（初期状態はIdle。以後はPlayerAnimationSystemが管理する）
-        Tsukino::BuiltIn::ECS::AnimationPlayerComponent& animPlayer = registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(playerEntity);
-        animPlayer.current_clip_id                                  = idleAnimHandle;
-        // index 0はMixamo製FBX共通の1tickスタブ、index 1が実モーション（PlayerAnimationSystemと合わせる）
-        animPlayer.animation_index                                  = 1;
-        animPlayer.elapsed_time                                     = 0.0f;
-        animPlayer.playback_speed                                   = 1.0f;
-        animPlayer.is_looping                                       = true;    // ループさせる
-        animPlayer.is_playing                                       = true;    // 再生状態にする
-        // In Placeの固定対象ノード名（Mixamoのリグ命名。WeaponComponent::handBoneNameと同じ流儀）。
-        // 空にすると自動判定（スキニング対象ボーンのうち最も浅いもの）にフォールバックする
-        animPlayer.root_motion_node_name                            = "mixamorig:Hips";
-
-        // クリップの切り替え（AnimationSystemが読む「次に再生するクリップ」の受け皿）
-        registry.AddComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(playerEntity);
-
-        // PlayerAnimationSystemが参照する、ステートごとのアニメーションクリップ一式
-        CombatAndroid::ECS::PlayerAnimationSetComponent& animSet = registry.AddComponent<CombatAndroid::ECS::PlayerAnimationSetComponent>(playerEntity);
-        animSet.idleClip                                      = idleAnimHandle;
-        animSet.runClip                                       = runAnimHandle;
-        animSet.fastRunClip                                   = fastRunAnimHandle;
-        animSet.dodgeClip                                     = dodgeAnimHandle;
-        animSet.deathClip                                     = deathAnimHandle;
-        animSet.currentState                                  = CombatAndroid::ECS::PlayerAnimState::Idle;
-
-        //-------------------------------------------------------------
-        // 回避（スペースキー）のチューニング値。攻撃の分割定数と同じく、実機で見ながら
-        // ここで詰める前提の初期値（_DEBUGビルドのPlayerAnimationSystemが出すDODGEログを見る）。
-        // dodgeInvincibleDurationは回避全体より短くして「終わり際は被弾する」ようにしている
-        //-------------------------------------------------------------
-        player.dodgeSpeed              = 600.0f;    // moveSpeed(300)の2倍
-        player.dodgePlaybackSpeed      = 1.5f;      // 前転を等速より速く。回避時間が1/1.5になり、進む距離も同じだけ縮む
-        player.dodgeInvincibleDuration = 0.3f;      // 実時間。dodgePlaybackSpeedを変えたら合わせて見直す
-        player.dodgeCooldown           = 0.3f;
-
-        // Hammer Attack.fbx は3回斬るモーションが1クリップ（30fps / 106フレーム = 3.5333秒）に
-        // 入っている。各段のstartTime/endTime/playbackSpeedは実機で見ながら個別に微調整する前提の
-        // 初期値（_DEBUGビルドのPlayerAnimationSystemが出すATTACKログとWeaponGripDebugSystemの
-        // F10/F11コマ送りで追い込む）。ループではなく段ごとに書き下すことで、1段ずつ独立して
-        // 長さ・速度を変えられるようにしている
-        constexpr float kAttackClipDuration = 3.5333f;
-        constexpr float kAttackStepLength   = kAttackClipDuration / 3.0f;    // 約1.178秒 ≒ 35.3フレーム
-        constexpr float kAttackPlaybackSpeed = 1.5f;    // 攻撃全体を等速より少し速く（1.0で従来通りの速さ）
-
-        animSet.attackSteps[0].clip           = hammerAttackAnimHandle;
-        animSet.attackSteps[0].animationIndex = 1;
-        animSet.attackSteps[0].startTime      = kAttackStepLength * 0.0f;
-        animSet.attackSteps[0].endTime        = kAttackStepLength * 1.0f;
-        animSet.attackSteps[0].playbackSpeed  = kAttackPlaybackSpeed;
-        // 攻撃モーションのルート前進を殺す（コリジョンから離れる/戻る瞬間に吸い寄せられる問題への対処）
-        animSet.attackSteps[0].inPlace        = true;
-        // 1段目は実時間で約0.785秒（kAttackStepLength(≈1.178秒)/playbackSpeed(1.5)）ある一方、
-        // hitWindowDurationを未設定のままだとWeaponComponent::activeDurationの既定値0.25秒に
-        // フォールバックし、振りの3割程度で判定窓が閉じてしまう（3段目と同じ問題。3段目は
-        // 下でhitWindowDurationを設定済みだが1段目は直し忘れていた）。暫定的に長めの値を
-        // 設定する。最終値は実機でF10/F11 + ATTACKログ（PlayerAnimationSystem）を見ながら詰めること
-        animSet.attackSteps[0].hitWindowDuration = 0.7f;
-
-        animSet.attackSteps[1].clip           = hammerAttackAnimHandle;
-        animSet.attackSteps[1].animationIndex = 1;
-        animSet.attackSteps[1].startTime      = kAttackStepLength * 1.0f;
-        animSet.attackSteps[1].endTime        = kAttackStepLength * 1.3f;
-        animSet.attackSteps[1].playbackSpeed  = kAttackPlaybackSpeed;
-        animSet.attackSteps[1].inPlace        = true;
-
-        animSet.attackSteps[2].clip           = hammerAttackAnimHandle;
-        animSet.attackSteps[2].animationIndex = 1;
-        animSet.attackSteps[2].startTime      = kAttackStepLength * 1.3f;
-        animSet.attackSteps[2].endTime        = kAttackClipDuration;
-        animSet.attackSteps[2].playbackSpeed  = kAttackPlaybackSpeed;
-        animSet.attackSteps[2].inPlace        = true;
-        // 3段目は他の2段よりモーションが長い（実時間約1.34秒）ため、固定0.25秒の判定窓では
-        // 斬撃が敵へ届く前にヒット判定が閉じてしまう。暫定的に長めの値を設定する。
-        // 最終値は実機でF10/F11 + ATTACKログ（PlayerAnimationSystem）を見ながら詰めること
-        animSet.attackSteps[2].hitWindowDuration = 0.6f;
-        // 3段目（フィニッシュ）だけ重い一撃としてダメージを2倍にする。
-        // 敵のknockbackDamageThresholdと組み合わせて「重い武器の3段目だけノックバックする」を実現する
-        animSet.attackSteps[2].damageMultiplier   = 2.0f;
-        // 3段目はAoE(範囲攻撃)を要求する段として扱う。実際に発動するのは装備武器が
-        // WeaponComponent::areaAttackRadius>0を持つ場合のみ（下でwarhammerにのみ設定）
-        animSet.attackSteps[2].areaAttack      = true;
-        animSet.attackSteps[2].areaAttackDelay = 0.35f;    // 実機でF10/F11 + AoEデバッグ円（マゼンタ）を見ながら調整する
-
-        Tsukino::BuiltIn::ECS::SpringBoneComponent& springBone = registry.AddComponent<Tsukino::BuiltIn::ECS::SpringBoneComponent>(playerEntity);
-
-        Tsukino::BuiltIn::ECS::SpringBoneComponent::ChainDef breastL;
-        breastL.name                   = "Breast_L";
-        breastL.rootNodeName           = "Breast_L";
-        breastL.maxDepth               = 1;
-        breastL.settings.stiffness     = 0.35f;    // リアル(0.55)より少し柔らかく、揺れ幅を出す
-        breastL.settings.drag          = 0.13f;    // 収まりをやや長めに（2〜3往復くらい残る）
-        breastL.settings.inertia       = 0.5f;     // 体の動きに対して、わずかに「置いていかれる」感を演出
-        breastL.settings.gravityScale  = 1.0f;
-        breastL.settings.angleLimitDeg = 26.0f;
-        springBone.chainDefs.push_back(breastL);
-
-        Tsukino::BuiltIn::ECS::SpringBoneComponent::ChainDef breastR;
-        breastR.name                   = "Breast_R";
-        breastR.rootNodeName           = "Breast_R";
-        breastR.maxDepth               = 1;
-        breastR.settings.stiffness     = 0.35f;
-        breastR.settings.drag          = 0.13f;
-        breastR.settings.inertia       = 0.5f;
-        breastR.settings.gravityScale  = 1.0f;
-        breastR.settings.angleLimitDeg = 26.0f;
-        springBone.chainDefs.push_back(breastR);
-
-        // 計算されたボーン行列の出力先（スキニング用）コンポーネント
-        Tsukino::BuiltIn::ECS::SkeletonOutputComponent& skeletonOutput = registry.AddComponent<Tsukino::BuiltIn::ECS::SkeletonOutputComponent>(playerEntity);
+        // 最初に再生するクリップは待機（以後はPlayerAnimationSystemが管理する）
+        registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(playerEntity).current_clip_id = animSet.idleClip;
 
         //--------------------------------------------------------------
         // 武器エンティティ生成。
@@ -432,19 +216,9 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
 
         //--------------------------------------------------------------
-        // 2Dカメラエンティティの生成
+        // 画面固定UI用の2Dカメラ（Prefab: UiCamera2D）
         //--------------------------------------------------------------
-        Tsukino::ECS::Entity cameraEntity2D = m_scene.CreateEntity();
-
-        // TransformComponent (カメラの位置)
-        Tsukino::BuiltIn::ECS::TransformComponent& camTransform2D = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(cameraEntity2D);
-        camTransform2D.position                                   = hlslpp::float3(0.0f, 0.0f, -1.0f);    // 手前に引く
-
-        // CameraComponent (投影設定)
-        Tsukino::BuiltIn::ECS::CameraComponent& camera2D = registry.AddComponent<Tsukino::BuiltIn::ECS::CameraComponent>(cameraEntity2D);
-        camera2D.projectionType                          = Tsukino::BuiltIn::ECS::CameraComponent::ProjectionType::Orthographic;
-        camera2D.orthoSize                               = 1000.0f;    // 画面の縦幅を 720 ユニットにする
-        camera2D.isPrimary                               = false;      // これをメインカメラにしない
+        CombatAndroid::ECS::InstantiateUiCamera2D(registry, *context);
 
         //--------------------------------------------------------------
         // 操作を促すUI（キーキャップ・マウス・矢印・長押しゲージ）一式の生成。
@@ -502,94 +276,40 @@ namespace CombatAndroid {
         // そのハンドラでエンティティを生成するとEnTTのイテレータが壊れる。
         // DamageNumberSystemはここで作ったスロットの空きを探して再利用する
         //--------------------------------------------------------------
-        for(int i = 0; i < CombatAndroid::ECS::kDamageNumberPoolSize; ++i) {
-            Tsukino::ECS::Entity damageNumberEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& damageNumberTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(damageNumberEntity);
-            damageNumberTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
-            damageNumberTransform.dirty = true;
-
-            Tsukino::BuiltIn::ECS::WorldAnchorComponent& damageNumberAnchor =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(damageNumberEntity);
-            damageNumberAnchor.target = entt::null;    // 以後DamageNumberSystemがfixedWorldPositionを使う
-
-            Tsukino::BuiltIn::ECS::FontComponent& damageNumberFont =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(damageNumberEntity);
-            damageNumberFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
-            damageNumberFont.sortOrder = CombatAndroid::UI::kDamageNumber;
-            // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われる
-
-            registry.AddComponent<CombatAndroid::ECS::DamageNumberComponent>(damageNumberEntity);
-        }
+        //
+        // Prefab（UI/DamageNumber）：スケール0（未使用スロットは非表示）・空文字の文字＋WorldAnchor
+        // （以後DamageNumberSystemがfixedWorldPositionを使う）
+        //--------------------------------------------------------------
+        for(int i = 0; i < CombatAndroid::ECS::kDamageNumberPoolSize; ++i)
+            (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/DamageNumber");
 
         //--------------------------------------------------------------
         // EXP玉用エンティティのプール。ダメージ数値と同じく毎フレーム生成せず固定数を使い回す。
         // EnemyDiedEventはビヘイビアツリーのアクション（View反復中）からPublishされるため、
-        // ExpOrbSystemはここで作ったスロットの空きを探して再利用する
+        // ExpOrbSystemはここで作ったスロットの空きを探して再利用する。
+        //
+        // Prefab（UI/ExpOrb）：3Dワールド上を落下・飛行する演出のため、WorldAnchorComponent（画面固定UI用）は使わず、
+        // SpriteComponent.space=Worldでpositionを直接3D座標として扱い、主カメラを向く
+        // ビルボードとして深度テストされる形で描画する（敵の後ろに回ったら正しく隠れる）。加算合成で発光して見せる
         //--------------------------------------------------------------
-        {
-            Tsukino::Asset::AssetHandle expOrbTextureHandle =
-                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/ExpOrb.png"));
-
-            for(int i = 0; i < CombatAndroid::ECS::kExpOrbPoolSize; ++i) {
-                Tsukino::ECS::Entity expOrbEntity = m_scene.CreateEntity();
-
-                Tsukino::BuiltIn::ECS::TransformComponent& expOrbTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(expOrbEntity);
-                expOrbTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
-                expOrbTransform.dirty = true;
-
-                // 3Dワールド上を落下・飛行する演出のため、WorldAnchorComponent（画面固定UI用）は使わず、
-                // SpriteComponent.space=Worldでpositionを直接3D座標として扱い、主カメラを向く
-                // ビルボードとして深度テストされる形で描画する（敵の後ろに回ったら正しく隠れる）
-                Tsukino::BuiltIn::ECS::SpriteComponent& expOrbSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(expOrbEntity);
-                expOrbSprite.textureHandle = expOrbTextureHandle;
-                expOrbSprite.blendMode     = Tsukino::BuiltIn::ECS::SpriteBlendMode::Additive;    // 発光して見えるよう加算合成にする
-                expOrbSprite.space         = Tsukino::BuiltIn::ECS::SpriteSpace::World;
-                expOrbSprite.sortOrder     = CombatAndroid::UI::World::kExpOrb;    // 同じWorldパス内の他スプライトより手前に描く
-
-                registry.AddComponent<CombatAndroid::ECS::ExpOrbComponent>(expOrbEntity);
-            }
-        }
+        for(int i = 0; i < CombatAndroid::ECS::kExpOrbPoolSize; ++i)
+            (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/ExpOrb");
 
         //--------------------------------------------------------------
         // 画面左上のプレイヤーHP/EXPバー。WorldAnchorComponentは使わず固定ピクセル座標に置き、
         // PlayerHudSystemが毎フレームHealthComponent/PlayerExperienceComponentの値へ合わせて更新する
         //--------------------------------------------------------------
         {
-            Tsukino::Asset::AssetHandle hudBarTextureHandle =
-                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
-
+            // Prefab（UI/HudBar）：白い1ピクセル。実際の位置・スケール・色はPlayerHudSystemが毎フレーム書く。
+            // 描画順（背景／残量／スキルアイコン）だけ個体ごとに変える
             auto makeBarSprite = [&](int sortOrder) {
-                Tsukino::ECS::Entity barEntity = m_scene.CreateEntity();
-
-                Tsukino::BuiltIn::ECS::TransformComponent& barTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(barEntity);
-                barTransform.dirty = true;    // 実際の位置・スケールはPlayerHudSystemが毎フレーム書く
-
-                Tsukino::BuiltIn::ECS::SpriteComponent& barSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(barEntity);
-                barSprite.textureHandle = hudBarTextureHandle;
-                barSprite.sortOrder     = sortOrder;
-
+                Tsukino::ECS::Entity barEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/HudBar");
+                registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(barEntity).sortOrder = sortOrder;
                 return barEntity;
             };
 
-            auto makeHudText = [&]() {
-                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
-
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
-
-                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
-                font.text                                   = L"";
-                font.color                                  = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-                font.outlineColor                           = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-                font.outlineWidth                           = 2.0f;
-                font.verticalAlign                          = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder                              = CombatAndroid::UI::kHudText;    // バーより手前に描く
-
-                return textEntity;
-            };
+            // Prefab（UI/HudText）：白文字・黒縁取り・バーより手前
+            auto makeHudText = [&]() { return CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/HudText"); };
 
             // 走行の経過時間と危険度ランク。RunClockSystemだけが書き込み、
             // PlayerHudSystem（表示）とEnemySpawnDirectorSystem（敵の強化）が読む
@@ -610,22 +330,13 @@ namespace CombatAndroid {
             //-------------------------------------------------------------
             float survivalTimeScreenCenterX = context->window ? static_cast<float>(context->window->GetWidth()) * 0.5f : 850.0f;
 
-            Tsukino::ECS::Entity survivalTimeEntity = m_scene.CreateEntity();
+            // Prefab（UI/HudTopText）：中央・上揃えの白文字
+            Tsukino::ECS::Entity survivalTimeEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/HudTopText");
 
             Tsukino::BuiltIn::ECS::TransformComponent& survivalTimeTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(survivalTimeEntity);
+                registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(survivalTimeEntity);
             survivalTimeTransform.position = hlslpp::float3(survivalTimeScreenCenterX, 24.0f, 0.0f);
-            survivalTimeTransform.dirty     = true;
-
-            Tsukino::BuiltIn::ECS::FontComponent& survivalTimeFont =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(survivalTimeEntity);
-            survivalTimeFont.text              = L"";
-            survivalTimeFont.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-            survivalTimeFont.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-            survivalTimeFont.outlineWidth      = 2.0f;
-            survivalTimeFont.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
-            survivalTimeFont.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Top;
-            survivalTimeFont.sortOrder         = CombatAndroid::UI::kHudText;
+            survivalTimeTransform.dirty    = true;
 
             hud.survivalTimeTextEntity = survivalTimeEntity;
 
@@ -637,22 +348,12 @@ namespace CombatAndroid {
             //! 生存時間テキストの上端からの縦オフセット（ピクセル）。フォントの行高ぶん下げる
             constexpr float kDangerRankTextOffsetY = 34.0f;
 
-            Tsukino::ECS::Entity dangerRankEntity = m_scene.CreateEntity();
+            Tsukino::ECS::Entity dangerRankEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/HudTopText");
 
             Tsukino::BuiltIn::ECS::TransformComponent& dangerRankTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(dangerRankEntity);
+                registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(dangerRankEntity);
             dangerRankTransform.position = hlslpp::float3(survivalTimeScreenCenterX, 24.0f + kDangerRankTextOffsetY, 0.0f);
-            dangerRankTransform.dirty     = true;
-
-            Tsukino::BuiltIn::ECS::FontComponent& dangerRankFont =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(dangerRankEntity);
-            dangerRankFont.text              = L"";
-            dangerRankFont.color              = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-            dangerRankFont.outlineColor      = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-            dangerRankFont.outlineWidth      = 2.0f;
-            dangerRankFont.horizontalAlign  = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
-            dangerRankFont.verticalAlign    = Tsukino::BuiltIn::ECS::VerticalAlign::Top;
-            dangerRankFont.sortOrder         = CombatAndroid::UI::kHudText;
+            dangerRankTransform.dirty    = true;
 
             hud.dangerRankTextEntity = dangerRankEntity;
 
@@ -684,56 +385,21 @@ namespace CombatAndroid {
         // 位置・大きさ・色は全てGameLogSystemが毎フレーム画面サイズから計算して書くため、
         // ここでは非表示（スケール0／空文字）の状態だけ作っておく
         //--------------------------------------------------------------
-        {
-            Tsukino::Asset::AssetHandle gameLogTextureHandle =
-                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
+        //
+        // Prefab：UI/GameLogPanel（パネル＋GameLogComponent）・UI/GameLogAccent（種別色バー）・
+        // UI/GameLogText（左揃えの文字。パネル・バーより手前）
+        //--------------------------------------------------------------
+        for(int i = 0; i < CombatAndroid::ECS::kGameLogPoolSize; ++i) {
+            // 4つとも作り切ってから結ぶ。生成の途中で得た参照は格納先が動いて無効になり得る
+            Tsukino::ECS::Entity panelEntity  = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/GameLogPanel");
+            Tsukino::ECS::Entity accentEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/GameLogAccent");
+            Tsukino::ECS::Entity labelEntity  = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/GameLogText");
+            Tsukino::ECS::Entity textEntity   = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/GameLogText");
 
-            auto makeGameLogSprite = [&](int sortOrder) {
-                Tsukino::ECS::Entity spriteEntity = m_scene.CreateEntity();
-
-                Tsukino::BuiltIn::ECS::TransformComponent& spriteTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(spriteEntity);
-                spriteTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // 未使用スロットは非表示
-                spriteTransform.dirty = true;
-
-                Tsukino::BuiltIn::ECS::SpriteComponent& sprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(spriteEntity);
-                sprite.textureHandle                           = gameLogTextureHandle;
-                sprite.sortOrder                               = sortOrder;
-
-                return spriteEntity;
-            };
-
-            auto makeGameLogText = [&]() {
-                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
-
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
-
-                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
-                font.text                                  = L"";    // 空文字の間はFontRendererSystemが描画しない
-                font.outlineColor                          = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
-                font.outlineWidth                          = 2.0f;
-                font.horizontalAlign                       = Tsukino::BuiltIn::ECS::HorizontalAlign::Left;
-                font.verticalAlign                         = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder                             = CombatAndroid::UI::kGameLogText;    // パネル・バーより手前に描く
-                // fontHandle未設定 → builtinAssets->fonts.defaultFont（Default.dfont）が使われるため
-                // 日本語をそのまま渡してよい
-
-                return textEntity;
-            };
-
-            for(int i = 0; i < CombatAndroid::ECS::kGameLogPoolSize; ++i) {
-                // 4つとも作り切ってからGameLogComponentを付ける。先に付けてしまうと、
-                // 残りの生成中に得た参照が生きているかどうかを気にする必要が出る
-                Tsukino::ECS::Entity panelEntity  = makeGameLogSprite(CombatAndroid::UI::kGameLogPanel);
-                Tsukino::ECS::Entity accentEntity = makeGameLogSprite(CombatAndroid::UI::kGameLogAccent);
-                Tsukino::ECS::Entity labelEntity  = makeGameLogText();
-                Tsukino::ECS::Entity textEntity   = makeGameLogText();
-
-                CombatAndroid::ECS::GameLogComponent& gameLog = registry.AddComponent<CombatAndroid::ECS::GameLogComponent>(panelEntity);
-                gameLog.accentEntity                          = accentEntity;
-                gameLog.labelEntity                           = labelEntity;
-                gameLog.textEntity                            = textEntity;
-            }
+            CombatAndroid::ECS::GameLogComponent& gameLog = registry.GetComponent<CombatAndroid::ECS::GameLogComponent>(panelEntity);
+            gameLog.accentEntity                          = accentEntity;
+            gameLog.labelEntity                           = labelEntity;
+            gameLog.textEntity                            = textEntity;
         }
 
         //--------------------------------------------------------------
@@ -932,33 +598,12 @@ namespace CombatAndroid {
         // TPS（三人称視点）カメラエンティティの生成
         // プレイヤーの背後に追従するメインカメラ（isPrimary = true）
         //--------------------------------------------------------------
+        // Prefab: TpsCamera（Transform・Camera・TpsCamera・MotionBlur）。
+        // MotionBlurComponentを外せばモーションブラーごと無効になる。strengthはAttackMotionBlurSystemが
+        // 攻撃の進行度に応じて毎フレーム上書きする。追従対象だけは実体が要るのでここで結ぶ
         {
-            Tsukino::ECS::Entity tpsCameraEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& tpsCamTransform = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(tpsCameraEntity);
-            tpsCamTransform.position                                   = playerTransform.position + hlslpp::float3(0.0f, 200.0f, -400.0f);
-            tpsCamTransform.dirty                                      = true;
-
-            Tsukino::BuiltIn::ECS::CameraComponent& tpsCam = registry.AddComponent<Tsukino::BuiltIn::ECS::CameraComponent>(tpsCameraEntity);
-            tpsCam.projectionType                          = Tsukino::BuiltIn::ECS::CameraComponent::ProjectionType::Perspective;
-            tpsCam.fov                                     = 60.0f;
-            tpsCam.nearZ                                   = 0.3f;
-            tpsCam.farZ                                    = 2000.0f;
-            tpsCam.useLookAt                               = true;
-            tpsCam.lookAtTarget                            = playerTransform.position;
-            tpsCam.isPrimary                               = true;
-
-            CombatAndroid::ECS::TpsCameraComponent& tpsCameraComponent = registry.AddComponent<CombatAndroid::ECS::TpsCameraComponent>(tpsCameraEntity);
-            tpsCameraComponent.target                               = playerEntity;
-
-            //----------------------------------------------------------
-            // モーションブラー（オブジェクト速度バッファ方式）
-            // このコンポーネントを外せばモーションブラーごと無効になる。
-            // strengthはAttackMotionBlurSystemが攻撃の進行度に応じて毎フレーム上書きする。
-            //----------------------------------------------------------
-            Tsukino::BuiltIn::ECS::MotionBlurComponent& motionBlur = registry.AddComponent<Tsukino::BuiltIn::ECS::MotionBlurComponent>(tpsCameraEntity);
-            motionBlur.maxBlurRadius                               = 0.03f;
-            motionBlur.sampleCount                                 = 8;
+            Tsukino::ECS::Entity tpsCameraEntity = context->prefabFactory->Instantiate("CombatAndroid/Assets/Prefabs/TpsCamera/Prefab.json", registry);
+            registry.GetComponent<CombatAndroid::ECS::TpsCameraComponent>(tpsCameraEntity).target = playerEntity;
         }
 
         //--------------------------------------------------------------
@@ -986,201 +631,6 @@ namespace CombatAndroid {
             registry.AddComponent<Tsukino::BuiltIn::ECS::DebugCameraTag>(debugCamEntity);
         }
 #endif
-
-        //--------------------------------------------------------------
-        // ディレクショナルライトエンティティの生成
-        //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity                              lightEntity = m_scene.CreateEntity();
-            Tsukino::BuiltIn::ECS::DirectionalLightComponent& light = registry.AddComponent<Tsukino::BuiltIn::ECS::DirectionalLightComponent>(lightEntity);
-            light.direction                                         = hlslpp::float3(0.0f, -0.5f, -1.0f);
-            light.color                                             = hlslpp::float3(1.0f, 1.0f, 1.0f);
-            light.intensity                                         = 5.0f;
-            light.castShadow                                        = true;
-        }
-
-        //--------------------------------------------------------------
-        // スカイアトモスフィアエンティティの生成
-        //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity skyEntity = m_scene.CreateEntity();
-            registry.AddComponent<Tsukino::BuiltIn::ECS::SkyAtmosphereComponent>(skyEntity);
-        }
-
-        //--------------------------------------------------------------
-        // フォグエンティティの生成
-        //
-        // FogComponentのデフォルトは「1ユニット = 1m」想定なので、
-        // このシーンのスケール（TPSカメラがプレイヤーの400ユニット後方、
-        // 200ユニット上）に合わせて距離系のパラメータを入れ直す。
-        //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity fogEntity = m_scene.CreateEntity();
-            auto&                fog       = registry.AddComponent<Tsukino::BuiltIn::ECS::FogComponent>(fogEntity);
-
-            // 距離フォグ：戦闘範囲（〜500）は素通しで、そこから奥を徐々に霞ませる。
-            // EnemySpawnDirectorSystemの湧き半径（900〜1300）を隠す役目は、
-            // heightDensityではなくdensity（startDistance=500以遠にしか効かない）に寄せてある。
-            // heightDensityは地面の高さに一様にかかるため、上げると湧きを隠す前に
-            // 足元の草の色まで灰色へ潰してしまう（既定値は 0.00030 / 0.00050）
-            // 霧の色はHDR値なので、草より明るいと「霞ませる」ではなく「上から塗る」に
-            // なってしまう。0.55/0.60/0.65は草の中間シェードより明るく、かつBが最大で
-            // 彩度を直接殺していたため、草の明るさより下かつ青寄りを弱めた値にしてある
-            fog.color         = hlslpp::float3(0.42f, 0.46f, 0.52f);
-            fog.density       = 0.00105f;
-            fog.startDistance = 500.0f;
-            fog.maxOpacity    = 1.0f;
-
-            // 高さフォグ：地面（y = -5）付近に溜め、カメラの高さ（y ≒ 205）では薄くする。
-            // 近景の草が色を保てる上限として 0.00018 に置いている
-            fog.heightFogEnabled = true;
-            fog.height           = 0.0f;
-            fog.heightFalloff    = 0.004f;
-            fog.heightDensity    = 0.00018f;
-
-            // 太陽方向の前方散乱
-            fog.sunColor        = hlslpp::float3(1.0f, 0.85f, 0.65f);
-            fog.sunScatterPower = 8.0f;
-
-            // ノイズ：700ユニット程度の塊がゆっくり流れる
-            fog.noiseEnabled   = true;
-            fog.noiseScale     = 0.0015f;
-            fog.noiseIntensity = 0.50f;
-            fog.windDirection  = hlslpp::float3(1.0f, 0.0f, 0.3f);
-            fog.windSpeed      = 60.0f;
-        }
-
-        //--------------------------------------------------------------
-        // 環境パーティクル（火の粉・灰）エンティティの生成
-        //
-        // 粒子はカメラを中心としたボリュームで折り返されるので、この1エンティティ
-        // だけでプレイヤーがどこへ動いても空間全体が埋まり続ける。
-        // ボリュームはTPSカメラの視界（farZ = 2000）に収まる大きさにし、
-        // フォグの開始距離（500）を跨がせて「奥の粒ほど霞んで消える」ようにしている
-        //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity particleEntity = m_scene.CreateEntity();
-            auto&                particles      = registry.AddComponent<Tsukino::BuiltIn::ECS::AmbientParticleComponent>(particleEntity);
-
-            particles.count      = 3000;
-            particles.volumeSize = hlslpp::float3(2400.0f, 900.0f, 2400.0f);
-
-            //--------------------------------------------------------------
-            // ここから下が「火の粉に見せる」ための値。
-            // エンジンが持っているのは「GPUで大量の板を漂わせる仕組み」までで、
-            // 何に見えるかはこのブロックが決めている（既定値は無色の白なので、
-            // 色と速度を変えれば塵にも雪にも胞子にもなる）。
-            //
-            // 暖色。HDRバッファへ加算するので、明るい芯はトーンマップで白へ寄る
-            //--------------------------------------------------------------
-            particles.color         = hlslpp::float3(1.0f, 0.32f, 0.06f);
-            particles.intensity     = 1.0f;
-            particles.minSize       = 0.8f;
-            particles.maxSize       = 3.5f;
-            particles.minBrightness = 0.15f;
-            particles.maxBrightness = 1.6f;
-            particles.twinkle       = 0.6f;
-
-            // 上昇させるのが火の粉らしさの肝。横方向はフォグの風（+X）と揃えて
-            // 空気全体が同じ向きに流れて見えるようにする
-            particles.driftVelocity = hlslpp::float3(10.0f, 20.0f, 3.0f);
-            particles.swayAmplitude = 14.0f;
-            particles.swayFrequency = 0.8f;
-            particles.minSpeedScale = 0.35f;
-            particles.maxSpeedScale = 1.7f;
-
-            particles.edgeFadeStart    = 0.65f;
-            particles.nearFadeDistance = 60.0f;
-        }
-
-        //--------------------------------------------------------------
-        // 地面の草。
-        // カメラを中心にした正方形の中だけへ生やし、カメラが動くと格子が
-        // 追従する。1本ごとの位置はワールド座標のハッシュから決まるので、
-        // 追従しても草は地面に固定されたまま見える。
-        //
-        // 密で細い近景と、疎で太い遠景の2層で、TPSカメラの視界の端まで敷く
-        //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity grassEntity = m_scene.CreateEntity();
-            auto&                grass       = registry.AddComponent<CombatAndroid::ECS::GrassFieldComponent>(grassEntity);
-
-            // 近景は一辺3600（＝中心から1800）。本数はkMaxGrassBlades(65536)近くまで積んだ上で、
-            // 地肌が見えないよう手前の草そのものも太くする（本数だけでは1本あたりの
-            // footprint が細いままなので、隣接する株の間に隙間が残ってしまう）
-            grass.bladeCount = 65000;
-            grass.fieldSize  = 6000.0f;
-
-            // 遠景は地平線まで。近景との比率（約1.5倍）を保って拡大し、外周フェードの
-            // 絶対距離も比例して遠くなるようにする（下のfadeStartRatioは比率なので変更不要）。
-            // 遠景の草は面積あたりの本数が近景より少ないので、GrassFieldSystemが幅を自動的に太らせる
-            grass.farFieldSize  = 9000.0f;
-            grass.farBladeCount = 65000;
-
-            // 敵の湧き半径（900〜1300、上のフォグのコメント参照）の外側に十分な余裕を
-            // 持たせ、通常の戦闘中には近景→遠景の切替帯（太さが変わって見える）へ
-            // 入らないようにする。帯の幅も400→600に広げ、入れ替わりを緩やかにする
-            // （近景の外周3000より内側で終える）
-            grass.lodBlendStart = 2200.0f;
-            grass.lodBlendEnd   = 2800.0f;
-
-            // lodBlendStart/Endとの相対位置（従来の「400手前から埋め始め、切替完了と
-            // 同時に埋めきる」関係）を維持してスケールする
-            grass.horizonFillStart = 1500.0f;
-            grass.horizonFillEnd   = 2800.0f;
-
-            // プレイヤーの身長が210ユニットなので、標準種で膝下くらいの丈になる
-            grass.bladeWidth        = 5.5f;    // 種のwidthScaleが掛かる基準幅。地肌が見えないよう3.5→5.5に増やした
-            grass.heightVariance    = 0.35f;
-            grass.groundHeight      = 0.0f;    // 地面コライダーの上面
-            grass.distantWidthBoost = 2.5f;    // 外周では幅3.5倍。遠景の隙間を埋める
-
-            // 3種の草を塊で生やす。根元を暗く先端を明るくして株の立体感を出す
-            // （草の間に光が届かない遮蔽そのものはGrassFieldSystemのAOランプが担当する）。
-            //
-            // Bを低めに置いてあるのは、空由来のアンビエントが青に偏っていて
-            // 実効ゲインがR:0.78 / G:0.87 / B:1.08と青だけ3割強いため。
-            // 「全体を明るくする」方向で彩度を出そうとすると露出後の値がACESのニーに
-            // 乗って先に白くなるので、RとBを削ってGを残すほうが鮮やかに見える
-            grass.species[0] = {34.0f, 1.00f, hlslpp::float3(0.07f, 0.30f, 0.05f),
-                                hlslpp::float3(0.30f, 0.66f, 0.13f)};    // 標準の緑
-            grass.species[1] = {22.0f, 0.85f, hlslpp::float3(0.14f, 0.22f, 0.04f),
-                                hlslpp::float3(0.52f, 0.56f, 0.10f)};    // 丈の低い、乾いた黄金色
-            grass.species[2] = {46.0f, 1.15f, hlslpp::float3(0.03f, 0.17f, 0.04f),
-                                hlslpp::float3(0.12f, 0.46f, 0.14f)};    // 丈の高い、濃い緑
-
-            // 草は半径0.6〜2.5mの不定形の草むらにまとめて、ランダムな位置へ散らす。
-            // 正方形の区画で種を切り替えていた頃は田んぼの碁盤目に見えていた。
-            // 塊の間は土の地面を見せつつ、短い草をまばらに残して草原の連続感を保つ
-            grass.clumpRadiusMin    = 60.0f;
-            grass.clumpRadiusMax    = 250.0f;
-            grass.clumpSpawnChance  = 0.8f;
-            grass.clumpShapeNoise   = 0.25f;
-            grass.clumpEdgeSoftness = 0.35f;
-            grass.fillerDensity     = 0.12f;
-            grass.fillerHeightScale = 0.45f;
-
-            // 風向きはフォグのノイズ（下のwindDirection）と揃える。
-            // ここがずれると、霧と草が別々の風になびいて世界が壊れる
-            grass.windDirection = hlslpp::float3(1.0f, 0.0f, 0.3f);
-            grass.windStrength  = 0.4f;
-
-            // 6.5m間隔の突風の波が秒速3.2mで草原を走っていく
-            grass.gustWavelength = 650.0f;
-            grass.gustSpeed      = 320.0f;
-            grass.gustStrength   = 0.55f;
-
-            grass.swaySpeed    = 3.0f;
-            grass.swayStrength = 0.15f;
-
-            // プレイヤーのカプセル半径が35なので、体の周りが押し広げられる余裕を持たせる
-            grass.playerPushRadius   = 90.0f;
-            grass.playerPushStrength = 1.2f;
-
-            // 遠景の外周（4500）の手前、4185から背を縮める。farFieldSize拡大に比率で
-            // 追従するので、正面の地平線（奥行き2000）より十分外側のまま保たれる
-            grass.fadeStartRatio = 0.93f;
-        }
     }
 
     //-------------------------------------------------------------

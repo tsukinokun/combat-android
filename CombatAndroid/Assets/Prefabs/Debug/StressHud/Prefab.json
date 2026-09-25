@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "EnemyStressTestComponent",
+            "value": "null"
+        },
+        {
+            "key": "FontComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/StressHud/FontComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Debug/StressHud/TransformComponent.json"
+        }
+    ]
+}

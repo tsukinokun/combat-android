@@ -1,0 +1,7 @@
+{
+    "ModelComponent": {
+        "modelHandle": "CombatAndroid/Assets/Models/Player.fbx",
+        "visible": true,
+        "opacity": 1.0
+    }
+}

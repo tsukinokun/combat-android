@@ -10,6 +10,7 @@
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Engine/Asset/AssetHandle.hpp>
+#include <Tsukino/Engine/Asset/AssetRef.hpp>
 
 #include <hlsl++.h>
 
@@ -199,7 +200,7 @@ namespace CombatAndroid::ECS {
         // 流儀でインスタンスごとに値を設定する（warhammerのスポーン箇所のみ設定）
         //-------------------------------------------------------------
         float areaAttackRadius = 0.0f;    //!< AoE判定半径。0ならこの武器はAoE非対応
-        Tsukino::Asset::AssetHandle areaAttackEffectAsset;    //!< AoE発動時に再生するEffekseerエフェクト（未設定なら再生しない）
+        Tsukino::Asset::AssetRef    areaAttackEffectAsset;    //!< AoE発動時に再生するEffekseerエフェクト（未設定なら再生しない）
         Tsukino::Core::Path         areaAttackEffectPath;      //!< 上記エフェクトのファイルパス（EffectSystem::PlayEffectのテクスチャ解決に使う）
         float areaAttackEffectScale = 1.0f;    //!< 上記エフェクトの再生スケール。本作は1ユニット≒1cm規約だがEffekseer側は
                                                  //!< メートル単位で作られるため、単位合わせに100前後の値が要る（実機で見ながら調整する）
@@ -214,7 +215,7 @@ namespace CombatAndroid::ECS {
         // ノックバック（この武器が当てたときに敵へ与える怯み・押し出し）。
         // 全て0/falseなら従来どおり「敵のknockbackDamageThresholdを超えた一撃だけがその場で怯む」。
         // 重くて遅い武器（greatsword）は閾値を無視して必ず怯ませ、さらに位置を押し出す。
-        // areaAttackRadius等と同じ流儀でインスタンスごとにWeaponSpawnDefinitionから焼き込む
+        // areaAttackRadius等と同じ流儀でインスタンスごとに武器Prefab（Assets/Prefabs/Weapon/）から読む
         //-------------------------------------------------------------
         bool  knockbackIgnoresThreshold = false;    //!< trueなら敵のknockbackDamageThresholdを無視して必ず怯ませる
         float knockbackSpeed            = 0.0f;      //!< 通常ヒットの押し出し初速（ユニット/秒）。0なら位置を動かさず怯むだけ
@@ -228,7 +229,7 @@ namespace CombatAndroid::ECS {
         // weaponId/WeaponTable経由では持たず、areaAttack等と同じ流儀でインスタンスごとに
         // 設定する（great swordのスポーン箇所のみ設定）
         //-------------------------------------------------------------
-        Tsukino::Asset::AssetHandle attackClip;    //!< 未設定ならこの武器は既定クリップ（Hammer Attack）を使う
+        Tsukino::Asset::AssetRef    attackClip;    //!< 未設定ならこの武器は既定クリップ（Hammer Attack）を使う
         Tsukino::u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
         float attackStepStartTime[PlayerAnimationSetComponent::kAttackComboCount] = {};    //!< 各段の再生開始時刻（秒）
         float attackStepEndTime[PlayerAnimationSetComponent::kAttackComboCount]   = {};    //!< 各段の再生終了時刻（秒）
@@ -242,11 +243,11 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         // 斬撃弾。溜め攻撃を解放したときだけ、前方へ飛ぶ攻撃判定（ProjectileComponent）を
-        // 1発生成する。areaAttack一式と同じ流儀で、WeaponSpawnDefinitionからインスタンスごとに
+        // 1発生成する。areaAttack一式と同じ流儀で、武器Prefab（Assets/Prefabs/Weapon/）からインスタンスごとに
         // 焼き込む（battleaxeのみ有効値が入る）。
         // 見た目のエフェクトは弾エンティティのEffectComponentが持ち、弾のTransformへ追従する
         //-------------------------------------------------------------
-        Tsukino::Asset::AssetHandle projectileEffectAsset;    //!< 弾の見た目に使うエフェクト（未設定ならこの武器は斬撃弾を撃たない）
+        Tsukino::Asset::AssetRef    projectileEffectAsset;    //!< 弾の見た目に使うエフェクト（未設定ならこの武器は斬撃弾を撃たない）
         Tsukino::Core::Path         projectileEffectPath;      //!< 上記のパス（EffectSystemのテクスチャ解決に使う）
         float projectileEffectScale     = 1.0f;      //!< 上記の再生スケール（1ユニット≒1cm規約への単位合わせに100前後が要る）
         float projectileEffectPlaySpeed = 1.0f;      //!< 上記の再生速度（1.0未満でゆっくり再生される）

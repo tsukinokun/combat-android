@@ -6,6 +6,7 @@
 #include <CombatAndroid/Scene/TitleScene.hpp>
 
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
@@ -99,20 +100,9 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), 4);
 
         //--------------------------------------------------------------
-        // 画面固定UI用の2Dカメラ（タイトル・戦闘シーンと同じ設定）
+        // 画面固定UI用の2Dカメラ（Prefab: UiCamera2D。タイトル・戦闘シーンと共通）
         //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity cameraEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& cameraTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(cameraEntity);
-            cameraTransform.position = hlslpp::float3(0.0f, 0.0f, -1.0f);
-
-            Tsukino::BuiltIn::ECS::CameraComponent& camera = registry.AddComponent<Tsukino::BuiltIn::ECS::CameraComponent>(cameraEntity);
-            camera.projectionType                          = Tsukino::BuiltIn::ECS::CameraComponent::ProjectionType::Orthographic;
-            camera.orthoSize                               = 1000.0f;
-            camera.isPrimary                               = false;
-        }
+        CombatAndroid::ECS::InstantiateUiCamera2D(registry, *context);
 
         //--------------------------------------------------------------
         // 画面の部品。位置と大きさは毎フレームRefreshUiが書く
