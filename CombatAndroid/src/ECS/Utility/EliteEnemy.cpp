@@ -11,69 +11,124 @@
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 #include <Tsukino/Core/Path.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
 #include <algorithm>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    //-------------------------------------------------------------
+    // EliteSettingsのcerealシリアライズ定義。呼び名は "displayNames": { 敵の名前: 呼び名 } で持つ
+    //-------------------------------------------------------------
+    template <class Archive>
+    void save(Archive& archive, const EliteSettings& settings) {
+        archive(cereal::make_nvp("maxLiveElites", settings.maxLiveElites),
+                cereal::make_nvp("firstEliteRank", settings.firstEliteRank),
+                cereal::make_nvp("chanceAtFirstRank", settings.chanceAtFirstRank),
+                cereal::make_nvp("chancePerRank", settings.chancePerRank),
+                cereal::make_nvp("chanceMax", settings.chanceMax),
+                cereal::make_nvp("finalStretchChanceScale", settings.finalStretchChanceScale),
+                cereal::make_nvp("sizeScale", settings.sizeScale),
+                cereal::make_nvp("healthScale", settings.healthScale),
+                cereal::make_nvp("damageScale", settings.damageScale),
+                cereal::make_nvp("thresholdScale", settings.thresholdScale),
+                cereal::make_nvp("moveSpeedScale", settings.moveSpeedScale),
+                cereal::make_nvp("expRewardScale", settings.expRewardScale),
+                cereal::make_nvp("knockbackDecayScale", settings.knockbackDecayScale),
+                cereal::make_nvp("glowColor", settings.glowColor),
+                cereal::make_nvp("arsenalSpacing", settings.arsenalSpacing),
+                cereal::make_nvp("arsenalHeight", settings.arsenalHeight),
+                cereal::make_nvp("arsenalDepth", settings.arsenalDepth));
+
+        archive.setNextName("displayNames");
+        archive.startNode();
+        for(size_t i = 0; i < settings.displayNames.size(); ++i)
+            SaveWideField(archive, GetEnemyTypeKey(static_cast<EnemyTypeId>(i)), settings.displayNames[i]);
+        archive.finishNode();
+    }
+
+    template <class Archive>
+    void load(Archive& archive, EliteSettings& settings) {
+        LoadField(archive, "maxLiveElites", settings.maxLiveElites);
+        LoadField(archive, "firstEliteRank", settings.firstEliteRank);
+        LoadField(archive, "chanceAtFirstRank", settings.chanceAtFirstRank);
+        LoadField(archive, "chancePerRank", settings.chancePerRank);
+        LoadField(archive, "chanceMax", settings.chanceMax);
+        LoadField(archive, "finalStretchChanceScale", settings.finalStretchChanceScale);
+        LoadField(archive, "sizeScale", settings.sizeScale);
+        LoadField(archive, "healthScale", settings.healthScale);
+        LoadField(archive, "damageScale", settings.damageScale);
+        LoadField(archive, "thresholdScale", settings.thresholdScale);
+        LoadField(archive, "moveSpeedScale", settings.moveSpeedScale);
+        LoadField(archive, "expRewardScale", settings.expRewardScale);
+        LoadField(archive, "knockbackDecayScale", settings.knockbackDecayScale);
+        LoadField(archive, "glowColor", settings.glowColor);
+        LoadField(archive, "arsenalSpacing", settings.arsenalSpacing);
+        LoadField(archive, "arsenalHeight", settings.arsenalHeight);
+        LoadField(archive, "arsenalDepth", settings.arsenalDepth);
+
+        // 呼び名は入れ子のオブジェクト。キーが無ければ既定値（"敵"）のまま
+        try {
+            archive.setNextName("displayNames");
+            archive.startNode();
+        } catch(const cereal::Exception&) {
+            return;
+        }
+        for(size_t i = 0; i < settings.displayNames.size(); ++i)
+            LoadWideField(archive, GetEnemyTypeKey(static_cast<EnemyTypeId>(i)), settings.displayNames[i]);
+        archive.finishNode();
+    }
+
     namespace {
-        //-------------------------------------------------------------
-        // 出現率。
-        //
-        // ★ エリートの出やすさを調整したいときはここの数値だけを触ればよい ★
-        //
-        // 危険度2（2分）から出始め、危険度が1上がるごとに1%ずつ増える（上限10%）。
-        // 湧き間隔は中盤で約1秒なので、5%でおよそ1分に3体。ラスト1分は湧きも詰まるうえ
-        // 率も1.5倍にして山場を作る。同時出現数はkMaxLiveElitesで頭打ちにする
-        //-------------------------------------------------------------
-        constexpr int   kFirstEliteRank       = 2;        //!< この危険度から出始める
-        constexpr float kChanceAtFirstRank    = 0.03f;    //!< 出始めの確率
-        constexpr float kChancePerRank        = 0.01f;    //!< 危険度1ごとに増える確率
-        constexpr float kChanceMax            = 0.10f;    //!< 確率の上限
-        constexpr float kFinalStretchChanceScale = 1.5f;  //!< ラスト1分の倍率
+        constexpr const char* kEliteFile = "Elite.json";
+        constexpr const char* kEliteRoot = "Elite";
+
+        //! 呼び名がJSONに無い敵に使う名前
+        const std::wstring kFallbackDisplayName = L"敵";
 
         //-------------------------------------------------------------
-        // 強化の倍率。
-        //
-        // 見た目の大きさを変えるなら、体の当たり・攻撃の届く距離・攻撃判定の太さも
-        // 同じだけ変えないと「大きいのに当たらない」「HPバーが体に埋まる」になる。
-        // 怯み閾値の倍率は体力の倍率以下に保つこと（EnemyDifficultyTableと同じ約束：
-        // 閾値だけ伸ばすと一撃で怯まない硬さが体力以上に跳ね上がる）
+        //! @brief  エリートの設定を Assets/Tables/Elite.json から読む関数
+        //! @return 読んだ設定（読めなかった項目は既定値＝強化なし）
         //-------------------------------------------------------------
-        constexpr float kSizeScale       = 1.3f;    //!< 見た目・体の当たり・攻撃範囲
-        constexpr float kHealthScale     = 4.0f;    //!< 体力
-        constexpr float kDamageScale     = 1.5f;    //!< 攻撃力
-        constexpr float kThresholdScale  = 3.0f;    //!< 怯み閾値
-        constexpr float kMoveSpeedScale  = 1.1f;    //!< 移動速度
-        constexpr float kExpRewardScale  = 5.0f;    //!< 経験値
+        EliteSettings LoadEliteSettings() {
+            EliteSettings settings;
+            settings.displayNames.fill(kFallbackDisplayName);
+            (void)LoadTableJson(kEliteFile, kEliteRoot, settings);
 
-        static_assert(kThresholdScale <= kHealthScale, "エリートの怯み閾値の倍率は体力の倍率以下に保つこと");
-
-        //-------------------------------------------------------------
-        // エリートPaladinが肩の上に並べて浮かせる武器の配置（所有者のローカル空間）。
-        // 高さは普通のPaladin（WeaponSpawnerの既定の浮遊位置170）を大きさの倍率で持ち上げ、
-        // 横はプレイヤーの手持ち（PickupSystemのkFloatSpacing）と同じ考え方で等間隔に並べる
-        //-------------------------------------------------------------
-        constexpr float kArsenalSpacing = 80.0f;     //!< 隣り合う武器の横の間隔
-        constexpr float kArsenalHeight  = 170.0f;    //!< 普通の大きさのときの浮遊の高さ
-        constexpr float kArsenalDepth   = -30.0f;    //!< 前後（少し背中側）
+            // 閾値だけ伸ばすと一撃で怯まない硬さが体力以上に跳ね上がる（EnemyDifficultyTableと同じ約束）
+            if(settings.thresholdScale > settings.healthScale)
+                Tsukino::Core::Log::Error("Elite.json: thresholdScale must not exceed healthScale");
+            return settings;
+        }
     }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief エリートの設定を得る（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+    //-------------------------------------------------------------
+    const EliteSettings& GetEliteSettings() {
+        static const EliteSettings s_settings = LoadEliteSettings();
+        return s_settings;
+    }
 
     //-------------------------------------------------------------
     //! @brief 今回湧かせる1体をエリートにするかを抽選する
     //-------------------------------------------------------------
     bool RollElite(std::mt19937& rng, int dangerRank, bool isFinalStretch, int liveEliteCount) {
-        if(dangerRank < kFirstEliteRank || liveEliteCount >= kMaxLiveElites)
+        const EliteSettings& settings = GetEliteSettings();
+        if(dangerRank < settings.firstEliteRank || liveEliteCount >= settings.maxLiveElites)
             return false;
 
-        float chance = std::min(kChanceAtFirstRank + kChancePerRank * static_cast<float>(dangerRank - kFirstEliteRank), kChanceMax);
+        float chance = std::min(settings.chanceAtFirstRank + settings.chancePerRank * static_cast<float>(dangerRank - settings.firstEliteRank),
+                                settings.chanceMax);
         if(isFinalStretch)
-            chance *= kFinalStretchChanceScale;
+            chance *= settings.finalStretchChanceScale;
 
         std::uniform_real_distribution<float> dist(0.0f, 1.0f);
         return dist(rng) < chance;
@@ -81,27 +136,30 @@ namespace CombatAndroid::ECS {
 
     //-------------------------------------------------------------
     //! @brief 生成設定をエリート用に強化する
+    //! @note  見た目の大きさを変えるなら、体の当たり・攻撃の届く距離・攻撃判定の太さも
+    //!        同じだけ変えないと「大きいのに当たらない」「HPバーが体に埋まる」になる
+    //!        （sizeScaleはEnemySpawner.cppのApplyScalesがそれらへまとめて掛ける）
     //-------------------------------------------------------------
     void ApplyEliteModifiers(EnemySpawnConfig& config) {
-        config.sizeScale *= kSizeScale;
+        const EliteSettings& settings = GetEliteSettings();
 
-        config.healthScale *= kHealthScale;
-        config.attackScale *= kDamageScale;
-        config.knockbackThresholdScale *= kThresholdScale;
-        config.moveSpeedScale *= kMoveSpeedScale;
-        config.expScale *= kExpRewardScale;
+        config.sizeScale *= settings.sizeScale;
+
+        config.healthScale *= settings.healthScale;
+        config.attackScale *= settings.damageScale;
+        config.knockbackThresholdScale *= settings.thresholdScale;
+        config.moveSpeedScale *= settings.moveSpeedScale;
+        config.expScale *= settings.expRewardScale;
     }
 
     //-------------------------------------------------------------
     //! @brief 出現ログに出す敵の呼び名
     //-------------------------------------------------------------
-    const wchar_t* GetEliteDisplayName(EnemyTypeId id) {
-        switch(id) {
-        case EnemyTypeId::SmallZombie: return L"ゾンビ";
-        case EnemyTypeId::BigZombie:   return L"大ゾンビ";
-        case EnemyTypeId::Paladin:     return L"パラディン";
-        default:                       return L"敵";
-        }
+    const std::wstring& GetEliteDisplayName(EnemyTypeId id) {
+        const int index = static_cast<int>(id);
+        if(index < 0 || index >= static_cast<int>(EnemyTypeId::Count))
+            return kFallbackDisplayName;
+        return GetEliteSettings().displayNames[static_cast<size_t>(index)];
     }
 
     //-------------------------------------------------------------
@@ -160,8 +218,8 @@ namespace CombatAndroid::ECS {
             WeaponComponent& weapon = registry.GetComponent<WeaponComponent>(weapons[static_cast<size_t>(i)]);
             weapon.floatEnabled     = true;
             weapon.floatSelected    = (weapons[static_cast<size_t>(i)] == heldWeaponEntity);    // 使っている1本だけ高く浮かせる
-            weapon.localOffset      = hlslpp::float3((static_cast<float>(i) - (count - 1) * 0.5f) * kArsenalSpacing,
-                                                     kArsenalHeight * sizeScale, kArsenalDepth);
+            weapon.localOffset      = hlslpp::float3((static_cast<float>(i) - (count - 1) * 0.5f) * GetEliteSettings().arsenalSpacing,
+                                                     GetEliteSettings().arsenalHeight * sizeScale, GetEliteSettings().arsenalDepth);
         }
 
         PaladinArsenalComponent& arsenal = registry.AddComponent<PaladinArsenalComponent>(enemyEntity);

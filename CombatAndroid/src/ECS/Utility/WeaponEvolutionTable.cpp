@@ -8,49 +8,115 @@
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <array>
 #include <iterator>
+#include <string>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    //-------------------------------------------------------------
+    // WeaponEvolutionEntryのcerealシリアライズ定義（条件のスキルはスキル名で持つ）
+    //-------------------------------------------------------------
+    template <class Archive>
+    void save(Archive& archive, const WeaponEvolutionEntry& entry) {
+        archive(cereal::make_nvp("requiredSkill", std::string(GetSkillKey(entry.requiredSkill))),
+                cereal::make_nvp("requiredSkillLevel", entry.requiredSkillLevel));
+        SaveWideField(archive, "displayName", entry.displayName);
+        archive(cereal::make_nvp("damageScale", entry.damageScale),
+                cereal::make_nvp("areaRadiusScale", entry.areaRadiusScale),
+                cereal::make_nvp("areaKnockbackSpeed", entry.areaKnockbackSpeed),
+                cereal::make_nvp("areaKnockbackStun", entry.areaKnockbackStun),
+                cereal::make_nvp("rangeScale", entry.rangeScale),
+                cereal::make_nvp("hitCapsuleRadiusScale", entry.hitCapsuleRadiusScale),
+                cereal::make_nvp("projectilePierceMinChargeStage", entry.projectilePierceMinChargeStage),
+                cereal::make_nvp("projectileRadiusScale", entry.projectileRadiusScale),
+                cereal::make_nvp("projectileDistanceScale", entry.projectileDistanceScale));
+    }
+
+    template <class Archive>
+    void load(Archive& archive, WeaponEvolutionEntry& entry) {
+        std::string requiredSkill = GetSkillKey(entry.requiredSkill);
+        LoadField(archive, "requiredSkill", requiredSkill);
+        if(!FindSkillByKey(requiredSkill, entry.requiredSkill))
+            Tsukino::Core::Log::Error("WeaponEvolution.json: unknown skill " + requiredSkill);
+
+        LoadField(archive, "requiredSkillLevel", entry.requiredSkillLevel);
+        LoadWideField(archive, "displayName", entry.displayName);
+        LoadField(archive, "damageScale", entry.damageScale);
+        LoadField(archive, "areaRadiusScale", entry.areaRadiusScale);
+        LoadField(archive, "areaKnockbackSpeed", entry.areaKnockbackSpeed);
+        LoadField(archive, "areaKnockbackStun", entry.areaKnockbackStun);
+        LoadField(archive, "rangeScale", entry.rangeScale);
+        LoadField(archive, "hitCapsuleRadiusScale", entry.hitCapsuleRadiusScale);
+        LoadField(archive, "projectilePierceMinChargeStage", entry.projectilePierceMinChargeStage);
+        LoadField(archive, "projectileRadiusScale", entry.projectileRadiusScale);
+        LoadField(archive, "projectileDistanceScale", entry.projectileDistanceScale);
+    }
+
     namespace {
+        constexpr const char* kEvolutionFile = "WeaponEvolution.json";
+        constexpr const char* kEvolutionRoot = "WeaponEvolution";
+
         //-------------------------------------------------------------
-        // 進化の表本体。
-        //
-        // ★ 進化の条件や効果を調整したいときはここの数値だけを触ればよい ★
-        //
-        // 組み合わせは武器の持ち味を伸ばす方向で選んでいる。
-        //   ウォーハンマー × 憤怒：3段目の衝撃波を広げ、巻き込んだ敵を吹き飛ばす
-        //   グレートソード × 傲慢：刃を長く太くして、間合いの外から斬れるようにする
-        //   バトルアックス × 嫉妬：斬撃弾を溜め1段目から貫通させ、太く遠くまで飛ばす
-        // GetWeaponEvolutionがidを添字として使うため、必ずWeaponIdの並び順に定義すること
+        //! @struct WeaponEvolutionData
+        //! @brief  進化の表全体（WeaponIdの並び順。JSONのキーは武器名）
         //-------------------------------------------------------------
-        constexpr WeaponEvolutionEntry kWeaponEvolutionTable[] = {
-            //  武器                 条件スキル       Lv  進化後の名前      ダメ   範囲   吹飛初速 吹飛スタン 射程  太さ   貫通 弾半径 弾距離
-            {WeaponId::Warhammer,  SkillId::Wrath, 3, L"憤怒の鎚",   1.3f, 1.5f, 700.0f, 0.30f, 1.0f, 1.0f, 0, 1.0f, 1.0f},
-            {WeaponId::Greatsword, SkillId::Pride, 3, L"傲慢の大剣", 1.3f, 1.45f, 0.0f,  0.0f, 1.45f, 1.45f, 0, 1.0f, 1.0f},
-            {WeaponId::Battleaxe,  SkillId::Envy,  3, L"嫉妬の斧",   1.3f, 1.0f, 0.0f,   0.0f, 1.0f, 1.0f, 1, 1.43f, 1.5f},
+        struct WeaponEvolutionData {
+            std::array<WeaponEvolutionEntry, static_cast<size_t>(WeaponId::Count)> entries{};
         };
 
-        // 武器を足したのに表へ書き忘れる事故を防ぐ
-        static_assert(std::size(kWeaponEvolutionTable) == static_cast<size_t>(WeaponId::Count),
-                      "WeaponId に種類を足したら kWeaponEvolutionTable にも1行足すこと");
+        template <class Archive>
+        void save(Archive& archive, const WeaponEvolutionData& data) {
+            for(size_t i = 0; i < data.entries.size(); ++i)
+                archive(cereal::make_nvp(GetWeaponKey(static_cast<WeaponId>(i)), data.entries[i]));
+        }
+
+        template <class Archive>
+        void load(Archive& archive, WeaponEvolutionData& data) {
+            for(size_t i = 0; i < data.entries.size(); ++i)
+                LoadField(archive, GetWeaponKey(static_cast<WeaponId>(i)), data.entries[i]);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  進化の表を Assets/Tables/WeaponEvolution.json から読む関数
+        //! @return WeaponIdの並び順の表（JSONに無い武器は進化しない）
+        //-------------------------------------------------------------
+        WeaponEvolutionData LoadWeaponEvolution() {
+            WeaponEvolutionData data;
+            for(size_t i = 0; i < data.entries.size(); ++i)
+                data.entries[i].weaponId = static_cast<WeaponId>(i);
+
+            (void)LoadTableJson(kEvolutionFile, kEvolutionRoot, data);
+            return data;
+        }
 
         //! 進化した瞬間に武器へ焼く発光の長さ（秒）。PickupSystemはレベルアップ発光の長さ（0.45秒）で
         //! 割った値を0〜1に丸めて明るさにするので、それより長く入れると最大の明るさがしばらく続いてから消える
         constexpr float kEvolveFlashDuration = 1.2f;
+
+        //-------------------------------------------------------------
+        //! @brief  進化の表を得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //-------------------------------------------------------------
+        const WeaponEvolutionData& GetWeaponEvolutionData() {
+            static const WeaponEvolutionData s_data = LoadWeaponEvolution();
+            return s_data;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
     //! @brief 武器の種類から進化の設定を引く
     //-------------------------------------------------------------
     const WeaponEvolutionEntry& GetWeaponEvolution(WeaponId id) {
-        int index = std::clamp(static_cast<int>(id), 0, static_cast<int>(WeaponId::Count) - 1);
-        return kWeaponEvolutionTable[index];
+        const int index = std::clamp(static_cast<int>(id), 0, static_cast<int>(WeaponId::Count) - 1);
+        return GetWeaponEvolutionData().entries[static_cast<size_t>(index)];
     }
 
     //-------------------------------------------------------------

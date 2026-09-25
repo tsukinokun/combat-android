@@ -1,0 +1,84 @@
+{
+    "EnemyDifficulty": {
+        "rankIntervalSeconds": 60.0,
+        "ranks": [
+            {
+                "unlockTimeSeconds": 0.0,
+                "healthScale": 1.0,
+                "expScale": 1.0,
+                "attackScale": 1.0,
+                "knockbackThresholdScale": 1.0
+            },
+            {
+                "unlockTimeSeconds": 60.0,
+                "healthScale": 1.15,
+                "expScale": 1.05,
+                "attackScale": 1.0,
+                "knockbackThresholdScale": 1.05
+            },
+            {
+                "unlockTimeSeconds": 120.0,
+                "healthScale": 1.35,
+                "expScale": 1.12,
+                "attackScale": 1.08,
+                "knockbackThresholdScale": 1.12
+            },
+            {
+                "unlockTimeSeconds": 180.0,
+                "healthScale": 1.6,
+                "expScale": 1.2,
+                "attackScale": 1.18,
+                "knockbackThresholdScale": 1.2
+            },
+            {
+                "unlockTimeSeconds": 240.0,
+                "healthScale": 1.9,
+                "expScale": 1.3,
+                "attackScale": 1.3,
+                "knockbackThresholdScale": 1.28
+            },
+            {
+                "unlockTimeSeconds": 300.0,
+                "healthScale": 2.2,
+                "expScale": 1.4,
+                "attackScale": 1.42,
+                "knockbackThresholdScale": 1.36
+            },
+            {
+                "unlockTimeSeconds": 360.0,
+                "healthScale": 2.5,
+                "expScale": 1.52,
+                "attackScale": 1.54,
+                "knockbackThresholdScale": 1.44
+            },
+            {
+                "unlockTimeSeconds": 420.0,
+                "healthScale": 2.8,
+                "expScale": 1.64,
+                "attackScale": 1.66,
+                "knockbackThresholdScale": 1.52
+            },
+            {
+                "unlockTimeSeconds": 480.0,
+                "healthScale": 3.1,
+                "expScale": 1.78,
+                "attackScale": 1.76,
+                "knockbackThresholdScale": 1.6
+            },
+            {
+                "unlockTimeSeconds": 540.0,
+                "healthScale": 3.4,
+                "expScale": 1.92,
+                "attackScale": 1.85,
+                "knockbackThresholdScale": 1.68
+            }
+        ],
+        "continuation": {
+            "unlockTimeSeconds": 60.0,
+            "healthScale": 0.3,
+            "expScale": 0.14,
+            "attackScale": 0.11,
+            "knockbackThresholdScale": 0.08
+        }
+    }
+}

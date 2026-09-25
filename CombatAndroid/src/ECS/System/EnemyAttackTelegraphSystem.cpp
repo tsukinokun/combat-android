@@ -67,7 +67,7 @@ namespace CombatAndroid::ECS {
             // 死亡中は死亡演出（フェード）の邪魔になるので、エリートでも消す
             //-------------------------------------------------------------
             const bool     isElite = !health.isDead && registry.HasComponent<EliteEnemyComponent>(entity);
-            const RimState rest    = isElite ? RimState{kEliteGlowColor, kEliteRimIntensity, kEliteGlow}
+            const RimState rest    = isElite ? RimState{GetEliteSettings().glowColor, kEliteRimIntensity, kEliteGlow}
                                              : RimState{kTelegraphColor, 0.0f, 0.0f};
 
             //-------------------------------------------------------------

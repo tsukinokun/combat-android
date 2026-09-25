@@ -20,19 +20,22 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct EnemyDifficultyEntry
     //! @brief  危険度ランク1段ぶんの倍率
-    //! @note   hlslpp::float4はconstexprにできないため、表にはfloatだけを置いて
-    //!         テーブル全体のconstexpr性を保っている（表示色はHUD側で計算する）
+    //! @note   値は Assets/Tables/EnemyDifficulty.json が持ち、初回参照で1度だけ読む
     //-------------------------------------------------------------
     struct EnemyDifficultyEntry {
-        float unlockTimeSeconds;          //!< 経過時間がこの値以上でこの段になる（EnemySpawnTableEntryと同じ流儀）
-        float healthScale;                //!< maxHealthに掛ける倍率
-        float expScale;                   //!< expRewardに掛ける倍率
-        float attackScale;                //!< hitboxDamageに掛ける倍率
-        float knockbackThresholdScale;    //!< knockbackDamageThresholdに掛ける倍率
+        float unlockTimeSeconds       = 0.0f;    //!< 経過時間がこの値以上でこの段になる（EnemySpawnTableEntryと同じ流儀）
+        float healthScale             = 1.0f;    //!< maxHealthに掛ける倍率
+        float expScale                = 1.0f;    //!< expRewardに掛ける倍率
+        float attackScale             = 1.0f;    //!< hitboxDamageに掛ける倍率
+        float knockbackThresholdScale = 1.0f;    //!< knockbackDamageThresholdに掛ける倍率
     };
 
-    //! 危険度ランク1段ぶんの秒数。テーブル終端より先の外挿にも同じ刻みを使う
-    inline constexpr float kDangerRankIntervalSeconds = 60.0f;
+    //-------------------------------------------------------------
+    //! @brief  危険度ランク1段ぶんの秒数を得る関数
+    //! @return 1段の秒数。テーブル終端より先の外挿にも同じ刻みを使う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    float GetDangerRankIntervalSeconds();
 
     //-------------------------------------------------------------
     //! @brief  経過秒数から現在の危険度ランクを求める関数

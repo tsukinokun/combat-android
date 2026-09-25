@@ -2,7 +2,7 @@
 //! @file    EliteEnemy.hpp
 //! @brief   エリート敵（既存の敵を大きく・硬く・強くした強化個体）の抽選と強化の宣言
 //! @note    EnemyDifficultyTableと同じ流儀：生成前の設定（EnemySpawnConfig）へ倍率を掛けるだけで、
-//!          エリート専用の行動や生成経路は持たない。数値はEliteEnemy.cppの定数1か所に集めてある
+//!          エリート専用の行動や生成経路は持たない。数値は Assets/Tables/Elite.json が持ち、初回参照で1度だけ読む
 //-------------------------------------------------------------
 #pragma once
 
@@ -12,7 +12,9 @@
 
 #include <hlsl++.h>
 
+#include <array>
 #include <random>
+#include <string>
 
 namespace Tsukino::EngineIntegration {
     struct EngineContext;
@@ -22,14 +24,47 @@ namespace Tsukino::EngineIntegration {
 namespace CombatAndroid::ECS {
     struct EnemySpawnConfig;
 
-    //! @brief 同時に居られるエリートの上限
-    inline constexpr int kMaxLiveElites = 3;
+    //-------------------------------------------------------------
+    //! @struct EliteSettings
+    //! @brief  エリートの出現率・強化の倍率・見た目の設定（Assets/Tables/Elite.json）
+    //! @note   怯み閾値の倍率（thresholdScale）は体力の倍率（healthScale）以下に保つこと
+    //!         （EnemyDifficultyTableと同じ約束。読み込み時に検査してLog::Errorを出す）
+    //-------------------------------------------------------------
+    struct EliteSettings {
+        int   maxLiveElites           = 3;        //!< 同時に居られるエリートの上限
+        int   firstEliteRank          = 2;        //!< この危険度から出始める
+        float chanceAtFirstRank       = 0.0f;     //!< 出始めの確率
+        float chancePerRank           = 0.0f;     //!< 危険度1ごとに増える確率
+        float chanceMax               = 0.0f;     //!< 確率の上限
+        float finalStretchChanceScale = 1.0f;     //!< ラスト1分の倍率
 
-    //! @brief エリートの押され具合。ノックバックの減衰をこの倍率で速くする（到達距離がおよそ1/倍率になる）
-    inline constexpr float kEliteKnockbackDecayScale = 2.0f;
+        float sizeScale      = 1.0f;    //!< 見た目・体の当たり・攻撃範囲
+        float healthScale    = 1.0f;    //!< 体力
+        float damageScale    = 1.0f;    //!< 攻撃力
+        float thresholdScale = 1.0f;    //!< 怯み閾値
+        float moveSpeedScale = 1.0f;    //!< 移動速度
+        float expRewardScale = 1.0f;    //!< 経験値
 
-    //! @brief エリートが常に纏う発光の色（紫）。攻撃の予兆（赤）・拾得（シアン）・レベルアップ（金）と混ざらない色
-    inline const hlslpp::float3 kEliteGlowColor = hlslpp::float3(0.75f, 0.30f, 1.0f);
+        //! エリートの押され具合。ノックバックの減衰をこの倍率で速くする（到達距離がおよそ1/倍率になる）
+        float knockbackDecayScale = 1.0f;
+
+        //! エリートが常に纏う発光の色。攻撃の予兆（赤）・拾得（シアン）・レベルアップ（金）と混ざらない色にする
+        hlslpp::float3 glowColor = hlslpp::float3(1.0f, 1.0f, 1.0f);
+
+        float arsenalSpacing = 80.0f;     //!< エリートPaladinが並べて浮かせる武器の、横の間隔
+        float arsenalHeight  = 170.0f;    //!< 同、普通の大きさのときの浮遊の高さ（大きさの倍率を掛けて使う）
+        float arsenalDepth   = -30.0f;    //!< 同、前後（少し背中側）
+
+        //! 出現ログに出す敵の呼び名（EnemyTypeIdの並び順。JSONのキーは敵の名前）
+        std::array<std::wstring, static_cast<size_t>(EnemyTypeId::Count)> displayNames{};
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  エリートの設定を得る関数
+    //! @return 設定（初回の呼び出しで Assets/Tables/Elite.json を1度だけ読む）
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    const EliteSettings& GetEliteSettings();
 
     //-------------------------------------------------------------
     //! @brief  今回湧かせる1体をエリートにするかを抽選する
@@ -53,7 +88,7 @@ namespace CombatAndroid::ECS {
     //! @param  id [in] 敵の種類
     //-------------------------------------------------------------
     [[nodiscard]]
-    const wchar_t* GetEliteDisplayName(EnemyTypeId id);
+    const std::wstring& GetEliteDisplayName(EnemyTypeId id);
 
     //-------------------------------------------------------------
     //! @brief  エリートのPaladinに、手持ちとは別の種類の武器を1〜2本足して、2本以上持たせる

@@ -1,0 +1,74 @@
+{
+    "Sounds": {
+        "PlayerHurt": {
+            "path": "CombatAndroid/Assets/Audio/PlayerHurt.wav",
+            "volume": 0.85,
+            "minInterval": 0.05
+        },
+        "EnemyDown": {
+            "path": "CombatAndroid/Assets/Audio/EnemyDown.wav",
+            "volume": 0.55,
+            "minInterval": 0.06
+        },
+        "Swing": {
+            "path": "CombatAndroid/Assets/Audio/Swing.wav",
+            "volume": 0.4,
+            "minInterval": 0.05
+        },
+        "Dodge": {
+            "path": "CombatAndroid/Assets/Audio/Dodge.wav",
+            "volume": 0.5,
+            "minInterval": 0.05
+        },
+        "Pickup": {
+            "path": "CombatAndroid/Assets/Audio/Pickup.wav",
+            "volume": 0.7,
+            "minInterval": 0.0
+        },
+        "WeaponLevelUp": {
+            "path": "CombatAndroid/Assets/Audio/WeaponLevelUp.wav",
+            "volume": 0.7,
+            "minInterval": 0.0
+        },
+        "LevelUp": {
+            "path": "CombatAndroid/Assets/Audio/LevelUp.wav",
+            "volume": 0.75,
+            "minInterval": 0.0
+        },
+        "SkillPick": {
+            "path": "CombatAndroid/Assets/Audio/SkillPick.wav",
+            "volume": 0.7,
+            "minInterval": 0.0
+        },
+        "DangerUp": {
+            "path": "CombatAndroid/Assets/Audio/DangerUp.wav",
+            "volume": 0.65,
+            "minInterval": 0.0
+        },
+        "MenuMove": {
+            "path": "CombatAndroid/Assets/Audio/MenuMove.wav",
+            "volume": 0.45,
+            "minInterval": 0.0
+        },
+        "MenuConfirm": {
+            "path": "CombatAndroid/Assets/Audio/MenuConfirm.wav",
+            "volume": 0.55,
+            "minInterval": 0.0
+        },
+        "RunClear": {
+            "path": "CombatAndroid/Assets/Audio/RunClear.wav",
+            "volume": 0.8,
+            "minInterval": 0.0
+        },
+        "RunFailed": {
+            "path": "CombatAndroid/Assets/Audio/RunFailed.wav",
+            "volume": 0.8,
+            "minInterval": 0.0
+        },
+        "WeaponEvolve": {
+            "path": "CombatAndroid/Assets/Audio/WeaponEvolve.wav",
+            "volume": 0.8,
+            "minInterval": 0.0
+        }
+    }
+}

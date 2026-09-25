@@ -5,85 +5,124 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
+
+#include <cereal/types/vector.hpp>
 
 #include <algorithm>
 #include <iterator>
+#include <vector>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    //-------------------------------------------------------------
+    // WeaponTableEntryのcerealシリアライズ定義。
+    // 段ごとの基礎ダメージは "damage": [Lv1, Lv2, ...] の配列で持つ（段の数はkMaxWeaponLevelと一致させる）
+    //-------------------------------------------------------------
+    template <class Archive>
+    void save(Archive& archive, const WeaponTableEntry& entry) {
+        std::vector<float> damage;
+        for(const WeaponLevelEntry& level : entry.levels)
+            damage.push_back(level.damage);
+
+        SaveWideField(archive, "displayName", entry.displayName);
+        archive(cereal::make_nvp("damage", damage));
+    }
+
+    template <class Archive>
+    void load(Archive& archive, WeaponTableEntry& entry) {
+        LoadWideField(archive, "displayName", entry.displayName);
+
+        std::vector<float> damage;
+        LoadField(archive, "damage", damage);
+        if(damage.size() != entry.levels.size())
+            Tsukino::Core::Log::Error("WeaponLevels.json: damage of " + WideToUtf8(entry.displayName) + " must have "
+                                      + std::to_string(kMaxWeaponLevel) + " levels");
+
+        for(size_t i = 0; i < std::min(damage.size(), entry.levels.size()); ++i)
+            entry.levels[i].damage = damage[i];
+    }
+
     namespace {
-        //-------------------------------------------------------------
-        // 段階ごとの基礎ダメージ。
-        //
-        // ★ 攻撃力の伸び幅を調整したいときはここの数値だけを触ればよい ★
-        //
-        // Lv1の値は元々CombatAndroidScene.cppにハードコードされていた初期値
-        // （warhammer=38, greatsword=22）を踏襲している。Lv2以降は暫定の伸び値であり、
-        // 実際のバランスは実機で確認しながら詰める前提。
-        // 配列の長さはkMaxWeaponLevelと一致していなければならない（下のstatic_assert）
-        //-------------------------------------------------------------
+        constexpr const char* kWeaponTableFile = "WeaponLevels.json";
+        constexpr const char* kWeaponTableRoot = "WeaponLevels";
 
-        constexpr WeaponLevelEntry kWarhammerLevels[] = {
-            {38.0f},
-            {46.0f},
-            {54.0f},
-            {62.0f},
-            {70.0f},
-        };
+        //! JSON上の武器名（WeaponIdの並び順）
+        constexpr const char* kWeaponKeys[] = {"Warhammer", "Greatsword", "Battleaxe"};
 
-        constexpr WeaponLevelEntry kGreatswordLevels[] = {
-            {22.0f},
-            {28.0f},
-            {34.0f},
-            {40.0f},
-            {46.0f},
-        };
-
-        constexpr WeaponLevelEntry kBattleaxeLevels[] = {
-            {30.0f},
-            {36.0f},
-            {42.0f},
-            {48.0f},
-            {54.0f},
-        };
-
-        static_assert(std::size(kWarhammerLevels) == static_cast<size_t>(kMaxWeaponLevel), "kWarhammerLevels の段階数を kMaxWeaponLevel に合わせること");
-        static_assert(std::size(kGreatswordLevels) == static_cast<size_t>(kMaxWeaponLevel), "kGreatswordLevels の段階数を kMaxWeaponLevel に合わせること");
-        static_assert(std::size(kBattleaxeLevels) == static_cast<size_t>(kMaxWeaponLevel), "kBattleaxeLevels の段階数を kMaxWeaponLevel に合わせること");
+        // 種類を足したのに名前を書き忘れる事故を防ぐ
+        static_assert(std::size(kWeaponKeys) == static_cast<size_t>(WeaponId::Count),
+                      "WeaponId に種類を足したら kWeaponKeys にも1つ足すこと");
 
         //-------------------------------------------------------------
-        // 武器テーブル本体。
-        //
-        // ★ 武器を1種追加するときはここへ1行足す ★
-        //     { WeaponId::Xxx, L"名前", kXxxLevels },
-        //   併せてWeaponIdへの追加と、対応するkXxxLevelsの定義が要る。
-        //
-        // GetWeaponEntryがidを添字として使うため、必ずWeaponIdの並び順に定義すること
+        //! @struct WeaponTableData
+        //! @brief  武器テーブル全体（WeaponIdの並び順）
         //-------------------------------------------------------------
-        constexpr WeaponTableEntry kWeaponTable[] = {
-            {WeaponId::Warhammer, L"ウォーハンマー", kWarhammerLevels},
-            {WeaponId::Greatsword, L"グレートソード", kGreatswordLevels},
-            {WeaponId::Battleaxe, L"バトルアックス", kBattleaxeLevels},
+        struct WeaponTableData {
+            std::array<WeaponTableEntry, static_cast<size_t>(WeaponId::Count)> entries{};
         };
 
-        // 種類を足したのにテーブルへ書き忘れる事故を防ぐ
-        static_assert(std::size(kWeaponTable) == static_cast<size_t>(WeaponId::Count),
-                      "WeaponId に種類を足したら kWeaponTable にも1行足すこと");
+        template <class Archive>
+        void save(Archive& archive, const WeaponTableData& data) {
+            for(size_t i = 0; i < data.entries.size(); ++i)
+                archive(cereal::make_nvp(kWeaponKeys[i], data.entries[i]));
+        }
+
+        template <class Archive>
+        void load(Archive& archive, WeaponTableData& data) {
+            for(size_t i = 0; i < data.entries.size(); ++i) {
+                LoadField(archive, kWeaponKeys[i], data.entries[i]);
+                if(data.entries[i].displayName.empty())
+                    Tsukino::Core::Log::Error(std::string("WeaponLevels.json: ") + kWeaponKeys[i] + " is missing");
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  武器テーブルを Assets/Tables/WeaponLevels.json から読む関数
+        //! @return WeaponIdの並び順のテーブル（読めなかった武器は攻撃力0のまま）
+        //-------------------------------------------------------------
+        WeaponTableData LoadWeaponTable() {
+            WeaponTableData data;
+            for(size_t i = 0; i < data.entries.size(); ++i)
+                data.entries[i].id = static_cast<WeaponId>(i);
+
+            (void)LoadTableJson(kWeaponTableFile, kWeaponTableRoot, data);
+            return data;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  武器テーブルを得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //-------------------------------------------------------------
+        const WeaponTableData& GetWeaponTableData() {
+            static const WeaponTableData s_data = LoadWeaponTable();
+            return s_data;
+        }
     }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief 武器の種類からテーブルJSON上の名前を引く
+    //-------------------------------------------------------------
+    const char* GetWeaponKey(WeaponId id) {
+        int index = static_cast<int>(id);
+        if(index < 0 || index >= static_cast<int>(WeaponId::Count))
+            index = 0;
+        return kWeaponKeys[index];
+    }
 
     //-------------------------------------------------------------
     //! @brief 武器テーブル全体を得る
     //-------------------------------------------------------------
     std::span<const WeaponTableEntry> GetWeaponTable() {
-        return std::span<const WeaponTableEntry>(kWeaponTable);
+        return std::span<const WeaponTableEntry>(GetWeaponTableData().entries);
     }
 
     //-------------------------------------------------------------
     //! @brief 識別子からエントリを引く
     //-------------------------------------------------------------
     const WeaponTableEntry& GetWeaponEntry(WeaponId id) {
-        return kWeaponTable[static_cast<size_t>(id)];
+        return GetWeaponTableData().entries[static_cast<size_t>(id)];
     }
 
     //-------------------------------------------------------------

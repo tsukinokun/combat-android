@@ -1,0 +1,30 @@
+{
+    "Elite": {
+        "maxLiveElites": 3,
+        "firstEliteRank": 2,
+        "chanceAtFirstRank": 0.03,
+        "chancePerRank": 0.01,
+        "chanceMax": 0.1,
+        "finalStretchChanceScale": 1.5,
+        "sizeScale": 1.3,
+        "healthScale": 4.0,
+        "damageScale": 1.5,
+        "thresholdScale": 3.0,
+        "moveSpeedScale": 1.1,
+        "expRewardScale": 5.0,
+        "knockbackDecayScale": 2.0,
+        "glowColor": {
+            "x": 0.75,
+            "y": 0.3,
+            "z": 1.0
+        },
+        "arsenalSpacing": 80.0,
+        "arsenalHeight": 170.0,
+        "arsenalDepth": -30.0,
+        "displayNames": {
+            "SmallZombie": "ゾンビ",
+            "BigZombie": "大ゾンビ",
+            "Paladin": "パラディン"
+        }
+    }
+}

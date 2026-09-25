@@ -4,7 +4,7 @@
 //! @author  山﨑愛
 //! @note    EnemySpawnTableと同じ流儀：「何を選ばせるか」だけをここに集め、
 //!          「選ばれた結果をどう使うか」はExpOrbSystem/CombatSystemの責務にしている。
-//!          テーブルは静的な読み取り専用データとして持ち、動的確保は行わない
+//!          値は Assets/Tables/Skills.json が持ち、初回参照で1度だけ読む
 //-------------------------------------------------------------
 #pragma once
 
@@ -13,6 +13,7 @@
 #include <array>
 #include <random>
 #include <span>
+#include <string>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -20,10 +21,9 @@ namespace CombatAndroid::ECS {
     //! @enum  SkillId
     //! @brief スキルの識別子
     //! @note  値をセーブデータ等へ書き出してはいないため、並べ替えても構わない。
-    //!        追加する場合はCountの手前へ足し、SkillTable.cppのテーブルにも
-    //!        対応する1行と、効果を反映するRecalculateSkillStatsのcase文を必ず足すこと
-    //!        （足し忘れてもコンパイルは通ってしまうため、.cpp側にstatic_assertで
-    //!        　種類数の一致を検査させている）
+    //!        追加する場合はCountの手前へ足し、SkillTable.cppのkSkillKeysに名前を1つ、
+    //!        Assets/Tables/Skills.json に1項目、効果を反映するRecalculateSkillStatsのcase文を必ず足すこと
+    //!        （名前の数は.cpp側のstatic_assertで種類数と照合している）
     //-------------------------------------------------------------
     enum class SkillId : int {
         Greed = 0,    //!< 強欲：ソウル（EXP玉）取得時の経験値量を増やす
@@ -53,12 +53,11 @@ namespace CombatAndroid::ECS {
     //!         解釈を持っているのはRecalculateSkillStats（SkillTable.cpp）だけ
     //-------------------------------------------------------------
     struct SkillLevelEntry {
-        const wchar_t* description;    //!< カードに出す効果の説明文
-        float          value;          //!< 効果量
+        std::wstring description;     //!< カードに出す効果の説明文（数値を変えたら文言も合わせること）
+        float        value = 0.0f;    //!< 効果量
 
         //! 2つ目の効果量。「上昇と引き換えに何かが下がる」スキルの、下がる側に使う。
-        //! 既定値を持たせてあるので、1つしか効果を持たないスキルのテーブルは従来どおり
-        //! 2要素で書けばよい（今これを使うのはSlothの攻撃力ペナルティだけ）
+        //! JSONで省略すれば0（今これを使うのはSlothの攻撃力ペナルティだけ）
         float value2 = 0.0f;
     };
 
@@ -67,15 +66,32 @@ namespace CombatAndroid::ECS {
     //! @brief  スキル1種類ぶんのエントリ
     //-------------------------------------------------------------
     struct SkillTableEntry {
-        SkillId        id;                       //!< 種類の識別子
-        const wchar_t* displayName;              //!< カードに出す名前
-        const char*    backgroundTexturePath;    //!< カードの背景テクスチャ（760x150）
-        const char*    iconTexturePath;          //!< HUDの取得済み一覧に出すアイコン（正方形）
-        hlslpp::float4 panelColor;               //!< 上の2枚に乗算する色。絵はグレースケールなので、この色がスキルの色になる
+        SkillId        id = SkillId::Greed;          //!< 種類の識別子
+        std::wstring   displayName;                  //!< カードに出す名前
+        std::string    backgroundTexturePath;        //!< カードの背景テクスチャ（760x150）
+        std::string    iconTexturePath;              //!< HUDの取得済み一覧に出すアイコン（正方形）
+        hlslpp::float4 panelColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);    //!< 上の2枚に乗算する色。絵はグレースケールなので、この色がスキルの色になる
 
         //! そのスキルの段階ごとの効果。levels[0]が1回目の取得（Lv1）に対応する
-        std::span<const SkillLevelEntry> levels;
+        std::array<SkillLevelEntry, kMaxSkillLevel> levels{};
     };
+
+    //-------------------------------------------------------------
+    //! @brief  スキルの種類からテーブルJSON上の名前を引く関数
+    //! @param  id [in] スキルの種類
+    //! @return enumと同じ綴りの名前（例: "Greed"）。範囲外なら先頭の名前
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    const char* GetSkillKey(SkillId id);
+
+    //-------------------------------------------------------------
+    //! @brief  テーブルJSON上の名前からスキルの種類を引く関数
+    //! @param  key [in]  名前（例: "Wrath"）
+    //! @param  out [out] 見つかった種類
+    //! @return 見つかったか
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    bool FindSkillByKey(const std::string& key, SkillId& out);
 
     //-------------------------------------------------------------
     //! @brief  スキルテーブル全体を得る関数

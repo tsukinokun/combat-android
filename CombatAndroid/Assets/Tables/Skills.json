@@ -1,0 +1,270 @@
+{
+    "Skills": {
+        "Greed": {
+            "displayName": "強欲",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/GreedCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/GreedIcon.png",
+            "panelColor": {
+                "x": 0.85,
+                "y": 0.72,
+                "z": 0.2,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "ソウルから得るEXP +20%",
+                    "value": 0.2,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +40%",
+                    "value": 0.4,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +60%",
+                    "value": 0.6,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +80%",
+                    "value": 0.8,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +100%",
+                    "value": 1.0,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Gluttony": {
+            "displayName": "暴食",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/GluttonyCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/GluttonyIcon.png",
+            "panelColor": {
+                "x": 0.35,
+                "y": 0.7,
+                "z": 0.35,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "ソウル取得時 HPを3回復",
+                    "value": 3.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを6回復",
+                    "value": 6.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを9回復",
+                    "value": 9.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを12回復",
+                    "value": 12.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを15回復",
+                    "value": 15.0,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Wrath": {
+            "displayName": "憤怒",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/WrathCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/WrathIcon.png",
+            "panelColor": {
+                "x": 0.8,
+                "y": 0.25,
+                "z": 0.25,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "攻撃力 +15%",
+                    "value": 0.15,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +30%",
+                    "value": 0.3,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +45%",
+                    "value": 0.45,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +60%",
+                    "value": 0.6,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +75%",
+                    "value": 0.75,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Pride": {
+            "displayName": "傲慢",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/PrideCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/PrideIcon.png",
+            "panelColor": {
+                "x": 0.55,
+                "y": 0.35,
+                "z": 0.8,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "被ダメージ -8%",
+                    "value": 0.08,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -15%",
+                    "value": 0.15,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -21%",
+                    "value": 0.21,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -26%",
+                    "value": 0.26,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -30%",
+                    "value": 0.3,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Envy": {
+            "displayName": "嫉妬",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/EnvyCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/EnvyIcon.png",
+            "panelColor": {
+                "x": 0.25,
+                "y": 0.65,
+                "z": 0.6,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "与ダメージの3%をHPに変換",
+                    "value": 0.03,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの6%をHPに変換",
+                    "value": 0.06,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの9%をHPに変換",
+                    "value": 0.09,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの12%をHPに変換",
+                    "value": 0.12,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの15%をHPに変換",
+                    "value": 0.15,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Lust": {
+            "displayName": "色欲",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/LustCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/LustIcon.png",
+            "panelColor": {
+                "x": 0.9,
+                "y": 0.4,
+                "z": 0.65,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "移動速度 +8%",
+                    "value": 0.08,
+                    "value2": 0.0
+                },
+                {
+                    "description": "移動速度 +16%",
+                    "value": 0.16,
+                    "value2": 0.0
+                },
+                {
+                    "description": "移動速度 +24%",
+                    "value": 0.24,
+                    "value2": 0.0
+                },
+                {
+                    "description": "移動速度 +32%",
+                    "value": 0.32,
+                    "value2": 0.0
+                },
+                {
+                    "description": "移動速度 +40%",
+                    "value": 0.4,
+                    "value2": 0.0
+                }
+            ]
+        },
+        "Sloth": {
+            "displayName": "怠惰",
+            "backgroundTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/SlothCard.png",
+            "iconTexturePath": "CombatAndroid/Assets/Textures/UI/Skill/SlothIcon.png",
+            "panelColor": {
+                "x": 0.45,
+                "y": 0.5,
+                "z": 0.6,
+                "w": 1.0
+            },
+            "levels": [
+                {
+                    "description": "毎秒 HP+0.6 / 攻撃力 -5%",
+                    "value": 0.6,
+                    "value2": 0.05
+                },
+                {
+                    "description": "毎秒 HP+1.2 / 攻撃力 -8%",
+                    "value": 1.2,
+                    "value2": 0.08
+                },
+                {
+                    "description": "毎秒 HP+1.8 / 攻撃力 -11%",
+                    "value": 1.8,
+                    "value2": 0.11
+                },
+                {
+                    "description": "毎秒 HP+2.4 / 攻撃力 -14%",
+                    "value": 2.4,
+                    "value2": 0.14
+                },
+                {
+                    "description": "毎秒 HP+3.0 / 攻撃力 -17%",
+                    "value": 3.0,
+                    "value2": 0.17
+                }
+            ]
+        }
+    }
+}

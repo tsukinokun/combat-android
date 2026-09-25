@@ -54,7 +54,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>()) {
                 if(ctx->inputSystem && ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F12))
-                    clock.elapsedSeconds += kDangerRankIntervalSeconds;
+                    clock.elapsedSeconds += GetDangerRankIntervalSeconds();
             }
 #endif
 

@@ -2,13 +2,14 @@
 //! @file    WeaponTable.hpp
 //! @brief   武器の識別子と、レベルごとの攻撃力を定義するテーブルの宣言
 //! @author  山﨑愛
-//! @note    SkillTableと同じ流儀：テーブルは静的な読み取り専用データとして持ち、
-//!          動的確保は行わない。武器の実効ステータス（WeaponComponent::damage）は
-//!          常にこのテーブルから導出し、加算では積み上げない
+//! @note    値は Assets/Tables/WeaponLevels.json が持ち、初回参照で1度だけ読む（SkillTableと同じ流儀）。
+//!          武器の実効ステータス（WeaponComponent::damage）は常にこのテーブルから導出し、加算では積み上げない
 //-------------------------------------------------------------
 #pragma once
 
+#include <array>
 #include <span>
+#include <string>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -18,10 +19,10 @@ namespace CombatAndroid::ECS {
     //! @enum  WeaponId
     //! @brief 武器の識別子
     //! @note  値をセーブデータ等へ書き出してはいないため、並べ替えても構わない。
-    //!        追加する場合はCountの手前へ足し、WeaponTable.cppのテーブルにも
-    //!        対応する1行（種類ぶんのkXxxLevels定義込み）を必ず足すこと
-    //!        （足し忘れてもコンパイルは通ってしまうため、.cpp側にstatic_assertで
-    //!        　種類数の一致を検査させている）
+    //!        追加する場合はCountの手前へ足し、WeaponTable.cppのkWeaponKeysに名前を1つ、
+    //!        Assets/Tables/ の武器ごとのJSON（WeaponLevels / WeaponEvolution）と
+    //!        Assets/Prefabs/Weapon/ のPrefabにも1項目ずつ足すこと
+    //!        （名前の数は.cpp側のstatic_assertで種類数と照合している）
     //-------------------------------------------------------------
     enum class WeaponId : int {
         Warhammer = 0,
@@ -41,7 +42,7 @@ namespace CombatAndroid::ECS {
     //!         （WeaponTable.cpp）だけ
     //-------------------------------------------------------------
     struct WeaponLevelEntry {
-        float damage;    //!< そのレベルでの基礎ダメージ（WeaponComponent::damageへそのまま書き戻す）
+        float damage = 0.0f;    //!< そのレベルでの基礎ダメージ（WeaponComponent::damageへそのまま書き戻す）
     };
 
     //-------------------------------------------------------------
@@ -49,12 +50,21 @@ namespace CombatAndroid::ECS {
     //! @brief  武器1種類ぶんのエントリ
     //-------------------------------------------------------------
     struct WeaponTableEntry {
-        WeaponId       id;             //!< 種類の識別子
-        const wchar_t* displayName;    //!< デバッグHUDに出す名前
+        WeaponId     id = WeaponId::Warhammer;    //!< 種類の識別子
+        std::wstring displayName;                  //!< 取得ログ・デバッグHUDに出す名前
 
         //! そのレベルごとの効果。levels[0]が1回目の取得（Lv1）に対応する
-        std::span<const WeaponLevelEntry> levels;
+        std::array<WeaponLevelEntry, kMaxWeaponLevel> levels{};
     };
+
+    //-------------------------------------------------------------
+    //! @brief  武器の種類からテーブルJSON上の名前を引く関数
+    //! @param  id [in] 武器の種類
+    //! @return enumと同じ綴りの名前（例: "Warhammer"）。範囲外なら先頭の名前
+    //! @note   武器ごとの値を持つJSON（WeaponLevels / WeaponEvolution / PaladinWeaponAttacks）は全てこの名前をキーにする
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    const char* GetWeaponKey(WeaponId id);
 
     //-------------------------------------------------------------
     //! @brief  武器テーブル全体を得る関数

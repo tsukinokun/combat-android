@@ -130,8 +130,8 @@ namespace CombatAndroid::ECS {
         // スキル：カード背景とHUDアイコン
         //-------------------------------------------------------------
         for(const SkillTableEntry& entry : GetSkillTable()) {
-            loadPath(entry.backgroundTexturePath);
-            loadPath(entry.iconTexturePath);
+            loadPath(entry.backgroundTexturePath.c_str());
+            loadPath(entry.iconTexturePath.c_str());
         }
 
         //-------------------------------------------------------------
@@ -161,7 +161,7 @@ namespace CombatAndroid::ECS {
         // 効果音：表に載っているものを全て読む（初回再生時の変換待ちを無くす）
         //-------------------------------------------------------------
         for(const SoundTableEntry& entry : GetSoundTable())
-            loadPath(entry.path);
+            loadPath(entry.path.c_str());
 
         //-------------------------------------------------------------
         // どのテーブルにも属さない単発アセット

@@ -52,12 +52,6 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         constexpr const char* kPaladinWeaponAttackFile = "CombatAndroid/Assets/Prefabs/Enemy/PaladinWeaponAttacks.json";
 
-        //! JSON上の武器名（WeaponIdの並び順）
-        constexpr const char* kPaladinWeaponKeys[] = {"Warhammer", "Greatsword", "Battleaxe"};
-
-        static_assert(std::size(kPaladinWeaponKeys) == static_cast<size_t>(WeaponId::Count),
-                      "WeaponId に種類を足したら kPaladinWeaponKeys とPaladinWeaponAttacks.jsonにも足すこと");
-
         //-------------------------------------------------------------
         //! @brief  Paladinの武器ごとの攻撃パラメータのJSONを読む関数
         //! @return WeaponIdの並び順のパラメータ
@@ -77,7 +71,7 @@ namespace CombatAndroid::ECS {
             try {
                 cereal::JSONInputArchive archive(is);
                 for(size_t i = 0; i < attacks.size(); ++i)
-                    archive(cereal::make_nvp(kPaladinWeaponKeys[i], attacks[i]));
+                    archive(cereal::make_nvp(GetWeaponKey(static_cast<WeaponId>(i)), attacks[i]));
             } catch(const cereal::Exception& exception) {
                 Tsukino::Core::Log::Error(std::string("Paladin weapon attacks are broken: ") + kPaladinWeaponAttackFile + " (" + exception.what() + ")");
             }

@@ -58,11 +58,12 @@
   プレイヤー武器側 `ECS/System/CombatSystem.cpp`、敵側 `ECS/AI/ZombieBehavior.cpp`（Paladin も含む）
 - `EnemyBehaviorSystem.cpp` はディスパッチャだけ。中身は `ZombieBehavior.cpp`
 - `PlayerAnimationSystem.cpp` はアニメだけでなく攻撃コンボの状態遷移も持つ
-- 武器・スキル・敵は**テーブル駆動**。`ECS/Utility/WeaponTable.cpp` などの配列を直す。
-  武器種ごとにクラスを増やさない
+- 武器・スキル・敵は**テーブル駆動**。調整値は `CombatAndroid/Assets/Tables/*.json`（再ビルド不要）、
+  エンティティの初期値は `CombatAndroid/Assets/Prefabs/`。数値を C++ に戻さない。武器種ごとにクラスを増やさない
 - システムの実行順とその理由は `ECS/SystemPriority.hpp` に集約してある
 
 ## よくある作業
 
 - **システムを1本足す** → `/add-system` を使う（触るのは常に同じ5ファイル）
-- **武器・スキル・敵を足す** → 対応する `ECS/Utility/*Table.cpp` の配列に1行
+- **武器・スキル・敵を足す** → enum と `ECS/Utility/*Table.cpp` の名前配列に1つ、
+  `Assets/Tables/*.json` に1項目（手順は `Assets/Tables/README.md`）

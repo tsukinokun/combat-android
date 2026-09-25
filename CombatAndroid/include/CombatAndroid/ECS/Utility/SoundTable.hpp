@@ -2,18 +2,19 @@
 //! @file    SoundTable.hpp
 //! @brief   効果音の種類と、鳴らし方（ファイル・音量・最短間隔）の表の宣言
 //! @note    音源は Assets/Audio/generate_game_sounds.py がプロシージャル生成している。
-//!          音を1つ足すときは、生成スクリプトとこの表の両方へ1行ずつ足す
+//!          音を1つ足すときは、生成スクリプト・SoundId・SoundTable.cppのkSoundKeys・
+//!          Assets/Tables/Sounds.json の4か所へ1つずつ足す
 //-------------------------------------------------------------
 #pragma once
 
 #include <span>
+#include <string>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @enum   SoundId
-    //! @brief  効果音の種類。GetSoundEntryがこの値を添字に使うので、
-    //!         SoundTable.cppの表と同じ並び順にすること
+    //! @brief  効果音の種類。SoundTable.cppのkSoundKeys（Sounds.jsonのキー）と同じ並び順にすること
     //-------------------------------------------------------------
     enum class SoundId : int {
         PlayerHurt = 0,    //!< プレイヤーが被弾した
@@ -36,12 +37,13 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @struct SoundTableEntry
     //! @brief  効果音1種類ぶんの設定
+    //! @note   値は Assets/Tables/Sounds.json が持つ（キーはSoundIdの名前）
     //-------------------------------------------------------------
     struct SoundTableEntry {
-        SoundId     id;             //!< 種類（表の並びの確認用）
-        const char* path;           //!< .wavのパス
-        float       volume;         //!< 再生音量（0〜1）
-        float       minInterval;    //!< 直前に同じ音を鳴らしてから、次に鳴らすまでの最短秒数
+        SoundId     id          = SoundId::PlayerHurt;    //!< 種類
+        std::string path;                                 //!< .wavのパス（空なら鳴らさない）
+        float       volume      = 1.0f;                   //!< 再生音量（0〜1）
+        float       minInterval = 0.0f;                   //!< 直前に同じ音を鳴らしてから、次に鳴らすまでの最短秒数
     };
 
     //-------------------------------------------------------------

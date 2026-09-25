@@ -163,7 +163,7 @@ namespace CombatAndroid::ECS {
 
             // 重いので押されにくくする（EnemySpawnConfigを経由しない値なので生成後に書く）
             if(auto* enemy = registry.try_get<EnemyComponent>(enemyEntity))
-                enemy->knockbackDecayRate *= kEliteKnockbackDecayScale;
+                enemy->knockbackDecayRate *= GetEliteSettings().knockbackDecayScale;
 
             // フォグの外から来るので、先に知らせて身構えさせる
             if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())

@@ -1,0 +1,46 @@
+{
+    "WeaponEvolution": {
+        "Warhammer": {
+            "requiredSkill": "Wrath",
+            "requiredSkillLevel": 3,
+            "displayName": "憤怒の鎚",
+            "damageScale": 1.3,
+            "areaRadiusScale": 1.5,
+            "areaKnockbackSpeed": 700.0,
+            "areaKnockbackStun": 0.3,
+            "rangeScale": 1.0,
+            "hitCapsuleRadiusScale": 1.0,
+            "projectilePierceMinChargeStage": 0,
+            "projectileRadiusScale": 1.0,
+            "projectileDistanceScale": 1.0
+        },
+        "Greatsword": {
+            "requiredSkill": "Pride",
+            "requiredSkillLevel": 3,
+            "displayName": "傲慢の大剣",
+            "damageScale": 1.3,
+            "areaRadiusScale": 1.45,
+            "areaKnockbackSpeed": 0.0,
+            "areaKnockbackStun": 0.0,
+            "rangeScale": 1.45,
+            "hitCapsuleRadiusScale": 1.45,
+            "projectilePierceMinChargeStage": 0,
+            "projectileRadiusScale": 1.0,
+            "projectileDistanceScale": 1.0
+        },
+        "Battleaxe": {
+            "requiredSkill": "Envy",
+            "requiredSkillLevel": 3,
+            "displayName": "嫉妬の斧",
+            "damageScale": 1.3,
+            "areaRadiusScale": 1.0,
+            "areaKnockbackSpeed": 0.0,
+            "areaKnockbackStun": 0.0,
+            "rangeScale": 1.0,
+            "hitCapsuleRadiusScale": 1.0,
+            "projectilePierceMinChargeStage": 1,
+            "projectileRadiusScale": 1.43,
+            "projectileDistanceScale": 1.5
+        }
+    }
+}

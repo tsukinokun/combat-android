@@ -1,0 +1,16 @@
+{
+    "EnemySpawn": {
+        "SmallZombie": {
+            "weight": 80.0,
+            "unlockTimeSeconds": 0.0
+        },
+        "BigZombie": {
+            "weight": 20.0,
+            "unlockTimeSeconds": 30.0
+        },
+        "Paladin": {
+            "weight": 5.0,
+            "unlockTimeSeconds": 60.0
+        }
+    }
+}
