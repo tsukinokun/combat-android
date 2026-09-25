@@ -427,27 +427,9 @@ namespace CombatAndroid {
                                         hlslpp::float3(340.0f, 10.0f, 0.0f));
 
         //--------------------------------------------------------------
-        // 敵エンティティ生成。全敵共通でビヘイビアツリー駆動（歩く→射程内で攻撃、被弾でノックバック、
-        // 死亡でStunned→フェードアウト）にする。当たり判定は物理形状（Joltのカプセルセンサー）で行う。
-        // 1体分の生成処理は CombatAndroid/src/ECS/Utility/EnemySpawner.cpp へ切り出してあり、
-        // パラメータはMakeSmallZombieConfig / MakeBigZombieConfig が持つ。
-        //
-        // 実行中の湧き潰し（サバイバー化）は EnemySpawnDirectorSystem が担当する。
-        // ここで置く4体はSpawnedEnemyComponentを持たないため同System の間引き対象外で、
-        // 起動直後に画面が空にならないための最低限の見た目と、武器の当たり・ノックバック
-        // 閾値を確認するための固定サンプルを兼ねる
+        // 敵はここでは置かない。実行中の湧き（サバイバー化）は EnemySpawnDirectorSystem が担当し、
+        // プレイヤーから離れた位置にだけ湧かせる（開始直後に近くへ敵がいる体験を避けるため）
         //--------------------------------------------------------------
-        CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
-                                               CombatAndroid::ECS::MakeSmallZombieConfig(*context, hlslpp::float3(200.0f, 20.0f, 200.0f)));
-        CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
-                                               CombatAndroid::ECS::MakeSmallZombieConfig(*context, hlslpp::float3(-200.0f, 20.0f, 200.0f)));
-        CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
-                                               CombatAndroid::ECS::MakeSmallZombieConfig(*context, hlslpp::float3(0.0f, 20.0f, -250.0f)));
-
-        CombatAndroid::ECS::SpawnBehaviorEnemy(registry, *context,
-                                               CombatAndroid::ECS::MakeBigZombieConfig(*context, hlslpp::float3(-250.0f, 20.0f, -250.0f)));
-
-
 
         //--------------------------------------------------------------
         // 2Dカメラエンティティの生成
