@@ -777,7 +777,9 @@ namespace CombatAndroid::ECS {
             projectileEffect.effectPath  = sourceWeapon.projectileEffectPath;
             projectileEffect.scale       = sourceWeapon.projectileEffectScale;
             projectileEffect.playSpeed   = sourceWeapon.projectileEffectPlaySpeed;
-            projectileEffect.active      = true;    // 次のEffectSystem::Updateが再生ハンドルを作る
+            // 斬撃波を進行方向へ向ける（エンジンのEffectComponentはfollowRotationをシリアライズしないのでPrefabでは持てない）
+            projectileEffect.followRotation = true;
+            projectileEffect.active         = true;    // 次のEffectSystem::Updateが再生ハンドルを作る
         }
 
         //-------------------------------------------------------------

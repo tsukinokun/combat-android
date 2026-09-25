@@ -19,15 +19,11 @@
 #include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
-#include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AmbientParticleComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/DirectionalLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
-#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -51,32 +47,10 @@
 #include <Tsukino/Renderer/Renderer.hpp>
 
 #include <memory>
+#include <string>
 
 // 名前空間 : CombatAndroid
 namespace CombatAndroid {
-    namespace {
-        //-------------------------------------------------------------
-        // 舞台の寸法（1ユニット≒1cm。地面の上面がy=0）。
-        // カメラは左を向いた位置に構え、武器を画面の右半分へ寄せる
-        // （左半分はタイトルとメニューの場所）
-        //-------------------------------------------------------------
-        const hlslpp::float3 kCameraPosition = hlslpp::float3(-250.0f, 205.0f, -330.0f);    //!< カメラの基準位置
-        const hlslpp::float3 kCameraLookAt   = hlslpp::float3(-30.0f, 120.0f, 40.0f);       //!< 注視点（武器の左側）
-
-        //! 武器を刺しておく場所（Yは沈める深さ）と、抜けきったあとの高さ
-        struct TitleWeaponPlacement {
-            hlslpp::float3 groundPosition;
-            float          hoverHeight;
-            float          burstTime;
-        };
-
-        const TitleWeaponPlacement kWeaponPlacements[CombatAndroid::ECS::kTitleStageWeaponCount] = {
-            {hlslpp::float3(10.0f, -220.0f, 30.0f), 120.0f, 0.9f},      // ウォーハンマー（中央）
-            {hlslpp::float3(155.0f, -220.0f, 70.0f), 150.0f, 1.5f},     // グレートソード（右奥）
-            {hlslpp::float3(80.0f, -220.0f, -70.0f), 95.0f, 2.1f},     // バトルアックス（右手前）
-        };
-    }    // namespace
-
     //-------------------------------------------------------------
     //! @brief  シーン固有の初期化処理
     //-------------------------------------------------------------
@@ -154,7 +128,6 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         // メニューのUI一式。全て非表示で作り、TitleMenuSystemが最初のフレームで組む
         //--------------------------------------------------------------
-        Tsukino::ECS::Entity                  titleEntity = m_scene.CreateEntity();
         CombatAndroid::ECS::TitleMenuComponent title;
 
         title.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleBackdrop);
@@ -176,39 +149,26 @@ namespace CombatAndroid {
         title.controlsMenu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kTitleControlsMenuBase);
         title.options      = CombatAndroid::ECS::CreateOptionsMenu(registry, *context, CombatAndroid::UI::kTitleOptionsBase);
 
-        registry.AddComponent<CombatAndroid::ECS::TitleMenuComponent>(titleEntity, title);
+        // Prefab: Title/Menu（アタッチだけ）。中身は上で作ったエンティティの束
+        registry.GetComponent<CombatAndroid::ECS::TitleMenuComponent>(CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Title/Menu")) = title;
     }
 
     //-------------------------------------------------------------
     //! @brief  3Dの舞台（カメラ・夕日・地面・草・武器）を組む
     //-------------------------------------------------------------
     void TitleScene::BuildStage(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context) {
-        CombatAndroid::ECS::TitleStageComponent stage;
-        stage.cameraBasePosition = kCameraPosition;
-        stage.cameraLookAt       = kCameraLookAt;
+        //--------------------------------------------------------------
+        // 舞台の演出パラメータ（Prefab: Title/Stage）。1ユニット≒1cmで、地面の上面がy=0。
+        // カメラは左を向いた位置に構え、武器を画面の右半分へ寄せる（左半分はタイトルとメニューの場所）。
+        // 武器を刺しておく場所（Yは沈める深さ）・抜けきったあとの高さ・抜けるタイミングもここが持つ
+        //--------------------------------------------------------------
+        Tsukino::ECS::Entity                    stageEntity = CombatAndroid::ECS::InstantiatePrefab(registry, context, "Title/Stage");
+        CombatAndroid::ECS::TitleStageComponent stage       = registry.GetComponent<CombatAndroid::ECS::TitleStageComponent>(stageEntity);
 
         //--------------------------------------------------------------
-        // 3Dのカメラ。TitleStageSystemが位置を揺らすので、ここでは基準位置だけ入れる
+        // 3Dのカメラ（Prefab: Title/Camera）。TitleStageSystemが基準位置から揺らす
         //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity cameraEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& cameraTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(cameraEntity);
-            cameraTransform.position = kCameraPosition;
-            cameraTransform.dirty    = true;
-
-            Tsukino::BuiltIn::ECS::CameraComponent& camera = registry.AddComponent<Tsukino::BuiltIn::ECS::CameraComponent>(cameraEntity);
-            camera.projectionType                          = Tsukino::BuiltIn::ECS::CameraComponent::ProjectionType::Perspective;
-            camera.fov                                     = 45.0f;
-            camera.nearZ                                   = 1.0f;
-            camera.farZ                                    = 3000.0f;    // 戦闘のTPSカメラ（2000）より少し遠くまで見せる
-            camera.useLookAt                               = true;
-            camera.lookAtTarget                            = kCameraLookAt;
-            camera.isPrimary                               = true;
-
-            stage.cameraEntity = cameraEntity;
-        }
+        stage.cameraEntity = CombatAndroid::ECS::InstantiatePrefab(registry, context, "Title/Camera");
 
         //--------------------------------------------------------------
         // 夕日・空・霧・漂う塵・地面・草。値は Assets/Prefabs/Environment/Title/ 以下のPrefab JSON（README参照）
@@ -216,38 +176,15 @@ namespace CombatAndroid {
         CombatAndroid::ECS::InstantiateEnvironment(registry, context, "Title");
 
         //--------------------------------------------------------------
-        // 見せる武器。戦闘用のSpawnWeaponは当たり判定や拾得の部品まで付けるので使わず、
-        // モデルのパスだけ武器の表（WeaponSpawner.cpp）から借りて素のエンティティを作る
+        // 見せる武器（Prefab: Title/Weapon0〜2 ＝ウォーハンマー・グレートソード・バトルアックス）。
+        // 戦闘用の武器Prefabは当たり判定や拾得の部品まで持つので使わず、見た目とリムグローだけの素のPrefabを使う。
+        // 抜けた瞬間から輪郭を光らせる（強さはTitleStageSystemが毎フレーム書く）
         //--------------------------------------------------------------
-        for(int i = 0; i < CombatAndroid::ECS::kTitleStageWeaponCount; ++i) {
-            const CombatAndroid::ECS::WeaponSpawnDefinition& definition =
-                CombatAndroid::ECS::GetWeaponSpawnDefinition(static_cast<CombatAndroid::ECS::WeaponId>(i));
-            const TitleWeaponPlacement& placement = kWeaponPlacements[i];
+        for(int i = 0; i < CombatAndroid::ECS::kTitleStageWeaponCount; ++i)
+            stage.weapons[i].entity = CombatAndroid::ECS::InstantiatePrefab(registry, context, "Title/Weapon" + std::to_string(i));
 
-            Tsukino::ECS::Entity weaponEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& transform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponEntity);
-            transform.position = placement.groundPosition;
-            transform.dirty    = true;
-
-            Tsukino::BuiltIn::ECS::ModelComponent& model = registry.AddComponent<Tsukino::BuiltIn::ECS::ModelComponent>(weaponEntity);
-            model.modelHandle                            = context.assetManager->Load(Tsukino::Core::Path(definition.modelPath));
-            model.visible                                = true;
-
-            // 抜けた瞬間から輪郭を光らせる（強さはTitleStageSystemが毎フレーム書く）
-            registry.AddComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(weaponEntity);
-
-            CombatAndroid::ECS::TitleStageWeapon& weapon = stage.weapons[i];
-            weapon.entity                                 = weaponEntity;
-            weapon.groundPosition                         = placement.groundPosition;
-            weapon.hoverHeight                            = placement.hoverHeight;
-            weapon.burstTime                              = placement.burstTime;
-            weapon.spinPhase                              = static_cast<float>(i) * 1.7f;
-            weapon.bobPhase                               = static_cast<float>(i) * 0.9f;
-        }
-
-        registry.AddComponent<CombatAndroid::ECS::TitleStageComponent>(m_scene.CreateEntity(), stage);
+        // 生成でComponentの格納先が動き得るので、結び終えた値をまとめて書き戻す
+        registry.GetComponent<CombatAndroid::ECS::TitleStageComponent>(stageEntity) = stage;
     }
 
     //-------------------------------------------------------------

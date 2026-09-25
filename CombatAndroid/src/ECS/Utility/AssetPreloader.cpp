@@ -5,19 +5,31 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 
+#include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/EnemyComponentSerialization.hpp>
+#include <CombatAndroid/ECS/Serialization/WeaponComponentSerialization.hpp>
+#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Utility/SkillTable.hpp>
 #include <CombatAndroid/ECS/Utility/EnemySpawner.hpp>
+#include <CombatAndroid/ECS/Utility/EnemySpawnTable.hpp>
 #include <CombatAndroid/ECS/Utility/SoundTable.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
 
+#include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Serialization/ModelComponentSerialization.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
+#include <Tsukino/Engine/Asset/AssetRef.hpp>
+#include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
 #include <Tsukino/Core/IO/FileSystem.hpp>
 #include <Tsukino/Core/Path.hpp>
 
 #include <hlsl++.h>
+
+#include <string>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -40,7 +52,7 @@ namespace CombatAndroid::ECS {
             // タイトル画面の武器が抜けるときの土煙（TitleStageSystem）
             "CombatAndroid/Assets/Effect/greatswordAttackCombo3.efkefc",
 
-            // プレイヤー（CombatAndroidScene::OnInitializeが直接読む）。ロード画面で先に読んでおけば、
+            // プレイヤー（CombatAndroidScene::OnInitializeがPrefab: Playerから生成する）。ロード画面で先に読んでおけば、
             // 戦闘シーンの初期化はキャッシュから引くだけになり、切り替えの瞬間に止まらない
             "CombatAndroid/Assets/Models/Player.fbx",
             "CombatAndroid/Assets/Anims/Player/Idle.fbx",
@@ -52,19 +64,20 @@ namespace CombatAndroid::ECS {
         };
 
         //-------------------------------------------------------------
-        //! @brief 武器1種類ぶんのモデル・攻撃クリップ・エフェクトをロードする
+        //! @brief  PrefabのComponent JSONを1つ読み、中のアセットパスを列へ足す
+        //! @param  context  [in]     エンジンコンテキスト
+        //! @param  prefab   [in]     Assets/Prefabs/ からの相対名（例: "Weapon/Warhammer"）
+        //! @param  typeName [in]     Component名（JSONのルートキー兼ファイル名）
+        //! @param  collect  [in]     読んだComponentからパスを取り出す関数
+        //! @note   PrefabFactory::Loadはパスを読むだけでアセットは解決しない。
+        //!         パス集めはここ（メインスレッド）で済ませ、実際のLoadはロード画面のワーカーに回す
         //-------------------------------------------------------------
-        void PreloadWeapon(Tsukino::Asset::AssetManager& assetManager, const WeaponSpawnDefinition& def) {
-            assetManager.Load(Tsukino::Core::Path(def.modelPath));
-
-            if(!def.playerAttackClipPath.empty())
-                assetManager.Load(Tsukino::Core::Path(def.playerAttackClipPath));
-
-            if(def.areaAttackRadius > 0.0f && !def.areaAttackEffectPath.empty())
-                assetManager.Load(Tsukino::Core::Path(def.areaAttackEffectPath));
-
-            if(!def.projectileEffectPath.empty())
-                assetManager.Load(Tsukino::Core::Path(def.projectileEffectPath));
+        template <class T, class Collect>
+        void CollectPrefabAssetPaths(Tsukino::EngineIntegration::EngineContext& context, const std::string& prefab, const char* typeName,
+                                     Collect collect) {
+            T component{};
+            if(context.prefabFactory->Load(GetPrefabDirectory(prefab) + "/" + typeName + ".json", typeName, component))
+                collect(component);
         }
     }    // namespace
 
@@ -90,12 +103,27 @@ namespace CombatAndroid::ECS {
                 steps.push_back([assetManager, path] { (void)assetManager->Load(Tsukino::Core::Path(path)); });
         };
 
+        // Prefab JSONから拾ったパス（空なら「未設定」なので読まない）
+        auto loadRef = [&steps, assetManager](const Tsukino::Asset::AssetRef& ref) {
+            if(!ref.path.empty())
+                steps.push_back([assetManager, path = ref.path] { (void)assetManager->Load(Tsukino::Core::Path(path)); });
+        };
+        auto loadModel = [&](const std::string& prefab) {
+            CollectPrefabAssetPaths<Tsukino::BuiltIn::ECS::ModelComponent>(
+                context, prefab, "ModelComponent", [&](const Tsukino::BuiltIn::ECS::ModelComponent& model) { loadRef(model.modelHandle); });
+        };
+
         //-------------------------------------------------------------
-        // 武器：全種の見た目・攻撃クリップ・エフェクトをWeaponSpawnDefinitionから読む
+        // 武器：全種の見た目・攻撃クリップ・エフェクトを武器Prefab（Assets/Prefabs/Weapon/<名前>/）から読む
         //-------------------------------------------------------------
         for(int i = 0; i < static_cast<int>(WeaponId::Count); ++i) {
-            const WeaponSpawnDefinition* definition = &GetWeaponSpawnDefinition(static_cast<WeaponId>(i));
-            steps.push_back([assetManager, definition] { PreloadWeapon(*assetManager, *definition); });
+            const std::string prefab = GetWeaponPrefabName(static_cast<WeaponId>(i));
+            loadModel(prefab);
+            CollectPrefabAssetPaths<WeaponComponent>(context, prefab, "WeaponComponent", [&](const WeaponComponent& weapon) {
+                loadRef(weapon.attackClip);
+                loadRef(weapon.areaAttackEffectAsset);
+                loadRef(weapon.projectileEffectAsset);
+            });
         }
 
         //-------------------------------------------------------------
@@ -107,19 +135,26 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        // 敵：モデル・アニメーションクリップ。生成パラメータを作るだけで
-        // 中のLoad呼び出しが走るので、戻り値は使わず捨てる。
-        // Paladinは持たせる武器で攻撃クリップが変わるため、全WeaponId分呼ぶ
+        // 敵：モデル・アニメーションクリップを敵Prefab（Assets/Prefabs/Enemy/<名前>/）から読む。
+        // Paladinは持たせる武器で攻撃クリップが変わるため、武器ごとの値（PaladinWeaponAttacks.json）も全WeaponId分読む
         //-------------------------------------------------------------
-        Tsukino::EngineIntegration::EngineContext* contextPtr = &context;
-        const hlslpp::float3                       dummyPosition(0.0f, 0.0f, 0.0f);
-
-        steps.push_back([contextPtr, dummyPosition] { (void)MakeSmallZombieConfig(*contextPtr, dummyPosition); });
-        steps.push_back([contextPtr, dummyPosition] { (void)MakeBigZombieConfig(*contextPtr, dummyPosition); });
+        for(const EnemySpawnTableEntry& entry : GetEnemySpawnTable()) {
+            // 生成パラメータはPrefab名を詰めるだけ（ここではアセットを読まない）なので、Prefab名を引くのに使ってよい
+            const std::string prefab = entry.makeConfig(context, hlslpp::float3(0.0f, 0.0f, 0.0f)).prefabName;
+            loadModel(prefab);
+            CollectPrefabAssetPaths<EnemyAnimationSetComponent>(context, prefab, "EnemyAnimationSetComponent",
+                                                                [&](const EnemyAnimationSetComponent& set) {
+                                                                    loadRef(set.walkClip);
+                                                                    loadRef(set.attackClip);
+                                                                    loadRef(set.knockbackClip);
+                                                                    loadRef(set.deathClip);
+                                                                });
+        }
 
         for(int i = 0; i < static_cast<int>(WeaponId::Count); ++i) {
-            const WeaponId weaponId = static_cast<WeaponId>(i);
-            steps.push_back([contextPtr, dummyPosition, weaponId] { (void)MakePaladinConfig(*contextPtr, dummyPosition, weaponId); });
+            Tsukino::Asset::AssetRef clip;
+            clip.path = GetPaladinWeaponAttack(static_cast<WeaponId>(i)).attackClipPath;
+            loadRef(clip);
         }
 
         //-------------------------------------------------------------

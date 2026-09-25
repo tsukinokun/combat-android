@@ -29,8 +29,6 @@
 //! @param nCmdShow ウィンドウ表示状態（例：SW_SHOW）
 //! @return 終了コード（通常は0）
 //--------------------------------------------------------------
-namespace CombatAndroid::ECS { void TmpCaptureAll(Tsukino::EngineIntegration::EngineContext&); }    // TMP-CAPTURE
-
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In_ int) {
     // DPIスケーリングの無効化
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -76,11 +74,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR lpCmdLine, _In
 
     // ゲーム側ComponentをPrefabで組み立てられるようにする（最初のシーンを開始する前に登録する）
     CombatAndroid::ECS::RegisterGameComponents(*engineContext.prefabFactory);
-
-    if(std::getenv("TSUKINO_CAPTURE_ALL") != nullptr) {    // TMP-CAPTURE
-        CombatAndroid::ECS::TmpCaptureAll(engineContext);
-        return 0;
-    }
 
     //--------------------------------------------------------------
     // 最初のシーンを登録・開始（ロード画面でアセットを読み、終わったらタイトル画面へ進む）

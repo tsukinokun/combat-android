@@ -11,8 +11,8 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  Archiveがcerealの本物の入力アーカイブか
-    //! @note   PrefabFactoryは、AssetRef/EntityRefの解決のためにload()へ擬似アーカイブ
-    //!         （AssetRefResolverArchive / EntityRefResolverArchive）を渡して再訪問する。
+    //! @note   PrefabFactory::InstantiateGroupは、EntityRefの解決のためにload()へ擬似アーカイブ
+    //!         （EntityRefResolverArchive）を渡して再訪問する（AssetRefは読み込み中に解決されるので再訪問しない）。
     //!         擬似アーカイブはstd::vectorなどcerealのサイズタグを使うコンテナを処理できないため、
     //!         参照を含まないコンテナ（SpringBoneのchainDefsなど）は本物のアーカイブのときだけ読む
     //-------------------------------------------------------------

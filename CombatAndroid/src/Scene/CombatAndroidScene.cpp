@@ -404,23 +404,11 @@ namespace CombatAndroid {
 
         //--------------------------------------------------------------
         // 被弾演出（点滅・画面フラッシュ）とGAME OVER表示。
-        // 画面フラッシュは画面全体を覆う単色スプライトで、位置・サイズはPlayerDamageEffectSystemが
-        // 毎フレーム画面サイズに合わせて書く（HUDバーと同じくWhitePixel.pngを使い回す）
+        // 画面フラッシュは画面全体を覆う単色スプライト（Prefab: UI/ScreenFlash。初期状態は透明）で、
+        // 位置・サイズはPlayerDamageEffectSystemが毎フレーム画面サイズに合わせて書く
         //--------------------------------------------------------------
         {
-            Tsukino::Asset::AssetHandle whitePixelHandle =
-                context->assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Textures/UI/WhitePixel.png"));
-
-            Tsukino::ECS::Entity screenFlashEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& flashTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(screenFlashEntity);
-            flashTransform.dirty = true;    // 実際の位置・スケールはPlayerDamageEffectSystemが毎フレーム書く
-
-            Tsukino::BuiltIn::ECS::SpriteComponent& flashSprite = registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(screenFlashEntity);
-            flashSprite.textureHandle = whitePixelHandle;
-            flashSprite.tintColor     = hlslpp::float4(0.9f, 0.05f, 0.05f, 0.0f);    // 初期状態は透明
-            flashSprite.sortOrder     = CombatAndroid::UI::kScreenDamageFlash;    // HUDより手前、GAME OVERテキストより奥
+            Tsukino::ECS::Entity screenFlashEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/ScreenFlash");
 
             CombatAndroid::ECS::PlayerDamageEffectComponent& damageEffect =
                 registry.AddComponent<CombatAndroid::ECS::PlayerDamageEffectComponent>(playerEntity);
@@ -473,38 +461,21 @@ namespace CombatAndroid {
             // 枚数によって縦の並びが変わるため（レイアウトの計算はSystem側に集約している）。
             // sortOrderは CombatAndroid/UI/UiSortOrder.hpp の kSkillSelect* 帯を使う
             //-------------------------------------------------------------
+            // Prefab: UI/SkillPanel（スケール0＝非表示。背景は暫定でWhitePixelを入れてあり、
+            // カードの背景はSkillSelectSystemがスキルテーブルのパスから差し替える）。描画順だけ個体ごとに上書きする
             auto makeSkillPanelSprite = [&](int sortOrder) {
-                Tsukino::ECS::Entity panelEntity = m_scene.CreateEntity();
-
-                Tsukino::BuiltIn::ECS::TransformComponent& panelTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(panelEntity);
-                panelTransform.scale = hlslpp::float3(0.0f, 0.0f, 0.0f);    // スケール0の間はSpriteRenderSystemが描画しない
-                panelTransform.dirty = true;
-
-                Tsukino::BuiltIn::ECS::SpriteComponent& panelSprite =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(panelEntity);
-                // カードの背景はSkillSelectSystemがスキルテーブルのパスから差し替える。
-                // ここではハンドル未設定のまま描画されないよう、暫定でWhitePixelを入れておく
-                panelSprite.textureHandle = whitePixelHandle;
-                panelSprite.sortOrder     = sortOrder;
-
+                Tsukino::ECS::Entity panelEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/SkillPanel");
+                registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(panelEntity).sortOrder = sortOrder;
                 return panelEntity;
             };
 
+            // Prefab: UI/SkillText（空文字＝非表示。位置・フォントサイズはSkillSelectSystemが書く）。揃えと縁取りだけ上書きする
             auto makeSkillText = [&](Tsukino::BuiltIn::ECS::HorizontalAlign horizontalAlign, float outlineWidth) {
-                Tsukino::ECS::Entity textEntity = m_scene.CreateEntity();
+                Tsukino::ECS::Entity textEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/SkillText");
 
-                Tsukino::BuiltIn::ECS::TransformComponent& textTransform =
-                    registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(textEntity);
-                textTransform.dirty = true;    // 実際の位置・フォントサイズはSkillSelectSystemが書く
-
-                Tsukino::BuiltIn::ECS::FontComponent& font = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
-                font.text            = L"";    // 空文字の間はFontRendererSystemが描画しない
-                font.outlineColor    = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+                Tsukino::BuiltIn::ECS::FontComponent& font = registry.GetComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
                 font.outlineWidth    = outlineWidth;
                 font.horizontalAlign = horizontalAlign;
-                font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
-                font.sortOrder       = CombatAndroid::UI::kSkillSelectText;    // カード背景より手前
 
                 return textEntity;
             };
@@ -525,73 +496,25 @@ namespace CombatAndroid {
 #ifdef _DEBUG
         //--------------------------------------------------------------
         // 武器の握り位置・角度を調整するデバッグHUD用エンティティ（F6で調整モードON時のみ表示）。
-        // 上の「Fキーで拾う」ラベルと同じ作り。WeaponGripDebugSystemがtextを毎フレーム書き換える
+        // Prefab: Debug/GripHud（画面左上の黄色いテキスト）。WeaponGripDebugSystemがtextを毎フレーム書き換える
         //--------------------------------------------------------------
-        Tsukino::ECS::Entity weaponGripDebugHudEntity = m_scene.CreateEntity();
-
-        Tsukino::BuiltIn::ECS::TransformComponent& gripHudTransform =
-            registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponGripDebugHudEntity);
-        gripHudTransform.position = hlslpp::float3(10.0f, 10.0f, 0.0f);    // 画面左上（生スクリーンピクセル座標）
-        gripHudTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
-        gripHudTransform.dirty    = true;
-
-        Tsukino::BuiltIn::ECS::FontComponent& gripHudFont =
-            registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(weaponGripDebugHudEntity);
-        gripHudFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
-        gripHudFont.color     = hlslpp::float4(1.0f, 1.0f, 0.3f, 1.0f);
-        gripHudFont.origin    = hlslpp::float2(0.0f, 0.0f);
-        gripHudFont.sortOrder = CombatAndroid::UI::kDebugWeaponGripHud;    // 調査用HUDなので暗転板等より常に手前
-
-        registry.AddComponent<CombatAndroid::ECS::WeaponGripDebugComponent>(weaponGripDebugHudEntity);
+        (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Debug/GripHud");
 
         //--------------------------------------------------------------
         // 所持武器のレベルを表示するデバッグHUD用エンティティ。トグルキーは持たず、
-        // 存在する間は常に表示する（上の握り調整HUDと重ならないよう少し下から始める）。
+        // 存在する間は常に表示する（Prefab: Debug/LevelHud。握り調整HUDと重ならないよう少し下から始める）。
         // WeaponLevelDebugSystemがtextを毎フレーム書き換える
         //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity weaponLevelDebugHudEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& levelHudTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(weaponLevelDebugHudEntity);
-            levelHudTransform.position = hlslpp::float3(10.0f, 230.0f, 0.0f);    // 画面左上（生スクリーンピクセル座標）
-            levelHudTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
-            levelHudTransform.dirty    = true;
-
-            Tsukino::BuiltIn::ECS::FontComponent& levelHudFont =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(weaponLevelDebugHudEntity);
-            levelHudFont.text      = L"";    // 空文字の間はFontRendererSystemが描画しない
-            levelHudFont.color     = hlslpp::float4(1.0f, 0.8f, 0.3f, 1.0f);
-            levelHudFont.origin    = hlslpp::float2(0.0f, 0.0f);
-            levelHudFont.sortOrder = CombatAndroid::UI::kDebugWeaponLevelHud;    // 調査用HUDなので暗転板等より常に手前
-
-            registry.AddComponent<CombatAndroid::ECS::WeaponLevelDebugComponent>(weaponLevelDebugHudEntity);
-        }
+        (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Debug/LevelHud");
 #endif
 
 #ifdef TSUKINO_ENABLE_STRESS_TEST
         //--------------------------------------------------------------
-        // 負荷試験のHUD用エンティティ。上の握り調整HUDと同じ作りで、
+        // 負荷試験のHUD用エンティティ（Prefab: Debug/StressHud）。上の握り調整HUDと同じ作りで、
         // EnemyStressTestSystemがtextを毎フレーム書き換える。
         // 握り調整HUD（左上）と重ならないよう少し下から始める
         //--------------------------------------------------------------
-        {
-            Tsukino::ECS::Entity stressTestHudEntity = m_scene.CreateEntity();
-
-            Tsukino::BuiltIn::ECS::TransformComponent& hudTransform =
-                registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(stressTestHudEntity);
-            hudTransform.position = hlslpp::float3(10.0f, 120.0f, 0.0f);    // 画面左上（生スクリーンピクセル座標）
-            hudTransform.scale    = hlslpp::float3(1.0f, 1.0f, 1.0f);
-            hudTransform.dirty    = true;
-
-            Tsukino::BuiltIn::ECS::FontComponent& hudFont = registry.AddComponent<Tsukino::BuiltIn::ECS::FontComponent>(stressTestHudEntity);
-            hudFont.text                                  = L"";    // 空文字の間はFontRendererSystemが描画しない
-            hudFont.color                                 = hlslpp::float4(0.4f, 1.0f, 0.6f, 1.0f);
-            hudFont.origin                                = hlslpp::float2(0.0f, 0.0f);
-            hudFont.sortOrder                             = CombatAndroid::UI::kDebugStressTestHud;    // 調査用HUDなので暗転板等より常に手前
-
-            registry.AddComponent<CombatAndroid::ECS::EnemyStressTestComponent>(stressTestHudEntity);
-        }
+        (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Debug/StressHud");
 #endif
 
         //--------------------------------------------------------------
@@ -610,26 +533,8 @@ namespace CombatAndroid {
         // デバッグカメラエンティティの生成 (デバッグビルドのみ)
         //--------------------------------------------------------------
 #ifdef _DEBUG
-        {
-            Tsukino::ECS::Entity debugCamEntity = m_scene.CreateEntity();
-
-            // 1ユニット≒1cm規約。身長約210のキャラクターを斜め上から見下ろす位置に置く
-            Tsukino::BuiltIn::ECS::TransformComponent& t = registry.AddComponent<Tsukino::BuiltIn::ECS::TransformComponent>(debugCamEntity);
-            t.position                                   = hlslpp::float3(0.0f, 180.0f, 300.0f);
-            t.rotation                                   = hlslpp::quaternion(0.0f, 0.0f, 0.0f, 1.0f);
-            t.dirty                                      = true;
-
-            Tsukino::BuiltIn::ECS::CameraComponent& cam = registry.AddComponent<Tsukino::BuiltIn::ECS::CameraComponent>(debugCamEntity);
-            cam.lookAtTarget                            = hlslpp::float3(0.0f, 100.0f, 0.0f);
-            cam.nearZ                                   = 1.0f;
-            cam.farZ                                    = 10000.0f;
-            cam.isPrimary                               = false;
-
-            Tsukino::BuiltIn::ECS::DebugCameraComponent& debug = registry.AddComponent<Tsukino::BuiltIn::ECS::DebugCameraComponent>(debugCamEntity);
-            debug.moveSpeed                                    = 1.0f;
-
-            registry.AddComponent<Tsukino::BuiltIn::ECS::DebugCameraTag>(debugCamEntity);
-        }
+        // Prefab: Debug/Camera。1ユニット≒1cm規約で、身長約210のキャラクターを斜め上から見下ろす位置に置いてある
+        (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Debug/Camera");
 #endif
     }
 

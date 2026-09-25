@@ -4,6 +4,9 @@
 ゲーム側 Component の登録は `CombatAndroid/src/ECS/Utility/GamePrefab.cpp`（`RegisterGameComponents`）。
 JSON の書式は `Prefab.json`（コンポーネント名 → 個別 JSON のパス）＋コンポーネントごとの JSON。
 
+**ゲームのエンティティは全て `InstantiatePrefab(registry, context, "<名前>")`（`GamePrefab.hpp`）で作る。**
+`CreateEntity` + `AddComponent` で値を焼き込まない。位置・所有者・描画順などの個体ごとの値だけ、生成後に上書きする。
+
 **注意：アタッチだけするComponent（`AnimationController` / `SkeletonOutput` / `PlayerExperience` / `PlayerSkill`）は
 保存する項目が無いので `CaptureEntity` では書き出されず、`Prefab.json` には `"value": "null"` と手で書いてある。
 `CaptureEntity` で `Player/Prefab.json` を書き直すとこの行が消え、キャラクターがTポーズのまま動かず
