@@ -1,0 +1,15 @@
+{
+    "DamageNumber": {
+        "lifetime": 0.75,
+        "riseDistance": 70.0,
+        "fadeStart": 0.55,
+        "popStartScale": 0.45,
+        "popOvershoot": 1.25,
+        "popInEnd": 0.14,
+        "settleEnd": 0.30,
+        "outlineWidth": 2.0,
+        "defaultSpawnHeight": 120.0,
+        "damageColor": { "x": 1.0, "y": 0.92, "z": 0.35, "w": 1.0 },
+        "outlineColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 }
+    }
+}

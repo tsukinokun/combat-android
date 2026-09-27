@@ -48,6 +48,19 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
+    //! @brief  Systemの調整値を Tables/Systems/<name>.json（ルートキー <name>）から読む関数
+    //! @param  name [in] System名（例: "ExpOrb"）
+    //! @return 読んだ値。ファイルが無い・壊れているときは T の既定値（＝コード側の値）のまま
+    //! @note   T は既定値を持つ構造体で、load() の中は LoadField で読む（キーが欠けても既定値で続行する）
+    //-------------------------------------------------------------
+    template <class T>
+    T LoadSystemParams(const char* name) {
+        T params{};
+        (void)LoadTableJson((std::string("Systems/") + name + ".json").c_str(), name, params);
+        return params;
+    }
+
+    //-------------------------------------------------------------
     //! @brief  テーブルをJSONへ書き出す関数
     //! @param  path    [in] 書き出し先のパス（ディレクトリは無ければ作る）
     //! @param  rootKey [in] JSONのルートキー

@@ -10,6 +10,8 @@
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -24,16 +26,64 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        // 落下（ポップアウト）演出のチューニング値
-        constexpr float kSpawnHeightAboveGround = 70.0f;     //!< 死亡位置からどれだけ上に出現させるか
-        constexpr float kRestHeightAboveGround  = 20.0f;     //!< 着地後に浮いていさせる高さ
-        constexpr float kPopUpSpeedMin          = 220.0f;    //!< 出現時の上向き初速（下限）
-        constexpr float kPopUpSpeedMax          = 320.0f;    //!< 出現時の上向き初速（上限）
-        constexpr float kHorizontalSpeedMin     = 60.0f;     //!< 出現時の水平方向初速（下限）。複数の玉が重ならないよう散らす
-        constexpr float kHorizontalSpeedMax     = 160.0f;    //!< 出現時の水平方向初速（上限）
-        constexpr float kGravity                = 900.0f;    //!< 落下中の重力加速度
-        constexpr float kFallSafetyDuration     = 1.2f;      //!< 万一着地判定に乗らなかった場合の保険（この秒数でHomingへ強制遷移）
-        constexpr float kFallPopInDuration       = 0.12f;     //!< 出現直後、scaleが0から基準値まで膨らむ時間
+        //-------------------------------------------------------------
+        //! @struct ExpOrbParams
+        //! @brief  演出のチューニング値（Assets/Tables/Systems/ExpOrb.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct ExpOrbParams {
+            // 落下（ポップアウト）演出
+            float spawnHeightAboveGround = 70.0f;     //!< 死亡位置からどれだけ上に出現させるか
+            float restHeightAboveGround  = 20.0f;     //!< 着地後に浮いていさせる高さ
+            float popUpSpeedMin          = 220.0f;    //!< 出現時の上向き初速（下限）
+            float popUpSpeedMax          = 320.0f;    //!< 出現時の上向き初速（上限）
+            float horizontalSpeedMin     = 60.0f;     //!< 出現時の水平方向初速（下限）。複数の玉が重ならないよう散らす
+            float horizontalSpeedMax     = 160.0f;    //!< 出現時の水平方向初速（上限）
+            float gravity                = 900.0f;    //!< 落下中の重力加速度
+            float fallSafetyDuration     = 1.2f;      //!< 万一着地判定に乗らなかった場合の保険（この秒数でHomingへ強制遷移）
+            float fallPopInDuration      = 0.12f;     //!< 出現直後、scaleが0から基準値まで膨らむ時間
+
+            // ホーミング（プレイヤーへの吸い寄せ）演出
+            float homingSpeedStart    = 250.0f;    //!< 吸い寄せ開始時の速度
+            float homingSpeedEnd      = 900.0f;    //!< 吸い寄せが十分進んだ時点の速度（加速していく）
+            float homingAccelDuration = 0.6f;      //!< 開始速度→終端速度まで加速しきるまでの時間
+            float homingMaxDuration   = 1.5f;      //!< 万一プレイヤーへ追いつけない場合の保険（この秒数で強制吸収）
+            float absorbDistance      = 40.0f;     //!< プレイヤーとの距離がこれ未満になったら吸収する
+            float absorbHeightOffset  = 90.0f;     //!< 吸い寄せ先（プレイヤーの足元原点からの高さ）
+
+            // 見た目のスケール（TransformComponent.scale。SpriteSpace::Worldではワールド単位＝cm換算になる。
+            // テクスチャは32x32なので0.75で直径24cm相当）
+            float orbBaseScale      = 0.75f;    //!< 通常時の基準スケール（直径約24cm）
+            float orbHomingScaleEnd = 1.0f;     //!< ホーミング終盤（吸収直前）のスケール（直径約32cm）。少し大きくして「寄ってくる」感を出す
+        };
+
+        template <class Archive>
+        void load(Archive& archive, ExpOrbParams& params) {
+            LoadField(archive, "spawnHeightAboveGround", params.spawnHeightAboveGround);
+            LoadField(archive, "restHeightAboveGround", params.restHeightAboveGround);
+            LoadField(archive, "popUpSpeedMin", params.popUpSpeedMin);
+            LoadField(archive, "popUpSpeedMax", params.popUpSpeedMax);
+            LoadField(archive, "horizontalSpeedMin", params.horizontalSpeedMin);
+            LoadField(archive, "horizontalSpeedMax", params.horizontalSpeedMax);
+            LoadField(archive, "gravity", params.gravity);
+            LoadField(archive, "fallSafetyDuration", params.fallSafetyDuration);
+            LoadField(archive, "fallPopInDuration", params.fallPopInDuration);
+            LoadField(archive, "homingSpeedStart", params.homingSpeedStart);
+            LoadField(archive, "homingSpeedEnd", params.homingSpeedEnd);
+            LoadField(archive, "homingAccelDuration", params.homingAccelDuration);
+            LoadField(archive, "homingMaxDuration", params.homingMaxDuration);
+            LoadField(archive, "absorbDistance", params.absorbDistance);
+            LoadField(archive, "absorbHeightOffset", params.absorbHeightOffset);
+            LoadField(archive, "orbBaseScale", params.orbBaseScale);
+            LoadField(archive, "orbHomingScaleEnd", params.orbHomingScaleEnd);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const ExpOrbParams& GetParams() {
+            static const ExpOrbParams s_params = LoadSystemParams<ExpOrbParams>("ExpOrb");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         // レベルアップに必要なEXPの計算式（線形）。
@@ -42,19 +92,6 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         constexpr int kBaseRequiredExp     = 100;
         constexpr int kRequiredExpPerLevel = 50;
-
-        // ホーミング（プレイヤーへの吸い寄せ）演出のチューニング値
-        constexpr float kHomingSpeedStart    = 250.0f;    //!< 吸い寄せ開始時の速度
-        constexpr float kHomingSpeedEnd      = 900.0f;    //!< 吸い寄せが十分進んだ時点の速度（加速していく）
-        constexpr float kHomingAccelDuration = 0.6f;      //!< 開始速度→終端速度まで加速しきるまでの時間
-        constexpr float kHomingMaxDuration   = 1.5f;      //!< 万一プレイヤーへ追いつけない場合の保険（この秒数で強制吸収）
-        constexpr float kAbsorbDistance      = 40.0f;     //!< プレイヤーとの距離がこれ未満になったら吸収する
-        constexpr float kAbsorbHeightOffset  = 90.0f;     //!< 吸い寄せ先（プレイヤーの足元原点からの高さ）
-
-        // 見た目のスケール（TransformComponent.scale。SpriteSpace::Worldではワールド単位＝cm換算になる。
-        // テクスチャは32x32なので0.75で直径24cm相当）
-        constexpr float kOrbBaseScale        = 0.75f;    //!< 通常時の基準スケール（直径約24cm）
-        constexpr float kOrbHomingScaleEnd   = 1.0f;      //!< ホーミング終盤（吸収直前）のスケール（直径約32cm）。少し大きくして「寄ってくる」感を出す
 
         //-------------------------------------------------------------
         //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
@@ -71,6 +108,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void ExpOrbSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_pending.reserve(kExpOrbPoolSize);
+        (void)GetParams();    // 初回フレームでファイルを読まないよう先に読んでおく
         m_diedConnection = eventBus.Subscribe<EnemyDiedEvent>([this](const EnemyDiedEvent& event) { OnEnemyDied(event); });
     }
 
@@ -85,7 +123,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void ExpOrbSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
-        auto view = registry.View<ExpOrbComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+        const ExpOrbParams& params = GetParams();
+        auto                view   = registry.View<ExpOrbComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
 
         //-------------------------------------------------------------
         // 保留中の死亡通知をスロットへ割り当てる
@@ -122,8 +161,8 @@ namespace CombatAndroid::ECS {
             // 複数体まとめて倒したときに玉同士が重ならないよう、水平方向へランダムに散らす
             //-------------------------------------------------------------
             std::uniform_real_distribution<float> angleDist(0.0f, 6.2831853f);
-            std::uniform_real_distribution<float> horizontalSpeedDist(kHorizontalSpeedMin, kHorizontalSpeedMax);
-            std::uniform_real_distribution<float> popUpSpeedDist(kPopUpSpeedMin, kPopUpSpeedMax);
+            std::uniform_real_distribution<float> horizontalSpeedDist(params.horizontalSpeedMin, params.horizontalSpeedMax);
+            std::uniform_real_distribution<float> popUpSpeedDist(params.popUpSpeedMin, params.popUpSpeedMax);
 
             float angle           = angleDist(m_rng);
             float horizontalSpeed = horizontalSpeedDist(m_rng);
@@ -132,9 +171,9 @@ namespace CombatAndroid::ECS {
             orb.state        = ExpOrbState::Falling;
             orb.expValue     = pending.expReward;
             orb.stateTimer   = 0.0f;
-            orb.worldPosition = pending.position + hlslpp::float3(0.0f, kSpawnHeightAboveGround, 0.0f);
+            orb.worldPosition = pending.position + hlslpp::float3(0.0f, params.spawnHeightAboveGround, 0.0f);
             orb.velocity      = hlslpp::float3(std::cos(angle) * horizontalSpeed, popUpSpeedDist(m_rng), std::sin(angle) * horizontalSpeed);
-            orb.groundY       = pending.position.y + kRestHeightAboveGround;
+            orb.groundY       = pending.position.y + params.restHeightAboveGround;
         }
         m_pending.clear();
 
@@ -180,11 +219,11 @@ namespace CombatAndroid::ECS {
             orb.stateTimer += deltaTime;
 
             if(orb.state == ExpOrbState::Falling) {
-                orb.velocity.y -= kGravity * deltaTime;
+                orb.velocity.y -= params.gravity * deltaTime;
                 orb.worldPosition += orb.velocity * deltaTime;
 
                 bool grounded = orb.worldPosition.y <= orb.groundY;
-                bool timedOut = orb.stateTimer >= kFallSafetyDuration;
+                bool timedOut = orb.stateTimer >= params.fallSafetyDuration;
                 if(grounded || timedOut) {
                     orb.worldPosition.y = orb.groundY;
                     orb.state           = ExpOrbState::Homing;
@@ -192,13 +231,13 @@ namespace CombatAndroid::ECS {
                 }
             } else if(orb.state == ExpOrbState::Homing) {
                 if(playerEntity != entt::null) {
-                    hlslpp::float3 targetPosition = playerPosition + hlslpp::float3(0.0f, kAbsorbHeightOffset, 0.0f);
+                    hlslpp::float3 targetPosition = playerPosition + hlslpp::float3(0.0f, params.absorbHeightOffset, 0.0f);
                     hlslpp::float3 toTarget        = targetPosition - orb.worldPosition;
                     float          distance        = hlslpp::length(toTarget);
 
                     // 開始はゆっくり、時間が経つほど吸い込まれる速度が増していく（加速イージング）
-                    float speedT = SmoothStep01(orb.stateTimer / kHomingAccelDuration);
-                    float speed  = kHomingSpeedStart + (kHomingSpeedEnd - kHomingSpeedStart) * speedT;
+                    float speedT = SmoothStep01(orb.stateTimer / params.homingAccelDuration);
+                    float speed  = params.homingSpeedStart + (params.homingSpeedEnd - params.homingSpeedStart) * speedT;
 
                     if(distance > 0.001f) {
                         hlslpp::float3 direction = toTarget / distance;
@@ -206,8 +245,8 @@ namespace CombatAndroid::ECS {
                         orb.worldPosition += direction * moveDist;
                     }
 
-                    bool reachedPlayer = distance <= kAbsorbDistance;
-                    bool timedOut       = orb.stateTimer >= kHomingMaxDuration;
+                    bool reachedPlayer = distance <= params.absorbDistance;
+                    bool timedOut       = orb.stateTimer >= params.homingMaxDuration;
                     if(reachedPlayer || timedOut)
                         orb.state = ExpOrbState::Absorbed;
                 } else {
@@ -273,10 +312,10 @@ namespace CombatAndroid::ECS {
 
             float scale;
             if(orb.state == ExpOrbState::Falling) {
-                scale = kOrbBaseScale * SmoothStep01(orb.stateTimer / kFallPopInDuration);
+                scale = params.orbBaseScale * SmoothStep01(orb.stateTimer / params.fallPopInDuration);
             } else {
-                float homingT = std::clamp(orb.stateTimer / kHomingMaxDuration, 0.0f, 1.0f);
-                scale         = kOrbBaseScale + (kOrbHomingScaleEnd - kOrbBaseScale) * homingT;
+                float homingT = std::clamp(orb.stateTimer / params.homingMaxDuration, 0.0f, 1.0f);
+                scale         = params.orbBaseScale + (params.orbHomingScaleEnd - params.orbBaseScale) * homingT;
             }
 
             transform.scale = hlslpp::float3(scale, scale, 1.0f);

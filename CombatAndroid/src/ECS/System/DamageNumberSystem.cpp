@@ -7,11 +7,15 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/DamageNumberSystem.hpp>
 #include <CombatAndroid/ECS/Component/DamageNumberComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CollisionComponent.hpp>
+
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
 #include <hlsl++.h>
 #include <entt/entt.hpp>
@@ -21,26 +25,55 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kLifetime     = 0.75f;    //!< 表示開始から消えるまでの時間（秒）
-        constexpr float kRiseDistance = 70.0f;    //!< 寿命いっぱいで上昇するピクセル数
-        constexpr float kFadeStart    = 0.55f;    //!< 進行度がこの値を超えてからフェードを始める
+        //-------------------------------------------------------------
+        //! @struct DamageNumberParams
+        //! @brief  演出のチューニング値（Assets/Tables/Systems/DamageNumber.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct DamageNumberParams {
+            float lifetime     = 0.75f;    //!< 表示開始から消えるまでの時間（秒）
+            float riseDistance = 70.0f;    //!< 寿命いっぱいで上昇するピクセル数
+            float fadeStart    = 0.55f;    //!< 進行度がこの値を超えてからフェードを始める
 
-        // ポップ演出。0.45倍から1.25倍へ跳ね上げ、そこから等倍へ落ち着かせる
-        constexpr float kPopStartScale = 0.45f;
-        constexpr float kPopOvershoot  = 1.25f;
-        constexpr float kPopInEnd      = 0.14f;    //!< 進行度がここまでで最大まで拡大する
-        constexpr float kSettleEnd     = 0.30f;    //!< 進行度がここまでで等倍へ収束する
+            // ポップ演出。0.45倍から1.25倍へ跳ね上げ、そこから等倍へ落ち着かせる
+            float popStartScale = 0.45f;
+            float popOvershoot  = 1.25f;
+            float popInEnd      = 0.14f;    //!< 進行度がここまでで最大まで拡大する
+            float settleEnd     = 0.30f;    //!< 進行度がここまでで等倍へ収束する
 
-        constexpr float kOutlineWidth = 2.0f;    //!< 縁取りの太さ（ピクセル）
+            float outlineWidth = 2.0f;    //!< 縁取りの太さ（ピクセル）
 
-        // ヒット位置（敵の足元原点）からどれだけ上に出すか。
-        // 通常は敵のカプセル中心（CollisionComponent::offsetPosition.y）を使い、
-        // 取得できなかったときだけこの値へフォールバックする
-        constexpr float kDefaultSpawnHeight = 120.0f;
+            // ヒット位置（敵の足元原点）からどれだけ上に出すか。
+            // 通常は敵のカプセル中心（CollisionComponent::offsetPosition.y）を使い、
+            // 取得できなかったときだけこの値へフォールバックする
+            float defaultSpawnHeight = 120.0f;
 
-        //!< 数値の色（温かい黄）と縁取りの色
-        const hlslpp::float4 kDamageColor  = hlslpp::float4(1.0f, 0.92f, 0.35f, 1.0f);
-        const hlslpp::float4 kOutlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+            // 数値の色（温かい黄）と縁取りの色
+            hlslpp::float4 damageColor  = hlslpp::float4(1.0f, 0.92f, 0.35f, 1.0f);
+            hlslpp::float4 outlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, DamageNumberParams& params) {
+            LoadField(archive, "lifetime", params.lifetime);
+            LoadField(archive, "riseDistance", params.riseDistance);
+            LoadField(archive, "fadeStart", params.fadeStart);
+            LoadField(archive, "popStartScale", params.popStartScale);
+            LoadField(archive, "popOvershoot", params.popOvershoot);
+            LoadField(archive, "popInEnd", params.popInEnd);
+            LoadField(archive, "settleEnd", params.settleEnd);
+            LoadField(archive, "outlineWidth", params.outlineWidth);
+            LoadField(archive, "defaultSpawnHeight", params.defaultSpawnHeight);
+            LoadField(archive, "damageColor", params.damageColor);
+            LoadField(archive, "outlineColor", params.outlineColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const DamageNumberParams& GetParams() {
+            static const DamageNumberParams s_params = LoadSystemParams<DamageNumberParams>("DamageNumber");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
@@ -56,14 +89,16 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         float EvaluatePopScale(float t) {
-            if(t < kPopInEnd) {
-                float u = SmoothStep01(t / kPopInEnd);
-                return kPopStartScale + (kPopOvershoot - kPopStartScale) * u;
+            const DamageNumberParams& params = GetParams();
+
+            if(t < params.popInEnd) {
+                float u = SmoothStep01(t / params.popInEnd);
+                return params.popStartScale + (params.popOvershoot - params.popStartScale) * u;
             }
 
-            if(t < kSettleEnd) {
-                float u = SmoothStep01((t - kPopInEnd) / (kSettleEnd - kPopInEnd));
-                return kPopOvershoot + (1.0f - kPopOvershoot) * u;
+            if(t < params.settleEnd) {
+                float u = SmoothStep01((t - params.popInEnd) / (params.settleEnd - params.popInEnd));
+                return params.popOvershoot + (1.0f - params.popOvershoot) * u;
             }
 
             return 1.0f;
@@ -76,6 +111,7 @@ namespace CombatAndroid::ECS {
     void DamageNumberSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         // ハンドラ内でヒープを触らないよう、あらかじめ最大数分を確保しておく
         m_pending.reserve(kDamageNumberPoolSize);
+        (void)GetParams();    // 初回ヒットでファイルを読まないよう先に読んでおく
 
         m_hitConnection = eventBus.Subscribe<WeaponHitEvent>([this](const WeaponHitEvent& event) { OnWeaponHit(event); });
     }
@@ -91,6 +127,7 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void DamageNumberSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const DamageNumberParams& params = GetParams();
         auto view = registry.View<DamageNumberComponent,
                                   Tsukino::BuiltIn::ECS::TransformComponent,
                                   Tsukino::BuiltIn::ECS::WorldAnchorComponent,
@@ -127,7 +164,7 @@ namespace CombatAndroid::ECS {
             // 表示する高さを決める。WeaponHitEvent::hitPositionは敵の足元原点なので、
             // そのままでは地面に数値が出てしまう。敵のカプセル中心まで持ち上げる
             //-------------------------------------------------------------
-            float spawnHeight = kDefaultSpawnHeight;
+            float spawnHeight = params.defaultSpawnHeight;
             if(registry.IsValid(pending.target)) {
                 if(const auto* collision = registry.try_get<Tsukino::BuiltIn::ECS::CollisionComponent>(pending.target))
                     spawnHeight = collision->offsetPosition.y;
@@ -140,13 +177,13 @@ namespace CombatAndroid::ECS {
 
             damageNumber.active    = true;
             damageNumber.elapsed   = 0.0f;
-            damageNumber.lifetime  = kLifetime;
-            damageNumber.baseColor = kDamageColor;
+            damageNumber.lifetime  = params.lifetime;
+            damageNumber.baseColor = params.damageColor;
 
             font.text            = std::to_wstring(static_cast<int>(pending.damage + 0.5f));
-            font.color           = kDamageColor;
-            font.outlineColor    = kOutlineColor;
-            font.outlineWidth    = kOutlineWidth;
+            font.color           = params.damageColor;
+            font.outlineColor    = params.outlineColor;
+            font.outlineWidth    = params.outlineWidth;
             font.horizontalAlign = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
             font.verticalAlign   = Tsukino::BuiltIn::ECS::VerticalAlign::Middle;
 
@@ -160,7 +197,7 @@ namespace CombatAndroid::ECS {
             anchor.worldOffset           = hlslpp::float3(0.0f, 0.0f, 0.0f);
             anchor.screenOffset          = hlslpp::float2(0.0f, 0.0f);
 
-            transform.scale = hlslpp::float3(kPopStartScale, kPopStartScale, 1.0f);
+            transform.scale = hlslpp::float3(params.popStartScale, params.popStartScale, 1.0f);
             transform.dirty = true;
         }
 
@@ -206,17 +243,17 @@ namespace CombatAndroid::ECS {
             // 上へ動かすにはscreenOffset.yを負にする。減速させるためease-outにする
             //-------------------------------------------------------------
             float riseCurve     = 1.0f - (1.0f - t) * (1.0f - t);
-            anchor.screenOffset = hlslpp::float2(0.0f, -kRiseDistance * riseCurve);
+            anchor.screenOffset = hlslpp::float2(0.0f, -params.riseDistance * riseCurve);
 
             //-------------------------------------------------------------
             // フェード。縁取りだけ残らないよう本体と同じアルファを掛ける
             //-------------------------------------------------------------
-            float alpha = (t < kFadeStart) ? 1.0f : (1.0f - t) / (1.0f - kFadeStart);
+            float alpha = (t < params.fadeStart) ? 1.0f : (1.0f - t) / (1.0f - params.fadeStart);
             alpha       = std::clamp(alpha, 0.0f, 1.0f);
 
             font.color = hlslpp::float4(
                 damageNumber.baseColor.x, damageNumber.baseColor.y, damageNumber.baseColor.z, damageNumber.baseColor.w * alpha);
-            font.outlineColor = hlslpp::float4(kOutlineColor.x, kOutlineColor.y, kOutlineColor.z, kOutlineColor.w * alpha);
+            font.outlineColor = hlslpp::float4(params.outlineColor.x, params.outlineColor.y, params.outlineColor.z, params.outlineColor.w * alpha);
         });
     }
 }    // namespace CombatAndroid::ECS

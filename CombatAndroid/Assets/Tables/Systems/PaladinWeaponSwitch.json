@@ -1,0 +1,7 @@
+{
+    "PaladinWeaponSwitch": {
+        "farDistance": 260.0,
+        "closeDistance": 130.0,
+        "maxSameWeaponStreak": 2
+    }
+}

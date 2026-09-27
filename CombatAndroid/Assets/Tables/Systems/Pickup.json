@@ -1,0 +1,26 @@
+{
+    "Pickup": {
+        "rimGlowBlendSpeed": 10.0,
+        "pulseSpeed": 3.0,
+        "rimColor": { "x": 0.3, "y": 0.9, "z": 1.0 },
+        "rimIntensityMax": 4.0,
+        "rimPower": 2.5,
+        "glowMin": 0.05,
+        "glowMax": 0.35,
+        "floatSpacing": 70.0,
+        "floatHeight": 170.0,
+        "floatDepth": -20.0,
+        "absorbSpeedStart": 50.0,
+        "absorbSpeedEnd": 400.0,
+        "absorbAccelDuration": 0.6,
+        "absorbReachDistance": 25.0,
+        "absorbMaxDuration": 2.0,
+        "absorbRotationLerpSpeed": 8.0,
+        "levelUpFlashDuration": 0.45,
+        "levelUpRimColor": { "x": 1.0, "y": 0.85, "z": 0.35 },
+        "levelUpRimIntensityMax": 6.0,
+        "levelUpGlowMax": 0.6,
+        "evolvedRimIntensity": 1.8,
+        "evolvedGlow": 0.04
+    }
+}

@@ -1,0 +1,8 @@
+{
+    "EnemyWeaponDrop": {
+        "dropFallDuration": 0.4,
+        "eliteDropStartHeight": 140.0,
+        "extraDropSpread": 120.0,
+        "extraDropAngleOffset": 0.6
+    }
+}

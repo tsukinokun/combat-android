@@ -18,6 +18,7 @@
 | `EnemyDifficulty.json` | `EnemyDifficultyTable.cpp` | 危険度ランクごとの倍率と、終端より先の1段ぶんの増分 |
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |
+| `Systems/<名前>.json` | `ECS/System/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
 
 敵1体の素の値（HP・移動速度・当たり判定など）はテーブルではなく Prefab（`Assets/Prefabs/Enemy/<名前>/`）が持つ。
 Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.json`。
@@ -29,6 +30,25 @@ Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.j
 - **スキル**：`SkillId` と `SkillTable.cpp` の `kSkillKeys` に1つ → `Skills.json` に1項目 → 効果を反映する `RecalculateSkillStats` の case 文
 - **敵**：`EnemyTypeId` と `EnemySpawnTable.cpp` の `kEnemyTypes`（名前と生成関数）に1行 → `EnemySpawn.json` と `Elite.json` の `displayNames` に1項目
 - **効果音**：`SoundId` と `SoundTable.cpp` の `kSoundKeys` に1つ → `Sounds.json` に1項目（音源は `Assets/Audio/generate_game_sounds.py`）
+
+## System の調整値（`Systems/`）
+
+System の `.cpp` の無名 namespace にある調整値は、ここへ出してよい。今あるのは
+`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop`。
+
+- **出す**：見た目・手触り・挙動の調整値（速度・時間・距離・高さ・色・強度・閾値）
+- **残す**：数学定数（`kPi` など）／配列サイズ・分割数・プール数など構造に効くもの／
+  他のコードや Prefab と値を揃える必要があるもの（`ExpOrbSystem` の必要EXP、`EnemyWeaponDropSystem` の接地高さ）
+
+出し方（`ExpOrbSystem.cpp` が見本）:
+
+1. 無名 namespace の `constexpr` を、既定値つきの構造体 `<名前>Params` のメンバへ移す（**既定値は元の値のまま**。コメントも移す）
+2. `load()` を書き、全メンバを `LoadField` で読む。キー名は `k` を外した lowerCamel（`kFallSafetyDuration` → `fallSafetyDuration`）
+3. `GetParams()` で `LoadSystemParams<T>("<名前>")`（`TableJson.hpp`）を関数内 static に1度だけ読み、使う側は `params.xxx`。
+   `Initialize` があればそこで1度呼んでおく（初回フレームでファイルを読まないため）
+4. `Systems/<名前>.json` をルートキー `<名前>` で書く。色などのベクトルは `{ "x":…, "y":…, "z":… }`（Prefab と同じ書式）
+
+キーが欠けていてもコードの既定値で動く。ファイルが無い・壊れているときは `Table not found` / `Table is broken` がログに出る。
 
 ## 数値を触るときの約束
 

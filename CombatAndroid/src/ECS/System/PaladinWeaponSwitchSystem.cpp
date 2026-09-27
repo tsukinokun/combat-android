@@ -9,7 +9,9 @@
 #include <CombatAndroid/ECS/Component/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/EliteEnemy.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -24,16 +26,35 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // 使い分けの距離（水平距離・ユニット）。
-        // エリートの間合いはグレートソード195・バトルアックス182・ウォーハンマー169なので、
-        // 振り終わりにそれより大きく離れていれば「逃げられた」、判定の太さ程度まで
-        // 詰められていれば「懐に入られた」と見なす
+        //! @struct PaladinWeaponSwitchParams
+        //! @brief  使い分けの調整値（Assets/Tables/Systems/PaladinWeaponSwitch.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kFarDistance   = 260.0f;    //!< これより遠ければグレートソード
-        constexpr float kCloseDistance = 130.0f;    //!< これより近ければウォーハンマー
+        struct PaladinWeaponSwitchParams {
+            // 使い分けの距離（水平距離・ユニット）。
+            // エリートの間合いはグレートソード195・バトルアックス182・ウォーハンマー169なので、
+            // 振り終わりにそれより大きく離れていれば「逃げられた」、判定の太さ程度まで
+            // 詰められていれば「懐に入られた」と見なす
+            float farDistance   = 260.0f;    //!< これより遠ければグレートソード
+            float closeDistance = 130.0f;    //!< これより近ければウォーハンマー
 
-        //! 同じ武器をこの回数続けて選んだら、次は別の武器にする
-        constexpr int kMaxSameWeaponStreak = 2;
+            //! 同じ武器をこの回数続けて選んだら、次は別の武器にする
+            int maxSameWeaponStreak = 2;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PaladinWeaponSwitchParams& params) {
+            LoadField(archive, "farDistance", params.farDistance);
+            LoadField(archive, "closeDistance", params.closeDistance);
+            LoadField(archive, "maxSameWeaponStreak", params.maxSameWeaponStreak);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  調整値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PaladinWeaponSwitchParams& GetParams() {
+            static const PaladinWeaponSwitchParams s_params = LoadSystemParams<PaladinWeaponSwitchParams>("PaladinWeaponSwitch");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  武器の「間合いの長さ」の順位（0が一番遠くから届く）
@@ -55,9 +76,10 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         int ChoosePreferredReachRank(float distance) {
-            if(distance > kFarDistance)
+            const PaladinWeaponSwitchParams& params = GetParams();
+            if(distance > params.farDistance)
                 return 0;
-            if(distance < kCloseDistance)
+            if(distance < params.closeDistance)
                 return 2;
             return 1;
         }
@@ -143,7 +165,7 @@ namespace CombatAndroid::ECS {
             std::uniform_int_distribution<size_t> candidateDist(0, candidates.size() - 1);
             WeaponId nextId = candidates[candidateDist(m_rng)];
 
-            if(nextId == held.weaponId && arsenal.sameWeaponStreak >= kMaxSameWeaponStreak) {
+            if(nextId == held.weaponId && arsenal.sameWeaponStreak >= GetParams().maxSameWeaponStreak) {
                 std::vector<WeaponId> others;
                 for(Tsukino::ECS::Entity weaponEntity : arsenal.weaponEntities) {
                     if(const auto* weapon = registry.try_get<WeaponComponent>(weaponEntity); weapon && weapon->weaponId != held.weaponId)

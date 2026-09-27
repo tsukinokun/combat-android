@@ -12,6 +12,8 @@
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
@@ -24,6 +26,7 @@
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Input/InputSystem.hpp>
 #include <Tsukino/Core/Math/MathHelper.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
 #include <hlsl++.h>
 #include <algorithm>
@@ -34,43 +37,80 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kRimGlowBlendSpeed = 10.0f;    //!< rimGlowBlendが0↔1へ遷移する速さ（大きいほど素早く切り替わる）
-        constexpr float kPulseSpeed        = 3.0f;     //!< 白発光の脈動速度（rad/sec相当）
-        constexpr float kRimColorR         = 0.3f;     //!< ネオン風リムカラー（シアン系）
-        constexpr float kRimColorG         = 0.9f;
-        constexpr float kRimColorB         = 1.0f;
-        constexpr float kRimIntensityMax   = 4.0f;     //!< 完全点灯時のリム強度
-        constexpr float kRimPower          = 2.5f;     //!< リムの鋭さ
-        constexpr float kGlowMin           = 0.05f;    //!< 白発光の脈動の下限
-        constexpr float kGlowMax           = 0.35f;    //!< 白発光の脈動の上限
+        //-------------------------------------------------------------
+        //! @struct PickupParams
+        //! @brief  演出のチューニング値（Assets/Tables/Systems/Pickup.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct PickupParams {
+            // 拾える武器のリムグロー
+            float          rimGlowBlendSpeed = 10.0f;                                //!< rimGlowBlendが0↔1へ遷移する速さ（大きいほど素早く切り替わる）
+            float          pulseSpeed        = 3.0f;                                 //!< 白発光の脈動速度（rad/sec相当）
+            hlslpp::float3 rimColor          = hlslpp::float3(0.3f, 0.9f, 1.0f);    //!< ネオン風リムカラー（シアン系）
+            float          rimIntensityMax   = 4.0f;                                 //!< 完全点灯時のリム強度
+            float          rimPower          = 2.5f;                                 //!< リムの鋭さ
+            float          glowMin           = 0.05f;                                //!< 白発光の脈動の下限
+            float          glowMax           = 0.35f;                                //!< 白発光の脈動の上限
 
-        constexpr float kFloatSpacing = 70.0f;     //!< 浮遊武器を横に並べる間隔（隣同士のx距離）
-        constexpr float kFloatHeight  = 170.0f;    //!< 浮遊武器の高さ（既存の初期配置に合わせる）
-        constexpr float kFloatDepth   = -20.0f;    //!< 浮遊武器の前後オフセット（既存の初期配置に合わせる）
+            float floatSpacing = 70.0f;     //!< 浮遊武器を横に並べる間隔（隣同士のx距離）
+            float floatHeight  = 170.0f;    //!< 浮遊武器の高さ（既存の初期配置に合わせる）
+            float floatDepth   = -20.0f;    //!< 浮遊武器の前後オフセット（既存の初期配置に合わせる）
 
-        // レベルアップの糧になった武器が装備中の同種武器へ吸い寄せられる演出のチューニング値
-        // （ExpOrbSystemのホーミング演出と同じ考え方：開始はゆっくり、時間経過で加速する。
-        // 「磁石にゆっくり吸い込まれる」感を出すため、開始速度・終端速度とも控えめにしてある）
-        constexpr float kAbsorbSpeedStart      = 50.0f;      //!< 吸い寄せ開始時の速度
-        constexpr float kAbsorbSpeedEnd        = 400.0f;     //!< 吸い寄せが十分進んだ時点の速度
-        constexpr float kAbsorbAccelDuration   = 0.6f;       //!< 開始速度→終端速度まで加速しきるまでの時間
-        constexpr float kAbsorbReachDistance   = 25.0f;      //!< 装備武器とこの距離未満まで近づいたら「重なった」と見なす
-        constexpr float kAbsorbMaxDuration     = 2.0f;       //!< 万一追いつけない場合の保険（この秒数で強制的に到達扱いにする）
-        constexpr float kAbsorbRotationLerpSpeed = 8.0f;     //!< 装備武器の姿勢へ回転補間で近づく速さ（WeaponComponent::attachRotationLerpSpeedと同じ指数減衰の考え方）
+            // レベルアップの糧になった武器が装備中の同種武器へ吸い寄せられる演出
+            // （ExpOrbSystemのホーミング演出と同じ考え方：開始はゆっくり、時間経過で加速する。
+            // 「磁石にゆっくり吸い込まれる」感を出すため、開始速度・終端速度とも控えめにしてある）
+            float absorbSpeedStart         = 50.0f;     //!< 吸い寄せ開始時の速度
+            float absorbSpeedEnd           = 400.0f;    //!< 吸い寄せが十分進んだ時点の速度
+            float absorbAccelDuration      = 0.6f;      //!< 開始速度→終端速度まで加速しきるまでの時間
+            float absorbReachDistance      = 25.0f;     //!< 装備武器とこの距離未満まで近づいたら「重なった」と見なす
+            float absorbMaxDuration        = 2.0f;      //!< 万一追いつけない場合の保険（この秒数で強制的に到達扱いにする）
+            float absorbRotationLerpSpeed  = 8.0f;      //!< 装備武器の姿勢へ回転補間で近づく速さ（WeaponComponent::attachRotationLerpSpeedと同じ指数減衰の考え方）
 
-        // レベルアップ完了の瞬間に装備武器へ焼くリムグローのチューニング値。
-        // 拾える武器のシアン系リムグローと見分けられるよう暖色系（ゴールド）にしている
-        constexpr float kLevelUpFlashDuration   = 0.45f;    //!< 発光が続く時間（秒）。この時間でrimIntensity/glowが0まで減衰する
-        constexpr float kLevelUpRimColorR       = 1.0f;
-        constexpr float kLevelUpRimColorG       = 0.85f;
-        constexpr float kLevelUpRimColorB       = 0.35f;
-        constexpr float kLevelUpRimIntensityMax = 6.0f;    //!< 発光開始直後のリム強度
-        constexpr float kLevelUpGlowMax         = 0.6f;    //!< 発光開始直後の白発光量
+            // レベルアップ完了の瞬間に装備武器へ焼くリムグロー。
+            // 拾える武器のシアン系リムグローと見分けられるよう暖色系（ゴールド）にしている
+            float          levelUpFlashDuration   = 0.45f;                                //!< 発光が続く時間（秒）。この時間でrimIntensity/glowが0まで減衰する
+            hlslpp::float3 levelUpRimColor        = hlslpp::float3(1.0f, 0.85f, 0.35f);
+            float          levelUpRimIntensityMax = 6.0f;                                 //!< 発光開始直後のリム強度
+            float          levelUpGlowMax         = 0.6f;                                 //!< 発光開始直後の白発光量
 
-        // 進化済みの武器に常に残す弱い発光。レベルアップ発光と同じ金色で、
-        // 戦闘中に目障りにならないよう面全体（glow）はほとんど持ち上げない
-        constexpr float kEvolvedRimIntensity = 1.8f;
-        constexpr float kEvolvedGlow         = 0.04f;
+            // 進化済みの武器に常に残す弱い発光。レベルアップ発光と同じ金色で、
+            // 戦闘中に目障りにならないよう面全体（glow）はほとんど持ち上げない
+            float evolvedRimIntensity = 1.8f;
+            float evolvedGlow         = 0.04f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PickupParams& params) {
+            LoadField(archive, "rimGlowBlendSpeed", params.rimGlowBlendSpeed);
+            LoadField(archive, "pulseSpeed", params.pulseSpeed);
+            LoadField(archive, "rimColor", params.rimColor);
+            LoadField(archive, "rimIntensityMax", params.rimIntensityMax);
+            LoadField(archive, "rimPower", params.rimPower);
+            LoadField(archive, "glowMin", params.glowMin);
+            LoadField(archive, "glowMax", params.glowMax);
+            LoadField(archive, "floatSpacing", params.floatSpacing);
+            LoadField(archive, "floatHeight", params.floatHeight);
+            LoadField(archive, "floatDepth", params.floatDepth);
+            LoadField(archive, "absorbSpeedStart", params.absorbSpeedStart);
+            LoadField(archive, "absorbSpeedEnd", params.absorbSpeedEnd);
+            LoadField(archive, "absorbAccelDuration", params.absorbAccelDuration);
+            LoadField(archive, "absorbReachDistance", params.absorbReachDistance);
+            LoadField(archive, "absorbMaxDuration", params.absorbMaxDuration);
+            LoadField(archive, "absorbRotationLerpSpeed", params.absorbRotationLerpSpeed);
+            LoadField(archive, "levelUpFlashDuration", params.levelUpFlashDuration);
+            LoadField(archive, "levelUpRimColor", params.levelUpRimColor);
+            LoadField(archive, "levelUpRimIntensityMax", params.levelUpRimIntensityMax);
+            LoadField(archive, "levelUpGlowMax", params.levelUpGlowMax);
+            LoadField(archive, "evolvedRimIntensity", params.evolvedRimIntensity);
+            LoadField(archive, "evolvedGlow", params.evolvedGlow);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PickupParams& GetParams() {
+            static const PickupParams s_params = LoadSystemParams<PickupParams>("Pickup");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
@@ -86,6 +126,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PickupSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const PickupParams& params = GetParams();
+
         //-------------------------------------------------------------
         // コンテキストの取得
         //-------------------------------------------------------------
@@ -147,8 +189,8 @@ namespace CombatAndroid::ECS {
                 float          distance = hlslpp::length(toTarget);
 
                 // 開始はゆっくり、時間が経つほど吸い込まれる速度が増していく（加速イージング）
-                float speedT = SmoothStep01(absorb.stateTimer / kAbsorbAccelDuration);
-                float speed  = kAbsorbSpeedStart + (kAbsorbSpeedEnd - kAbsorbSpeedStart) * speedT;
+                float speedT = SmoothStep01(absorb.stateTimer / params.absorbAccelDuration);
+                float speed  = params.absorbSpeedStart + (params.absorbSpeedEnd - params.absorbSpeedStart) * speedT;
 
                 if(distance > 0.001f) {
                     hlslpp::float3 direction = toTarget / distance;
@@ -157,12 +199,12 @@ namespace CombatAndroid::ECS {
                 }
 
                 // 姿勢も装備武器の向きへ指数減衰で滑らかに近づける（CombatSystemの武器アタッチと同じ考え方）
-                float rotationLerpT = 1.0f - std::exp(-kAbsorbRotationLerpSpeed * deltaTime);
+                float rotationLerpT = 1.0f - std::exp(-params.absorbRotationLerpSpeed * deltaTime);
                 transform.rotation  = Tsukino::Core::Math::SlerpShortestPath(transform.rotation, targetRotation, rotationLerpT);
                 transform.dirty     = true;
 
-                bool reached  = distance <= kAbsorbReachDistance;
-                bool timedOut = absorb.stateTimer >= kAbsorbMaxDuration;
+                bool reached  = distance <= params.absorbReachDistance;
+                bool timedOut = absorb.stateTimer >= params.absorbMaxDuration;
                 if(reached || timedOut)
                     finishedAbsorptions.push_back(entity);
             });
@@ -186,7 +228,7 @@ namespace CombatAndroid::ECS {
                                                               + std::to_wstring(targetWeapon.level)});
                         }
                     }
-                    targetWeapon.levelUpFlashTimer = kLevelUpFlashDuration;
+                    targetWeapon.levelUpFlashTimer = params.levelUpFlashDuration;
 
                     // 最大レベルに届いた武器が進化条件を満たしていれば進化させる
                     // （進化した武器はここで発光を長いものに焼き直す）
@@ -206,15 +248,15 @@ namespace CombatAndroid::ECS {
             flashView.each([&](entt::entity, WeaponComponent& weapon, Tsukino::BuiltIn::ECS::RimGlowComponent& rimGlow) {
                 // 手持ちの進化済み武器は、発光が減衰し切った後もこの弱さで光らせ続ける
                 const bool  keepsEvolvedGlow = weapon.evolved && weapon.owner != entt::null;
-                const float restRim          = keepsEvolvedGlow ? kEvolvedRimIntensity : 0.0f;
-                const float restGlow         = keepsEvolvedGlow ? kEvolvedGlow : 0.0f;
+                const float restRim          = keepsEvolvedGlow ? params.evolvedRimIntensity : 0.0f;
+                const float restGlow         = keepsEvolvedGlow ? params.evolvedGlow : 0.0f;
 
                 if(weapon.levelUpFlashTimer <= 0.0f) {
                     if(keepsEvolvedGlow) {
                         rimGlow.active       = true;
-                        rimGlow.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
+                        rimGlow.rimColor     = params.levelUpRimColor;
                         rimGlow.rimIntensity = restRim;
-                        rimGlow.rimPower     = kRimPower;
+                        rimGlow.rimPower     = params.rimPower;
                         rimGlow.glow         = restGlow;
                     }
                     return;
@@ -230,12 +272,12 @@ namespace CombatAndroid::ECS {
                 }
 
                 // 減衰の行き先は消灯ではなく常時発光の強さ（進化済みでなければ0）
-                float ease = SmoothStep01(weapon.levelUpFlashTimer / kLevelUpFlashDuration);
+                float ease = SmoothStep01(weapon.levelUpFlashTimer / params.levelUpFlashDuration);
                 rimGlow.active       = true;
-                rimGlow.rimColor     = hlslpp::float3(kLevelUpRimColorR, kLevelUpRimColorG, kLevelUpRimColorB);
-                rimGlow.rimIntensity = restRim + (kLevelUpRimIntensityMax - restRim) * ease;
-                rimGlow.rimPower     = kRimPower;
-                rimGlow.glow         = restGlow + (kLevelUpGlowMax - restGlow) * ease;
+                rimGlow.rimColor     = params.levelUpRimColor;
+                rimGlow.rimIntensity = restRim + (params.levelUpRimIntensityMax - restRim) * ease;
+                rimGlow.rimPower     = params.rimPower;
+                rimGlow.glow         = restGlow + (params.levelUpGlowMax - restGlow) * ease;
             });
         }
 
@@ -253,9 +295,9 @@ namespace CombatAndroid::ECS {
                     continue;
 
                 // count等分した位置に中央揃えで並べる（例: 2本なら-35, +35）
-                float             offsetX = (static_cast<float>(i) - (weaponCount - 1) * 0.5f) * kFloatSpacing;
+                float             offsetX = (static_cast<float>(i) - (weaponCount - 1) * 0.5f) * params.floatSpacing;
                 WeaponComponent& weapon   = registry.GetComponent<WeaponComponent>(weaponEntity);
-                weapon.localOffset        = hlslpp::float3(offsetX, kFloatHeight, kFloatDepth);
+                weapon.localOffset        = hlslpp::float3(offsetX, params.floatHeight, params.floatDepth);
             }
         }
 
@@ -285,20 +327,20 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         pickupView.each([&](entt::entity entity, PickupComponent& pickup, Tsukino::BuiltIn::ECS::TransformComponent& transform) {
             float target = (entity == nearest) ? 1.0f : 0.0f;
-            float t      = 1.0f - std::exp(-kRimGlowBlendSpeed * deltaTime);
+            float t      = 1.0f - std::exp(-params.rimGlowBlendSpeed * deltaTime);
             pickup.rimGlowBlend += (target - pickup.rimGlowBlend) * t;
             pickup.pulseTime += deltaTime;
 
             // 0→1→0を往復する脈動。sinを2乗して滑らかな山にする
-            float wave  = std::sin(pickup.pulseTime * kPulseSpeed);
+            float wave  = std::sin(pickup.pulseTime * params.pulseSpeed);
             float pulse = wave * wave;
 
             if(auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
                 rimGlow->active       = pickup.rimGlowBlend > 0.001f;
-                rimGlow->rimColor     = hlslpp::float3(kRimColorR, kRimColorG, kRimColorB);
-                rimGlow->rimIntensity = kRimIntensityMax * pickup.rimGlowBlend;
-                rimGlow->rimPower     = kRimPower;
-                rimGlow->glow         = (kGlowMin + (kGlowMax - kGlowMin) * pulse) * pickup.rimGlowBlend;
+                rimGlow->rimColor     = params.rimColor;
+                rimGlow->rimIntensity = params.rimIntensityMax * pickup.rimGlowBlend;
+                rimGlow->rimPower     = params.rimPower;
+                rimGlow->glow         = (params.glowMin + (params.glowMax - params.glowMin) * pulse) * pickup.rimGlowBlend;
             }
         });
 

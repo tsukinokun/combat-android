@@ -60,6 +60,8 @@
 - `PlayerAnimationSystem.cpp` はアニメだけでなく攻撃コンボの状態遷移も持つ
 - 武器・スキル・敵は**テーブル駆動**。調整値は `CombatAndroid/Assets/Tables/*.json`（再ビルド不要）、
   エンティティの初期値は `CombatAndroid/Assets/Prefabs/`。数値を C++ に戻さない。武器種ごとにクラスを増やさない
+- System の無名 namespace にある演出・挙動の調整値は `Assets/Tables/Systems/<名前>.json` へ出してよい
+  （線引きと手順は `Assets/Tables/README.md`）
 - システムの実行順とその理由は `ECS/SystemPriority.hpp` に集約してある
 
 ## よくある作業

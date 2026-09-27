@@ -1,0 +1,21 @@
+{
+    "ExpOrb": {
+        "spawnHeightAboveGround": 70.0,
+        "restHeightAboveGround": 20.0,
+        "popUpSpeedMin": 220.0,
+        "popUpSpeedMax": 320.0,
+        "horizontalSpeedMin": 60.0,
+        "horizontalSpeedMax": 160.0,
+        "gravity": 900.0,
+        "fallSafetyDuration": 1.2,
+        "fallPopInDuration": 0.12,
+        "homingSpeedStart": 250.0,
+        "homingSpeedEnd": 900.0,
+        "homingAccelDuration": 0.6,
+        "homingMaxDuration": 1.5,
+        "absorbDistance": 40.0,
+        "absorbHeightOffset": 90.0,
+        "orbBaseScale": 0.75,
+        "orbHomingScaleEnd": 1.0
+    }
+}
