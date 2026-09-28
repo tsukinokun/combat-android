@@ -17,7 +17,7 @@ namespace CombatAndroid::ECS {
     //! タイトル画面のBGM。置かれていなければ無音
     inline constexpr const char* kTitleBgmPath = "CombatAndroid/Assets/Audio/Title.mp3";
     //! 戦闘中のBGM。置かれていなければ無音
-    inline constexpr const char* kBattleBgmPath = "CombatAndroid/Assets/Audio/BgmBattle.wav";
+    inline constexpr const char* kBattleBgmPath = "CombatAndroid/Assets/Audio/InGame.mp3";
 
     //! BGMの音量。効果音（SoundTable）に埋もれず、かつ前に出過ぎない値
     inline constexpr float kBgmVolume = 0.35f;
