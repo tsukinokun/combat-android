@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
+#include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/PauseMenuComponent.hpp>
@@ -161,12 +162,13 @@ namespace CombatAndroid::ECS {
 
                 //-------------------------------------------------------------
                 // Escで開く。スキル選択中はメニュー同士が重なるので開かない。
-                // 走行が終わった後はリザルトがリトライ／タイトルへの道を持っているので開かない
+                // 走行が終わった後はリザルトがリトライ／タイトルへの道を持っているので開かない。
+                // カットシーン中は演出への操作を渡したくないので開かない
                 //-------------------------------------------------------------
                 const bool windowFocused = !ctx->window || ctx->window->IsFocused();
                 if(!windowFocused || !input.IsKeyPressed(Tsukino::Input::KeyCode::Escape))
                     continue;
-                if(IsSkillSelectActive(registry) || IsRunEnded(registry))
+                if(IsSkillSelectActive(registry) || IsRunEnded(registry) || IsCutsceneActive(registry))
                     continue;
 
                 pause.isOpen          = true;

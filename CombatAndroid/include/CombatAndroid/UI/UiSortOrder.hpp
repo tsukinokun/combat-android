@@ -79,6 +79,11 @@ namespace CombatAndroid::UI {
     constexpr int kPauseMenuBase = 620;    //!< 再開／オプション／リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
     constexpr int kPauseOptionsBase = 700;    //!< ポーズから開くオプション画面（OptionsMenuが+0〜+44を使う）。ポーズの暗転板より手前
 
+    //! カットシーン（CutsceneSystem）の演出。ポーズのオプション画面(700〜744)より手前、
+    //! 場面切り替えの黒フェード(800)より奥に置く
+    constexpr int kCutsceneLetterbox = 750;    //!< 上下の黒帯
+    constexpr int kCutsceneSkipHint  = 760;    //!< 「スキップ」の案内文字
+
     //! タイトル画面（TitleScene。戦闘シーンとは別のシーンなので上の帯とは衝突しない）
     constexpr int kTitleBackdrop      = 100;    //!< 背景の板
     constexpr int kTitleText          = 110;    //!< タイトル・副題・ベスト記録

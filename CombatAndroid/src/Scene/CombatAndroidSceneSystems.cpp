@@ -22,6 +22,7 @@
 #include <CombatAndroid/ECS/System/EnemyAttackTelegraphSystem.hpp>
 #include <CombatAndroid/ECS/System/PaladinWeaponSwitchSystem.hpp>
 #include <CombatAndroid/ECS/System/HitStopSystem.hpp>
+#include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/PickupSystem.hpp>
@@ -195,6 +196,9 @@ namespace CombatAndroid {
             runResultSystem->Initialize(eventBus);
         }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformLate);
+        // カットシーンの演出カメラ。TpsCameraSystemより前に登録し、再生中はTransform/fovを
+        // 直接書き切ってからTpsCameraSystemに「何もしない」判断をさせる
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CutsceneSystem>(), (int)ECS::SystemPriority::Cutscene);
         {
             // PlayerDamagedEventを購読して、被弾したらカメラを揺らす。
             // Publish元のCombatSystem（WeaponAttach）より後ろに居るので、被弾したフレームのうちに揺れ始める

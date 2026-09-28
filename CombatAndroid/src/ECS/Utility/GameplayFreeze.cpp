@@ -5,6 +5,7 @@
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 
 #include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/PauseMenuSystem.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
@@ -22,7 +23,7 @@ namespace CombatAndroid::ECS {
     //! @brief 今ゲームの進行を止めているかを問い合わせる
     //-------------------------------------------------------------
     bool IsGameplayFrozen(Tsukino::ECS::Registry& registry) {
-        return IsSkillSelectActive(registry) || IsPauseMenuActive(registry) || IsRunResultFreezing(registry);
+        return IsSkillSelectActive(registry) || IsPauseMenuActive(registry) || IsRunResultFreezing(registry) || IsCutsceneActive(registry);
     }
 
     //-------------------------------------------------------------

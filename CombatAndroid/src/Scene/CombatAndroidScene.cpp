@@ -40,6 +40,7 @@
 #include <CombatAndroid/ECS/Utility/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
+#include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
 
 #include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
@@ -95,6 +96,54 @@
 
 #include <entt/entt.hpp>
 #include <hlsl++.h>
+
+#include <vector>
+
+namespace {
+    //-------------------------------------------------------------
+    //! @brief  オープニングのカットシーンのショット列を組み立てる
+    //! @param  playerEntity   [in] プレイヤー本体（引き渡し先の注視対象）
+    //! @param  playerPosition [in] プレイヤーの開始位置（俯瞰ショットの基準点）
+    //! @note   数値は実機で見ながら調整する前提の出発点（俯瞰→引き渡しの2ショット）。
+    //!         ショット2はTpsCameraComponentの既定framingに近づけてあり、カットシーン
+    //!         終了時のハードカット（ばね無しで通常追従へ復帰する）の見た目の差を小さくする
+    //-------------------------------------------------------------
+    std::vector<CombatAndroid::ECS::CutsceneShot> BuildOpeningCutsceneShots(Tsukino::ECS::Entity   playerEntity,
+                                                                            const hlslpp::float3& playerPosition) {
+        std::vector<CombatAndroid::ECS::CutsceneShot> shots;
+
+        CombatAndroid::ECS::CutsceneShot establishing;
+        establishing.targetPoint    = playerPosition;
+        establishing.distance       = 1400.0f;
+        establishing.height          = 500.0f;
+        establishing.lookHeight      = 100.0f;
+        establishing.yaw             = 0.0f;
+        establishing.pitch           = 0.35f;
+        establishing.fov              = 55.0f;
+        // 高く引いた俯瞰ショットは、地面との交点までの実距離が通常プレイ時の
+        // farZ=2000を超えて地平線が途中で切れて見えるため、この場面だけ伸ばす
+        establishing.farZ            = 6000.0f;
+        establishing.duration        = 3.0f;
+        establishing.blendFrequency  = 0.6f;
+        establishing.yawDriftSpeed   = 0.15f;
+        shots.push_back(establishing);
+
+        CombatAndroid::ECS::CutsceneShot handoff;
+        handoff.targetEntity   = playerEntity;
+        handoff.distance       = 420.0f;
+        handoff.height          = 150.0f;
+        handoff.lookHeight      = 210.0f;
+        handoff.yaw             = 0.0f;
+        handoff.pitch           = 0.22f;
+        handoff.fov              = 60.0f;
+        handoff.duration        = 1.5f;
+        handoff.blendFrequency  = 1.2f;
+        shots.push_back(handoff);
+
+        return shots;
+    }
+}    // namespace
+
 // 名前空間 : CombatAndroid
 namespace CombatAndroid {
     //-------------------------------------------------------------
@@ -447,6 +496,9 @@ namespace CombatAndroid {
             // 場面の切り替わりを繋ぐ黒。ロード画面の暗転を受けてここから明ける
             CombatAndroid::ECS::CreateScreenFade(registry, *context);
 
+            // カットシーン（演出カメラ）の再生状態とレターボックス／スキップ案内UIを非表示で作る
+            CombatAndroid::ECS::CreateCutscenePlayback(registry, *context, playerEntity);
+
             // 操作の案内。タイトルの「はじめる」から来たときだけ出す（リトライでは出さない）
             if(m_showTutorial)
                 CombatAndroid::ECS::CreateTutorial(registry, *context);
@@ -536,6 +588,11 @@ namespace CombatAndroid {
         // Prefab: Debug/Camera。1ユニット≒1cm規約で、身長約210のキャラクターを斜め上から見下ろす位置に置いてある
         (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Debug/Camera");
 #endif
+
+        //--------------------------------------------------------------
+        // オープニングのカットシーン。全エンティティが揃った最後に、1回だけ再生する
+        //--------------------------------------------------------------
+        CombatAndroid::ECS::PlayCutscene(registry, BuildOpeningCutsceneShots(playerEntity, playerTransform.position));
     }
 
     //-------------------------------------------------------------

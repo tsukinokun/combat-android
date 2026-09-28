@@ -4,6 +4,7 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
+#include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
@@ -137,6 +138,18 @@ namespace CombatAndroid::ECS {
         // 併せてwasCapturedLastFrameを倒しておくと、復帰後の最初の1フレームぶんの
         // マウス移動量は上の「キャプチャ復帰フレームは旋回に使わない」分岐が捨ててくれる
         //-------------------------------------------------------------
+        //-------------------------------------------------------------
+        // カットシーン中はCutsceneSystemがTransform/CameraComponent::fovを直接書くため、
+        // 通常の追従は完全に退避する。メニュー中と違い操作を渡さないので、カーソルは出さない
+        //-------------------------------------------------------------
+        if(IsCutsceneActive(registry)) {
+            auto pausedView = registry.View<TpsCameraComponent>();
+            pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
+            m_pendingShakeDamage     = 0.0f;
+            m_pendingZoomImpactDelay = -1.0f;
+            return;
+        }
+
         // 走行が終わった後（リザルト）は世界が止まっても、倒れたプレイヤーの周りを回るカットを続ける。
         // マウスは使わせず、カーソルはメニュー用に出す
         const bool frozen = IsGameplayFrozen(registry);

@@ -76,6 +76,10 @@ namespace CombatAndroid::ECS {
                           // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                           // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分
                           // 先行してしまい、回転中（旋回中）だけ武器の位置が体からずれて見える不具合が起きる
+        Cutscene,         // カットシーンの演出カメラ。対象（プレイヤー・湧いたエリート等）の今フレームの
+                          // 位置を使うためMovement/TransformLateの後に置き、かつTpsCameraSystem（Camera3D）が
+                          // 「カットシーン中は何もしない」早期リターンを判断する前にTransform/CameraComponent::fovを
+                          // 書き終えている必要があるため、Camera3Dより前に置く
         Camera3D,         // TPS/デバッグカメラの追従は移動確定後、カメラ行列計算の前に行う
         Camera,           // カメラ行列は描画前に計算する
         WorldAnchor,      // WorldAnchorComponentを持つエンティティ（拾得プロンプト・HPバー等）の
