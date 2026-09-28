@@ -1,0 +1,19 @@
+{
+    "PlayerHud": {
+        "hpBarLeftX": 24.0,
+        "hpBarTopY": 24.0,
+        "hpBarWidth": 220.0,
+        "hpBarHeight": 18.0,
+        "expBarGapY": 6.0,
+        "expBarHeight": 10.0,
+        "textGapX": 12.0,
+        "hudTextFontScale": 0.5,
+        "barBackgroundColor": { "x": 0.12, "y": 0.12, "z": 0.12, "w": 0.85 },
+        "expBarFillColor": { "x": 0.35, "y": 0.65, "z": 1.0, "w": 1.0 },
+        "dangerRankFontScale": 1.0,
+        "dangerRankColorFull": 10.0,
+        "dangerRankGreenFade": 0.65,
+        "dangerRankBlueFade": 0.75,
+        "rankUpFlashScaleGain": 0.45
+    }
+}

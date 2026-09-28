@@ -1,0 +1,12 @@
+{
+    "EnemyAttackArea": {
+        "areaColor": { "x": 1.0, "y": 0.12, "z": 0.08 },
+        "outerAlpha": 0.28,
+        "fillAlpha": 0.50,
+        "fadeInSeconds": 0.12,
+        "areaHeight": 28.0,
+        "fanAngleDegrees": 120.0,
+        "discCenterRatio": 0.6,
+        "discRadiusScale": 1.2
+    }
+}

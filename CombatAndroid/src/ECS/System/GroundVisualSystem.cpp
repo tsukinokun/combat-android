@@ -3,6 +3,8 @@
 //! @brief  GroundVisualSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/GroundFollowComponent.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -38,9 +40,28 @@ namespace CombatAndroid::ECS {
         //! 板の端が画面に映り込まないようにする
         constexpr float kGroundHalfSize = 2500.0f;
 
-        //! タイル1枚ぶんのワールド距離。Ground.vs.hlslがUVをワールド座標から
-        //! 算出する際に使う（CBufferGround::tileParams.x）
-        constexpr float kGroundTileWorldSize = 250.0f;
+        //-------------------------------------------------------------
+        //! @struct GroundVisualParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/GroundVisual.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct GroundVisualParams {
+            //! タイル1枚ぶんのワールド距離。Ground.vs.hlslがUVをワールド座標から
+            //! 算出する際に使う（CBufferGround::tileParams.x）
+            float groundTileWorldSize = 250.0f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, GroundVisualParams& params) {
+            LoadField(archive, "groundTileWorldSize", params.groundTileWorldSize);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const GroundVisualParams& GetParams() {
+            static const GroundVisualParams s_params = LoadSystemParams<GroundVisualParams>("GroundVisual");
+            return s_params;
+        }
 
         //--------------------------------------------------------------
         //! 土の板1枚ぶんのメッシュを組み立てます（4頂点・6インデックスの静的な平面）。
@@ -85,6 +106,8 @@ namespace CombatAndroid::ECS {
     //! @brief 更新処理
     //-------------------------------------------------------------
     void GroundVisualSystem::Update(Tsukino::ECS::Registry& registry, float /*deltaTime*/) {
+        const GroundVisualParams& params = GetParams();
+
         Tsukino::EngineIntegration::EngineContext* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx || !ctx->renderer || !ctx->assetManager || !ctx->builtinAssets)
             return;
@@ -134,7 +157,7 @@ namespace CombatAndroid::ECS {
         // 頂点シェーダーの構築用パラメータ（CBSlot::User0）を更新する
         //--------------------------------------------------------------
         CBufferGround groundParams{};
-        groundParams.tileParams = hlslpp::float4(kGroundTileWorldSize, 0.0f, 0.0f, 0.0f);
+        groundParams.tileParams = hlslpp::float4(params.groundTileWorldSize, 0.0f, 0.0f, 0.0f);
 
         if(!m_paramBuffer.IsValid()) {
             m_paramBuffer = Tsukino::Renderer::CreateUserConstantBuffer(ctx->renderer->GetDevice(), sizeof(CBufferGround));

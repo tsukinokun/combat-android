@@ -3,6 +3,9 @@
 //! @brief  ScreenFadeSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/ScreenFadeComponent.hpp>
 #include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
@@ -21,17 +24,39 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! 暗転・明転のどちらも同じ長さで行う
-        constexpr float kFadeSeconds = 0.4f;
+        //-------------------------------------------------------------
+        //! @struct ScreenFadeParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/ScreenFade.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct ScreenFadeParams {
+            //! 暗転・明転のどちらも同じ長さで行う
+            float fadeSeconds = 0.4f;
 
-        //! 覆う色（黒）
-        const hlslpp::float3 kFadeColor = hlslpp::float3(0.0f, 0.0f, 0.0f);
+            //! 覆う色（黒）
+            hlslpp::float3 fadeColor = hlslpp::float3(0.0f, 0.0f, 0.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, ScreenFadeParams& params) {
+            LoadField(archive, "fadeSeconds", params.fadeSeconds);
+            LoadField(archive, "fadeColor", params.fadeColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const ScreenFadeParams& GetParams() {
+            static const ScreenFadeParams s_params = LoadSystemParams<ScreenFadeParams>("ScreenFade");
+            return s_params;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
     //! @brief システムの更新
     //-------------------------------------------------------------
     void ScreenFadeSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const ScreenFadeParams& params = GetParams();
+
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
             return;
@@ -49,7 +74,7 @@ namespace CombatAndroid::ECS {
 
             fade.elapsed += realDeltaTime;
 
-            const float progress = std::clamp(fade.elapsed / kFadeSeconds, 0.0f, 1.0f);
+            const float progress = std::clamp(fade.elapsed / std::max(params.fadeSeconds, 0.01f), 0.0f, 1.0f);
 
             //-------------------------------------------------------------
             // 濃さ。明転は1→0、暗転は0→1。覆っていない間は板ごと隠して1枚も描かない
@@ -74,7 +99,7 @@ namespace CombatAndroid::ECS {
             if(fade.panelEntity != entt::null) {
                 if(alpha > 0.0f) {
                     StretchSprite(registry, *ctx, fade.panelEntity, screenWidth * 0.5f, screenHeight * 0.5f, screenWidth, screenHeight,
-                                  hlslpp::float4(kFadeColor, alpha));
+                                  hlslpp::float4(params.fadeColor, alpha));
                 } else {
                     HideUiSprite(registry, fade.panelEntity);
                 }

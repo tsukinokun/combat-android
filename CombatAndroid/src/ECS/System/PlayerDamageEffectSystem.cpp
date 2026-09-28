@@ -3,6 +3,9 @@
 //! @brief  PlayerDamageEffectSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerDamageEffectSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerDamageEffectComponent.hpp>
 
@@ -20,8 +23,27 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! @brief 画面フラッシュの色（赤）と、被弾直後の最大アルファ
-        const hlslpp::float4 kScreenFlashColor = hlslpp::float4(0.9f, 0.05f, 0.05f, 0.35f);
+        //-------------------------------------------------------------
+        //! @struct PlayerDamageEffectParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PlayerDamageEffect.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct PlayerDamageEffectParams {
+            //! @brief 画面フラッシュの色（赤）と、被弾直後の最大アルファ
+            hlslpp::float4 screenFlashColor = hlslpp::float4(0.9f, 0.05f, 0.05f, 0.35f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PlayerDamageEffectParams& params) {
+            LoadField(archive, "screenFlashColor", params.screenFlashColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PlayerDamageEffectParams& GetParams() {
+            static const PlayerDamageEffectParams s_params = LoadSystemParams<PlayerDamageEffectParams>("PlayerDamageEffect");
+            return s_params;
+        }
 
         //! @brief 画面フラッシュに使うテクスチャ（WhitePixel.png）の実ピクセルサイズ。
         //!        PlayerHudSystem::kBarTexturePixelSizeと同じ値（4x4の単色テクスチャ）
@@ -33,6 +55,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void PlayerDamageEffectSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_damagedConnection = eventBus.Subscribe<PlayerDamagedEvent>([this](const PlayerDamagedEvent& event) { OnPlayerDamaged(event); });
+        (void)GetParams();    // 初回の被弾でファイルを読まないよう先に読んでおく
     }
 
     //-------------------------------------------------------------
@@ -47,6 +70,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PlayerDamageEffectSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const PlayerDamageEffectParams& params = GetParams();
+
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
 
         auto view = registry.View<PlayerComponent, PlayerDamageEffectComponent, Tsukino::BuiltIn::ECS::ModelComponent>();
@@ -103,10 +128,10 @@ namespace CombatAndroid::ECS {
                 if(effect.screenFlashTimer > 0.0f) {
                     effect.screenFlashTimer -= deltaTime;
                     float t = std::clamp(effect.screenFlashTimer / effect.screenFlashDuration, 0.0f, 1.0f);
-                    alpha    = kScreenFlashColor.w * t;
+                    alpha    = params.screenFlashColor.w * t;
                 }
 
-                flashSprite.tintColor = hlslpp::float4(kScreenFlashColor.x, kScreenFlashColor.y, kScreenFlashColor.z, alpha);
+                flashSprite.tintColor = hlslpp::float4(params.screenFlashColor.x, params.screenFlashColor.y, params.screenFlashColor.z, alpha);
             }
         }
 

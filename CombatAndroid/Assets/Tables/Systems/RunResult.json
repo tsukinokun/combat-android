@@ -1,0 +1,30 @@
+{
+    "RunResult": {
+        "deadOverlayDelay": 2.2,
+        "clearOverlayDelay": 1.0,
+        "revealFadeSeconds": 0.8,
+        "titleOffsetY": -300.0,
+        "firstRowOffsetY": -170.0,
+        "rowPitch": 54.0,
+        "labelOffsetX": -250.0,
+        "valueOffsetX": 30.0,
+        "recordOffsetX": 210.0,
+        "skillsOffsetY": 60.0,
+        "bestOffsetY": 108.0,
+        "menuTopOffsetY": 200.0,
+        "titleFontScale": 2.6,
+        "labelFontScale": 1.0,
+        "valueFontScale": 1.15,
+        "recordFontScale": 0.8,
+        "skillsFontScale": 0.85,
+        "bestFontScale": 0.8,
+        "backdropColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 0.72 },
+        "deadTitleColor": { "x": 1.0, "y": 0.35, "z": 0.30, "w": 1.0 },
+        "clearTitleColor": { "x": 1.0, "y": 0.88, "z": 0.35, "w": 1.0 },
+        "labelColor": { "x": 0.75, "y": 0.75, "z": 0.78, "w": 1.0 },
+        "valueColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "recordColor": { "x": 1.0, "y": 0.88, "z": 0.30, "w": 1.0 },
+        "skillsColor": { "x": 0.92, "y": 0.92, "z": 0.92, "w": 1.0 },
+        "bestColor": { "x": 0.70, "y": 0.70, "z": 0.74, "w": 1.0 }
+    }
+}

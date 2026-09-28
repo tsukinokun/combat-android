@@ -4,6 +4,8 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerAnimationSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
@@ -30,8 +32,31 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! @brief ステート切り替え時のデフォルトクロスフェード時間（秒）
-        constexpr float kAnimBlendTime = 0.15f;
+        //-------------------------------------------------------------
+        //! @struct PlayerAnimationParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PlayerAnimation.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct PlayerAnimationParams {
+            //! @brief ステート切り替え時のデフォルトクロスフェード時間（秒）
+            float animBlendTime = 0.15f;
+            float dodgeBlendTime = 0.08f;    //!< 回避へ切り替える際のクロスフェード時間（秒。操作への反応を速く）
+            float deathBlendTime = 0.10f;    //!< 死亡へ切り替える際のクロスフェード時間（秒）
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PlayerAnimationParams& params) {
+            LoadField(archive, "animBlendTime", params.animBlendTime);
+            LoadField(archive, "dodgeBlendTime", params.dodgeBlendTime);
+            LoadField(archive, "deathBlendTime", params.deathBlendTime);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PlayerAnimationParams& GetParams() {
+            static const PlayerAnimationParams s_params = LoadSystemParams<PlayerAnimationParams>("PlayerAnimation");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  「指定クリップへクロスフェードする」OnEnterコールバックを作るヘルパー
@@ -43,7 +68,7 @@ namespace CombatAndroid::ECS {
         StateMachine<PlayerAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetRef PlayerAnimationSetComponent::* clipMember,
                                                                         Tsukino::u32                                                        animationIndex,
                                                                         bool                                                       looping,
-                                                                        float                                                      fadeTime = kAnimBlendTime,
+                                                                        float                                                      fadeTime = GetParams().animBlendTime,
                                                                         bool                                                       inPlace  = false) {
             return [clipMember, animationIndex, looping, fadeTime, inPlace](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 Tsukino::Asset::AssetHandle clip = registry.GetComponent<PlayerAnimationSetComponent>(entity).*clipMember;
@@ -244,6 +269,8 @@ namespace CombatAndroid::ECS {
     //! @brief コンストラクタ。各ステートのOnEnterコールバック（クリップ切り替え）を登録する
     //-------------------------------------------------------------
     PlayerAnimationSystem::PlayerAnimationSystem() {
+        const PlayerAnimationParams& params = GetParams();
+
         // これらのMixamo由来のFBXは、いずれもindex 0が「Armature」レイヤーの1tickのスタブ、
         // index 1が実際の全ボーンモーション（52チャンネル）になっているため、再生には1を指定する
         m_stateMachine.RegisterState(PlayerAnimState::Idle, MakeClipEnterCallback(&PlayerAnimationSetComponent::idleClip, 1, true));
@@ -251,7 +278,7 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(PlayerAnimState::FastRun, MakeClipEnterCallback(&PlayerAnimationSetComponent::fastRunClip, 1, true));
         // 回避（前転）は緊急動作なので入りのクロスフェードは短く。前進はCharacterControllerが
         // 担当する（Update側でmoveInputを上書きする）ため、クリップ側のルート移動はin_placeで殺す
-        m_stateMachine.RegisterState(PlayerAnimState::Dodge, MakeClipEnterCallback(&PlayerAnimationSetComponent::dodgeClip, 1, false, 0.08f, true));
+        m_stateMachine.RegisterState(PlayerAnimState::Dodge, MakeClipEnterCallback(&PlayerAnimationSetComponent::dodgeClip, 1, false, params.dodgeBlendTime, true));
         // 溜め攻撃の構え。専用クリップは持たず、装備武器のAttack1相当のクリップ・時間レンジ（＝振りの
         // 前半部分）をそのまま使い、Update側で超スロー再生することで「振りかぶって溜めている」見た目にする。
         // armAttack=falseなので当たり判定はアームされない（発生するのは解放後のAttack1のみ）。
@@ -263,7 +290,7 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(PlayerAnimState::Attack2, MakeAttackStepEnterCallback(1));
         m_stateMachine.RegisterState(PlayerAnimState::Attack3, MakeAttackStepEnterCallback(2));
         // 死亡モーションは単発再生・ルート前進を殺す（in_place）。倒れた後も画面内に留まらせるため
-        m_stateMachine.RegisterState(PlayerAnimState::Death, MakeClipEnterCallback(&PlayerAnimationSetComponent::deathClip, 1, false, 0.10f, true));
+        m_stateMachine.RegisterState(PlayerAnimState::Death, MakeClipEnterCallback(&PlayerAnimationSetComponent::deathClip, 1, false, params.deathBlendTime, true));
     }
 
     //-------------------------------------------------------------

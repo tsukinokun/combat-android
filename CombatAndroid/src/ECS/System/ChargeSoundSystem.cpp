@@ -3,6 +3,8 @@
 //! @brief  ChargeSoundSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/ChargeSoundSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -17,8 +19,27 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! 発射の「ドン」の音量。溜めの締めくくりなので大きめに出す
-        constexpr float kFireVolume = 0.9f;
+        //-------------------------------------------------------------
+        //! @struct ChargeSoundParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/ChargeSound.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct ChargeSoundParams {
+            //! 発射の「ドン」の音量。溜めの締めくくりなので大きめに出す
+            float fireVolume = 0.9f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, ChargeSoundParams& params) {
+            LoadField(archive, "fireVolume", params.fireVolume);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const ChargeSoundParams& GetParams() {
+            static const ChargeSoundParams s_params = LoadSystemParams<ChargeSoundParams>("ChargeSound");
+            return s_params;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -27,6 +48,7 @@ namespace CombatAndroid::ECS {
     void ChargeSoundSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_releasedConnection =
             eventBus.Subscribe<PlayerChargeReleasedEvent>([this](const PlayerChargeReleasedEvent& event) { OnChargeReleased(event); });
+        (void)GetParams();    // 初回の発射でファイルを読まないよう先に読んでおく
     }
 
     //-------------------------------------------------------------
@@ -41,6 +63,8 @@ namespace CombatAndroid::ECS {
     //! @brief 更新処理
     //-------------------------------------------------------------
     void ChargeSoundSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const ChargeSoundParams& params = GetParams();
+
         // 発射待ちでなければ何もしない（大半のフレームはこちら）
         if(m_fireTimer <= 0.0f)
             return;
@@ -66,6 +90,6 @@ namespace CombatAndroid::ECS {
 
         auto fireAsset = std::dynamic_pointer_cast<Tsukino::Asset::AudioAsset>(ctx->assetManager->Get(m_fireSoundHandle));
         if(fireAsset)
-            ctx->audioManager->Play(*fireAsset, false, kFireVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
+            ctx->audioManager->Play(*fireAsset, false, params.fireVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
     }
 }    // namespace CombatAndroid::ECS

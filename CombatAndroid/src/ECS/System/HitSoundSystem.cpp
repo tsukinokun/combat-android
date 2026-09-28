@@ -3,6 +3,8 @@
 //! @brief  HitSoundSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -16,8 +18,27 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! 命中1回あたりの再生音量。ダメージ量による強弱は今回は付けない
-        constexpr float kHitVolume = 0.8f;
+        //-------------------------------------------------------------
+        //! @struct HitSoundParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/HitSound.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct HitSoundParams {
+            //! 命中1回あたりの再生音量。ダメージ量による強弱は今回は付けない
+            float hitVolume = 0.8f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, HitSoundParams& params) {
+            LoadField(archive, "hitVolume", params.hitVolume);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const HitSoundParams& GetParams() {
+            static const HitSoundParams s_params = LoadSystemParams<HitSoundParams>("HitSound");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief ヒットした武器の質感が「鈍器」かどうかを判定する
@@ -43,6 +64,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void HitSoundSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_hitConnection = eventBus.Subscribe<WeaponHitEvent>([this](const WeaponHitEvent& event) { OnWeaponHit(event); });
+        (void)GetParams();    // 初回の命中でファイルを読まないよう先に読んでおく
     }
 
     //-------------------------------------------------------------
@@ -56,6 +78,8 @@ namespace CombatAndroid::ECS {
     //! @brief 更新処理
     //-------------------------------------------------------------
     void HitSoundSystem::Update(Tsukino::ECS::Registry& registry, float /*deltaTime*/) {
+        const HitSoundParams& params = GetParams();
+
         if(m_pendingHits.empty())
             return;
 
@@ -83,7 +107,7 @@ namespace CombatAndroid::ECS {
             const auto& asset  = isBlunt ? bluntAsset : sharpAsset;
 
             if(asset)
-                ctx->audioManager->Play(*asset, false, kHitVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
+                ctx->audioManager->Play(*asset, false, params.hitVolume * GetSeVolumeScale());    // オプションの効果音の音量を掛ける
         }
 
         m_pendingHits.clear();

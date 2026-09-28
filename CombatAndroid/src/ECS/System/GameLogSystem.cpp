@@ -9,6 +9,10 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/GameLogSystem.hpp>
 #include <CombatAndroid/ECS/Component/GameLogComponent.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -34,72 +38,132 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        //! @struct GameLogStyle
-        //! @brief  種別1つぶんの見た目（ラベル文言とアクセント色）
+        // 種別ごとの1行目の文言。並びはGameLogCategoryの定義順と一致していなければならない（下のstatic_assert）。
+        // 色はチューニング値（GameLogParams::accentColors）の側に持つ
         //-------------------------------------------------------------
-        struct GameLogStyle {
-            const wchar_t* label;          //!< 1行目に出す種別名
-            hlslpp::float4 accentColor;    //!< 左端のバーと1行目の文字色で共有する色
+        const wchar_t* const kGameLogLabels[] = {
+            L"武器を取得",
+            L"武器レベルアップ",
+            L"レベルアップ",
+            L"スキル取得",
+            L"危険度上昇",
+            L"武器進化",
+            L"エリート出現",
         };
 
-        //-------------------------------------------------------------
-        // 種別スタイル表。ログの文言と色に関する唯一の真実。
-        // 並びはGameLogCategoryの定義順と一致していなければならない（下のstatic_assert）
-        //-------------------------------------------------------------
-        const GameLogStyle kGameLogStyles[] = {
-            {L"武器を取得", hlslpp::float4(1.00f, 0.82f, 0.35f, 1.0f)},          // 金
-            {L"武器レベルアップ", hlslpp::float4(1.00f, 0.60f, 0.25f, 1.0f)},    // 橙
-            {L"レベルアップ", hlslpp::float4(0.40f, 0.80f, 1.00f, 1.0f)},        // 水色
-            {L"スキル取得", hlslpp::float4(0.75f, 0.55f, 1.00f, 1.0f)},          // 紫
-            {L"危険度上昇", hlslpp::float4(0.95f, 0.30f, 0.30f, 1.0f)},          // 赤
-            {L"武器進化", hlslpp::float4(1.00f, 0.92f, 0.55f, 1.0f)},            // 明るい金
-            {L"エリート出現", hlslpp::float4(0.85f, 0.35f, 1.00f, 1.0f)},        // 紫（エリートの発光色）
+        //! JSONで種別の色を引くときのキー。並びはkGameLogLabelsと同じ
+        const char* const kGameLogCategoryKeys[] = {
+            "WeaponAcquired", "WeaponLevelUp", "PlayerLevelUp", "SkillAcquired", "DangerRankUp", "WeaponEvolved", "EliteAppeared",
         };
 
         // 種別を足したのに表へ書き忘れる事故を防ぐ
-        static_assert(std::size(kGameLogStyles) == static_cast<size_t>(GameLogCategory::Count),
-                      "GameLogCategory に種別を足したら kGameLogStyles にも1行足すこと");
+        static_assert(std::size(kGameLogLabels) == static_cast<size_t>(GameLogCategory::Count),
+                      "GameLogCategory に種別を足したら kGameLogLabels にも1行足すこと");
+        static_assert(std::size(kGameLogCategoryKeys) == static_cast<size_t>(GameLogCategory::Count),
+                      "GameLogCategory に種別を足したら kGameLogCategoryKeys にも1行足すこと");
 
         //-------------------------------------------------------------
-        // レイアウト（全て画面ピクセル単位）。位置は画面右端・画面高からの相対で
-        // 毎フレーム求め直すため、ウィンドウサイズが変わっても崩れない
+        //! @struct GameLogParams
+        //! @brief  見た目と演出のチューニング値（Assets/Tables/Systems/GameLog.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kPanelWidth  = 380.0f;
-        constexpr float kPanelHeight = 68.0f;
-        constexpr float kSlotGap     = 8.0f;                       //!< 段同士の隙間
-        constexpr float kSlotPitch   = kPanelHeight + kSlotGap;    //!< 1段ぶんの送り
-        constexpr float kMarginRight = 28.0f;                      //!< 画面右端からパネル右端までの余白
-        constexpr float kBottomRatio = 0.62f;                      //!< 最新の段（一番下）の下端＝画面高×これ
+        struct GameLogParams {
+            // 種別ごとの色。左端のバーと1行目の文字色で共有する（並びはGameLogCategory）
+            std::array<hlslpp::float4, static_cast<size_t>(GameLogCategory::Count)> accentColors = {
+                hlslpp::float4(1.00f, 0.82f, 0.35f, 1.0f),    // 武器を取得：金
+                hlslpp::float4(1.00f, 0.60f, 0.25f, 1.0f),    // 武器レベルアップ：橙
+                hlslpp::float4(0.40f, 0.80f, 1.00f, 1.0f),    // レベルアップ：水色
+                hlslpp::float4(0.75f, 0.55f, 1.00f, 1.0f),    // スキル取得：紫
+                hlslpp::float4(0.95f, 0.30f, 0.30f, 1.0f),    // 危険度上昇：赤
+                hlslpp::float4(1.00f, 0.92f, 0.55f, 1.0f),    // 武器進化：明るい金
+                hlslpp::float4(0.85f, 0.35f, 1.00f, 1.0f),    // エリート出現：紫（エリートの発光色）
+            };
 
-        constexpr float kAccentWidth  = 4.0f;     //!< 左端の種別色バーの幅
-        constexpr float kAccentInsetX = 3.0f;     //!< パネル左端からバーまでの余白
-        constexpr float kAccentInsetY = 10.0f;    //!< バーがパネル上下から内側へ引っ込む量
+            //-------------------------------------------------------------
+            // レイアウト（全て画面ピクセル単位）。位置は画面右端・画面高からの相対で
+            // 毎フレーム求め直すため、ウィンドウサイズが変わっても崩れない
+            //-------------------------------------------------------------
+            float panelWidth  = 380.0f;
+            float panelHeight = 68.0f;
+            float slotGap     = 8.0f;     //!< 段同士の隙間（1段ぶんの送りは panelHeight + slotGap）
+            float marginRight = 28.0f;    //!< 画面右端からパネル右端までの余白
+            float bottomRatio = 0.62f;    //!< 最新の段（一番下）の下端＝画面高×これ
 
-        constexpr float kTextInsetX   = 22.0f;     //!< パネル左端から文字までの余白
-        constexpr float kLabelOffsetY = -16.0f;    //!< パネル中心から見た1行目（種別ラベル）のY
-        constexpr float kTextOffsetY  = 15.0f;     //!< パネル中心から見た2行目（主題）のY
+            float accentWidth  = 4.0f;     //!< 左端の種別色バーの幅
+            float accentInsetX = 3.0f;     //!< パネル左端からバーまでの余白
+            float accentInsetY = 10.0f;    //!< バーがパネル上下から内側へ引っ込む量
 
-        // FontRendererSystemはworldMatrixのX軸長（＝scale.x）を拡大率として読む。
-        // 基底のラスタライズサイズは32px（Default.dfont）なので、0.55で約18px、0.95で約30px
-        constexpr float kLabelFontScale = 0.55f;
-        constexpr float kTextFontScale  = 0.95f;
+            float textInsetX   = 22.0f;     //!< パネル左端から文字までの余白
+            float labelOffsetY = -16.0f;    //!< パネル中心から見た1行目（種別ラベル）のY
+            float textOffsetY  = 15.0f;     //!< パネル中心から見た2行目（主題）のY
 
-        constexpr float kOutlineWidth = 2.0f;    //!< 縁取りの太さ（ピクセル）
+            // FontRendererSystemはworldMatrixのX軸長（＝scale.x）を拡大率として読む。
+            // 基底のラスタライズサイズは32px（Default.dfont）なので、0.55で約18px、0.95で約30px
+            float labelFontScale = 0.55f;
+            float textFontScale  = 0.95f;
 
-        //! 黒い半透明パネルと、2行目（主題）の文字色
-        const hlslpp::float4 kPanelColor   = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);
-        const hlslpp::float4 kTextColor    = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kOutlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+            float outlineWidth = 2.0f;    //!< 縁取りの太さ（ピクセル）
+
+            //! 黒い半透明パネルと、2行目（主題）の文字色
+            hlslpp::float4 panelColor   = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);
+            hlslpp::float4 textColor    = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 outlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+            //-------------------------------------------------------------
+            // 演出（秒・ピクセル）
+            //-------------------------------------------------------------
+            float enterDuration    = 0.32f;     //!< 右からスライドインし切るまでの時間
+            float lifetime         = 4.2f;      //!< 表示開始から消えるまでの総時間
+            float exitDuration     = 0.55f;     //!< 寿命の最後のこの区間で上へフェードする
+            float slideInDistance  = 120.0f;    //!< スライドインを始める位置（定位置から右へこの分ずらす）
+            float exitRiseDistance = 34.0f;     //!< 消えるときに上へ動くピクセル数
+            float slotLerpSpeed    = 14.0f;     //!< 段が繰り上がるときの追従の速さ
+        };
+
+        template <class Archive>
+        void load(Archive& archive, GameLogParams& params) {
+            // 種別の色は { "WeaponAcquired": {x,y,z,w}, ... } の形で読む。欠けた種別は既定値のまま
+            try {
+                archive.setNextName("accentColors");
+                archive.startNode();
+                for(size_t i = 0; i < params.accentColors.size(); ++i)
+                    LoadField(archive, kGameLogCategoryKeys[i], params.accentColors[i]);
+                archive.finishNode();
+            } catch(const cereal::Exception&) {
+                // accentColors自体が無い：既定値のまま
+            }
+
+            LoadField(archive, "panelWidth", params.panelWidth);
+            LoadField(archive, "panelHeight", params.panelHeight);
+            LoadField(archive, "slotGap", params.slotGap);
+            LoadField(archive, "marginRight", params.marginRight);
+            LoadField(archive, "bottomRatio", params.bottomRatio);
+            LoadField(archive, "accentWidth", params.accentWidth);
+            LoadField(archive, "accentInsetX", params.accentInsetX);
+            LoadField(archive, "accentInsetY", params.accentInsetY);
+            LoadField(archive, "textInsetX", params.textInsetX);
+            LoadField(archive, "labelOffsetY", params.labelOffsetY);
+            LoadField(archive, "textOffsetY", params.textOffsetY);
+            LoadField(archive, "labelFontScale", params.labelFontScale);
+            LoadField(archive, "textFontScale", params.textFontScale);
+            LoadField(archive, "outlineWidth", params.outlineWidth);
+            LoadField(archive, "panelColor", params.panelColor);
+            LoadField(archive, "textColor", params.textColor);
+            LoadField(archive, "outlineColor", params.outlineColor);
+            LoadField(archive, "enterDuration", params.enterDuration);
+            LoadField(archive, "lifetime", params.lifetime);
+            LoadField(archive, "exitDuration", params.exitDuration);
+            LoadField(archive, "slideInDistance", params.slideInDistance);
+            LoadField(archive, "exitRiseDistance", params.exitRiseDistance);
+            LoadField(archive, "slotLerpSpeed", params.slotLerpSpeed);
+        }
 
         //-------------------------------------------------------------
-        // 演出のチューニング値（秒・ピクセル）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kEnterDuration    = 0.32f;     //!< 右からスライドインし切るまでの時間
-        constexpr float kLifetime         = 4.2f;      //!< 表示開始から消えるまでの総時間
-        constexpr float kExitDuration     = 0.55f;     //!< 寿命の最後のこの区間で上へフェードする
-        constexpr float kSlideInDistance  = 120.0f;    //!< スライドインを始める位置（定位置から右へこの分ずらす）
-        constexpr float kExitRiseDistance = 34.0f;     //!< 消えるときに上へ動くピクセル数
-        constexpr float kSlotLerpSpeed    = 14.0f;     //!< 段が繰り上がるときの追従の速さ
+        const GameLogParams& GetParams() {
+            static const GameLogParams s_params = LoadSystemParams<GameLogParams>("GameLog");
+            return s_params;
+        }
 
         //! ウィンドウが取れなかったときのフォールバック（他の画面固定UIと同じ割り切り）
         constexpr float kFallbackScreenWidth  = 1700.0f;
@@ -134,17 +198,17 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  種別からスタイルを引く関数
+        //! @brief  種別を表の添字にする関数
         //! @param  category [in] 引きたい種別
         //! @note   範囲外（Count以上）はテーブル先頭へ丸める
         //-------------------------------------------------------------
         [[nodiscard]]
-        const GameLogStyle& GetStyle(GameLogCategory category) {
+        size_t GetStyleIndex(GameLogCategory category) {
             size_t index = static_cast<size_t>(category);
-            if(index >= std::size(kGameLogStyles))
+            if(index >= std::size(kGameLogLabels))
                 index = 0;
 
-            return kGameLogStyles[index];
+            return index;
         }
 
         //-------------------------------------------------------------
@@ -215,9 +279,11 @@ namespace CombatAndroid::ECS {
             transform->scale    = hlslpp::float3(fontScale, fontScale, 1.0f);
             transform->dirty    = true;
 
+            const GameLogParams& params = GetParams();
+
             font->color        = WithAlpha(baseColor, alpha);
-            font->outlineColor = WithAlpha(kOutlineColor, alpha);
-            font->outlineWidth = kOutlineWidth;
+            font->outlineColor = WithAlpha(params.outlineColor, alpha);
+            font->outlineWidth = params.outlineWidth;
         }
 
         //-------------------------------------------------------------
@@ -258,6 +324,7 @@ namespace CombatAndroid::ECS {
     void GameLogSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         // ハンドラ内でヒープを触る回数を減らすため、あらかじめ最大数分を確保しておく
         m_pending.reserve(kGameLogPoolSize);
+        (void)GetParams();    // 初回フレームでファイルを読まないよう先に読んでおく
 
         m_logConnection = eventBus.Subscribe<GameLogEvent>([this](const GameLogEvent& event) { OnGameLog(event); });
     }
@@ -276,6 +343,8 @@ namespace CombatAndroid::ECS {
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
             return;
+
+        const GameLogParams& params = GetParams();
 
         float screenWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : kFallbackScreenWidth;
         float screenHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : kFallbackScreenHeight;
@@ -309,20 +378,20 @@ namespace CombatAndroid::ECS {
             if(slotEntity == entt::null)
                 continue;    // プールが1つも用意されていない（シーン側の生成漏れ）
 
-            const GameLogStyle& style = GetStyle(pending.category);
+            const size_t styleIndex = GetStyleIndex(pending.category);
 
             GameLogComponent& log = view.get<GameLogComponent>(slotEntity);
             log.active            = true;
             log.elapsed           = 0.0f;
             log.sequence          = ++m_nextSequence;
             log.slotYInitialized  = false;    // 最初の1回だけ目標の段へ直接置く（下から生えさせない）
-            log.accentColor       = style.accentColor;
+            log.accentColor       = params.accentColors[styleIndex];
 
             //-------------------------------------------------------------
             // 文言はここで一度だけ書き込む。以後Updateは位置と色だけを触る
             //-------------------------------------------------------------
             if(auto* labelFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(log.labelEntity))
-                labelFont->text = style.label;
+                labelFont->text = kGameLogLabels[styleIndex];
             if(auto* textFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(log.textEntity))
                 textFont->text = pending.subject;
         }
@@ -356,7 +425,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // 各段を進める
         //-------------------------------------------------------------
-        float slotLerpT = 1.0f - std::exp(-kSlotLerpSpeed * deltaTime);
+        float slotLerpT = 1.0f - std::exp(-params.slotLerpSpeed * deltaTime);
 
         for(int slotIndex = 0; slotIndex < activeCount; ++slotIndex) {
             entt::entity      panelEntity = ordered[static_cast<size_t>(slotIndex)].second;
@@ -368,7 +437,7 @@ namespace CombatAndroid::ECS {
             // 寿命切れ。寿命は全段で共通なので、消えるのは常に一番上（最古）の段になり、
             // 下の段の番号がずれることは無い
             //-------------------------------------------------------------
-            if(log.elapsed >= kLifetime) {
+            if(log.elapsed >= params.lifetime) {
                 log.active = false;
                 HideSlot(registry, panelEntity, log);
                 continue;
@@ -378,7 +447,7 @@ namespace CombatAndroid::ECS {
             // 段のY。新しい行が入って段が繰り上がるときも瞬間移動させず、
             // 目標へ指数減衰で滑らかに寄せる
             //-------------------------------------------------------------
-            float targetY = screenHeight * kBottomRatio - static_cast<float>(slotIndex) * kSlotPitch - kPanelHeight * 0.5f;
+            float targetY = screenHeight * params.bottomRatio - static_cast<float>(slotIndex) * (params.panelHeight + params.slotGap) - params.panelHeight * 0.5f;
             if(!log.slotYInitialized) {
                 log.slotY            = targetY;
                 log.slotYInitialized = true;
@@ -392,30 +461,30 @@ namespace CombatAndroid::ECS {
             // 出　：上へ持ち上げながらフェードアウト
             //       （スクリーン座標は下方向が正なので、上へ動かすにはYを負にする）
             //-------------------------------------------------------------
-            float enterT = std::clamp(log.elapsed / kEnterDuration, 0.0f, 1.0f);
-            float exitT  = std::clamp((log.elapsed - (kLifetime - kExitDuration)) / kExitDuration, 0.0f, 1.0f);
+            float enterT = std::clamp(log.elapsed / params.enterDuration, 0.0f, 1.0f);
+            float exitT  = std::clamp((log.elapsed - (params.lifetime - params.exitDuration)) / params.exitDuration, 0.0f, 1.0f);
 
-            float offsetX = kSlideInDistance * (1.0f - EaseOutCubic(enterT));
-            float offsetY = -kExitRiseDistance * SmoothStep01(exitT);
+            float offsetX = params.slideInDistance * (1.0f - EaseOutCubic(enterT));
+            float offsetY = -params.exitRiseDistance * SmoothStep01(exitT);
             float alpha   = SmoothStep01(enterT) * (1.0f - SmoothStep01(exitT));
 
-            float centerX   = screenWidth - kMarginRight - kPanelWidth * 0.5f + offsetX;
+            float centerX   = screenWidth - params.marginRight - params.panelWidth * 0.5f + offsetX;
             float centerY   = log.slotY + offsetY;
-            float panelLeft = centerX - kPanelWidth * 0.5f;
+            float panelLeft = centerX - params.panelWidth * 0.5f;
 
             //-------------------------------------------------------------
             // 見た目の反映。パネル・アクセントバー・種別ラベル・主題の4つへ
             // 同じalphaを掛け、1行がひとかたまりに見えるようにする
             //-------------------------------------------------------------
-            StretchSprite(registry, *ctx, panelEntity, centerX, centerY, kPanelWidth, kPanelHeight, WithAlpha(kPanelColor, alpha));
+            StretchSprite(registry, *ctx, panelEntity, centerX, centerY, params.panelWidth, params.panelHeight, WithAlpha(params.panelColor, alpha));
 
-            StretchSprite(registry, *ctx, log.accentEntity, panelLeft + kAccentInsetX + kAccentWidth * 0.5f, centerY, kAccentWidth,
-                          kPanelHeight - kAccentInsetY * 2.0f, WithAlpha(log.accentColor, alpha));
+            StretchSprite(registry, *ctx, log.accentEntity, panelLeft + params.accentInsetX + params.accentWidth * 0.5f, centerY, params.accentWidth,
+                          params.panelHeight - params.accentInsetY * 2.0f, WithAlpha(log.accentColor, alpha));
 
-            PlaceLogText(registry, log.labelEntity, panelLeft + kTextInsetX, centerY + kLabelOffsetY, kLabelFontScale, log.accentColor,
+            PlaceLogText(registry, log.labelEntity, panelLeft + params.textInsetX, centerY + params.labelOffsetY, params.labelFontScale, log.accentColor,
                          alpha);
 
-            PlaceLogText(registry, log.textEntity, panelLeft + kTextInsetX, centerY + kTextOffsetY, kTextFontScale, kTextColor, alpha);
+            PlaceLogText(registry, log.textEntity, panelLeft + params.textInsetX, centerY + params.textOffsetY, params.textFontScale, params.textColor, alpha);
         }
     }
 }    // namespace CombatAndroid::ECS

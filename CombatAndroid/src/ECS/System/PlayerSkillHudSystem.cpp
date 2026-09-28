@@ -3,6 +3,9 @@
 //! @brief  PlayerSkillHudSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerSkillHudSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Utility/SkillTable.hpp>
@@ -26,23 +29,46 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // レイアウトのチューニング値（全て画面ピクセル単位・画面左上基準）。
-        // 先頭の2つはHP/EXPバー（PlayerHudSystem.cpp）の真下へ続けて並べるための値なので、
-        // 向こうのkHpBarLeftX・EXPバーの下端を動かしたらここも合わせること
+        //! @struct PlayerSkillHudParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PlayerSkillHud.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kSkillListLeftX = 24.0f;    //!< 一覧の左端。kHpBarLeftXと揃えている
-        constexpr float kSkillListTopY  = 70.0f;    //!< 1行目の上端。EXPバーの下端(58)＋余白12
+        struct PlayerSkillHudParams {
+            //-------------------------------------------------------------
+            // レイアウトのチューニング値（全て画面ピクセル単位・画面左上基準）。
+            // 先頭の2つはHP/EXPバー（PlayerHudSystem.cpp）の真下へ続けて並べるための値なので、
+            // 向こう（PlayerHud.json）のバーを動かしたらここ（PlayerSkillHud.json）も合わせること
+            //-------------------------------------------------------------
+            float skillListLeftX = 24.0f;    //!< 一覧の左端。PlayerHud.json の hpBarLeftX と揃えている
+            float skillListTopY = 70.0f;    //!< 1行目の上端。PlayerHud.json のEXPバーの下端(24+18+6+10=58)＋余白12
 
-        constexpr float kIconSize     = 28.0f;                  //!< アイコン枠の一辺
-        constexpr float kRowGapY      = 6.0f;                   //!< 行同士の縦の隙間
-        constexpr float kRowPitch     = kIconSize + kRowGapY;    //!< 1行ぶんの送り
-        constexpr float kIconTextGapX = 8.0f;                   //!< アイコン枠の右端から文字までの余白
+            float iconSize = 28.0f;                  //!< アイコン枠の一辺
+            float rowGapY = 6.0f;                   //!< 行同士の縦の隙間（1行ぶんの送りは iconSize + rowGapY）
+            float iconTextGapX = 8.0f;                   //!< アイコン枠の右端から文字までの余白
 
-        //! 文字の拡大率（TransformComponent::scale.xがそのままフォントサイズになる）
-        constexpr float kSkillFontScale = 0.8f;
+            //! 文字の拡大率（TransformComponent::scale.xがそのままフォントサイズになる）
+            float skillFontScale = 0.8f;
 
-        const hlslpp::float4 kSkillTextColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 skillTextColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+        };
 
+        template <class Archive>
+        void load(Archive& archive, PlayerSkillHudParams& params) {
+            LoadField(archive, "skillListLeftX", params.skillListLeftX);
+            LoadField(archive, "skillListTopY", params.skillListTopY);
+            LoadField(archive, "iconSize", params.iconSize);
+            LoadField(archive, "rowGapY", params.rowGapY);
+            LoadField(archive, "iconTextGapX", params.iconTextGapX);
+            LoadField(archive, "skillFontScale", params.skillFontScale);
+            LoadField(archive, "skillTextColor", params.skillTextColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PlayerSkillHudParams& GetParams() {
+            static const PlayerSkillHudParams s_params = LoadSystemParams<PlayerSkillHudParams>("PlayerSkillHud");
+            return s_params;
+        }
         //-------------------------------------------------------------
         //! @brief  エンティティを非表示にする関数
         //! @param  registry [in] ECSレジストリ
@@ -111,6 +137,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PlayerSkillHudSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const PlayerSkillHudParams& params = GetParams();
+
         // 一覧はアニメーションを持たず取得段階の現在値をそのまま映すだけなので、経過時間を使わない
         (void)deltaTime;
 
@@ -136,7 +164,7 @@ namespace CombatAndroid::ECS {
 
                 PlayerSkillHudRow& row = hud.rows[rowIndex];
 
-                const float rowCenterY = kSkillListTopY + static_cast<float>(rowIndex) * kRowPitch + kIconSize * 0.5f;
+                const float rowCenterY = params.skillListTopY + static_cast<float>(rowIndex) * (params.iconSize + params.rowGapY) + params.iconSize * 0.5f;
 
                 //-------------------------------------------------------------
                 // アイコン枠。テクスチャはテーブルのパスから引く（AssetManagerがパスで
@@ -148,7 +176,7 @@ namespace CombatAndroid::ECS {
                         iconSprite->textureHandle = ctx->assetManager->Load(Tsukino::Core::Path(entry.iconTexturePath));
                 }
 
-                StretchIconSprite(registry, *ctx, row.iconEntity, kSkillListLeftX + kIconSize * 0.5f, rowCenterY, kIconSize,
+                StretchIconSprite(registry, *ctx, row.iconEntity, params.skillListLeftX + params.iconSize * 0.5f, rowCenterY, params.iconSize,
                                   entry.panelColor);
 
                 //-------------------------------------------------------------
@@ -157,13 +185,13 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 if(row.textEntity != entt::null) {
                     if(auto* textTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(row.textEntity)) {
-                        textTransform->position = hlslpp::float3(kSkillListLeftX + kIconSize + kIconTextGapX, rowCenterY, 0.0f);
-                        textTransform->scale    = hlslpp::float3(kSkillFontScale, kSkillFontScale, 1.0f);
+                        textTransform->position = hlslpp::float3(params.skillListLeftX + params.iconSize + params.iconTextGapX, rowCenterY, 0.0f);
+                        textTransform->scale    = hlslpp::float3(params.skillFontScale, params.skillFontScale, 1.0f);
                         textTransform->dirty    = true;
                     }
                     if(auto* textFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(row.textEntity)) {
                         textFont->text  = std::wstring(entry.displayName) + L" Lv." + std::to_wstring(level);
-                        textFont->color = kSkillTextColor;
+                        textFont->color = params.skillTextColor;
                     }
                 }
 

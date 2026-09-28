@@ -1,0 +1,28 @@
+{
+    "SkillSelect": {
+        "cardWidth": 760.0,
+        "cardHeight": 150.0,
+        "cardGap": 24.0,
+        "highlightInflate": 8.0,
+        "textInsetX": 32.0,
+        "nameOffsetY": -26.0,
+        "descOffsetY": 30.0,
+        "titleOffsetY": -310.0,
+        "titleFontScale": 2.2,
+        "nameFontScale": 1.3,
+        "descFontScale": 0.85,
+        "backdropColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 0.65 },
+        "highlightColor": { "x": 1.0, "y": 0.92, "z": 0.35, "w": 0.95 },
+        "titleColor": { "x": 1.0, "y": 0.95, "z": 0.6, "w": 1.0 },
+        "nameColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "descColor": { "x": 0.92, "y": 0.92, "z": 0.92, "w": 1.0 },
+        "unselectedPanelAlpha": 0.78,
+        "levelUpInvincibleFadeOutDuration": 0.5,
+        "levelUpInvinciblePulseSpeed": 6.0,
+        "levelUpInvincibleRimColor": { "x": 1.0, "y": 0.95, "z": 0.75 },
+        "levelUpInvincibleRimIntensityMax": 5.0,
+        "levelUpInvincibleRimPower": 2.5,
+        "levelUpInvincibleGlowMin": 0.15,
+        "levelUpInvincibleGlowMax": 0.5
+    }
+}

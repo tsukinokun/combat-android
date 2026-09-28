@@ -3,6 +3,9 @@
 //! @brief  TutorialSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TutorialSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
@@ -54,31 +57,67 @@ namespace CombatAndroid::ECS {
         constexpr int kOperationStepCount = static_cast<int>(TutorialStep::Goal);
 
         //-------------------------------------------------------------
-        // 進み方のチューニング値（秒）
+        //! @struct TutorialParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/Tutorial.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kStartDelay   = 1.0f;     //!< 走行が始まってから最初の案内を出すまで
-        constexpr float kStepTimeout  = 12.0f;    //!< できなくてもこの秒数で次へ進む（案内で足止めしない）
-        constexpr float kDoneHold     = 0.7f;     //!< できたときに「OK」を出しておく時間
-        constexpr float kMoveRequired = 0.6f;     //!< 移動の手順を「できた」とみなす歩いた合計時間
-        constexpr float kGoalDuration = 3.5f;     //!< 最後の目標を出しておく時間
+        struct TutorialParams {
+            //-------------------------------------------------------------
+            // 進み方のチューニング値（秒）
+            //-------------------------------------------------------------
+            float startDelay = 1.0f;     //!< 走行が始まってから最初の案内を出すまで
+            float stepTimeout = 12.0f;    //!< できなくてもこの秒数で次へ進む（案内で足止めしない）
+            float doneHold = 0.7f;     //!< できたときに「OK」を出しておく時間
+            float moveRequired = 0.6f;     //!< 移動の手順を「できた」とみなす歩いた合計時間
+            float goalDuration = 3.5f;     //!< 最後の目標を出しておく時間
+
+            //-------------------------------------------------------------
+            // レイアウト（画面下中央。HUDとスキル選択の間の層に置く）
+            //-------------------------------------------------------------
+            float panelWidth = 860.0f;
+            float panelHeight = 84.0f;
+            float panelBottomMargin = 170.0f;    //!< 画面下端から板の中心まで
+            float promptInsetX = 70.0f;     //!< 板の左端からキー表示の中心まで
+            float textInsetX = 150.0f;    //!< 板の左端から文の左端まで
+            float counterOffsetY = -60.0f;    //!< 板の中心から見た「操作 n / 6」のY
+            float textFontScale = 1.0f;
+            float counterFontScale = 0.65f;
+
+            hlslpp::float4 panelColor = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);    //!< 取得ログと同じ黒い半透明
+            hlslpp::float4 textColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 doneColor = hlslpp::float4(0.55f, 1.0f, 0.55f, 1.0f);     //!< できたときの緑
+            hlslpp::float4 goalColor = hlslpp::float4(1.0f, 0.85f, 0.45f, 1.0f);     //!< タイトルの副題と同じ金
+            hlslpp::float4 counterColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, TutorialParams& params) {
+            LoadField(archive, "startDelay", params.startDelay);
+            LoadField(archive, "stepTimeout", params.stepTimeout);
+            LoadField(archive, "doneHold", params.doneHold);
+            LoadField(archive, "moveRequired", params.moveRequired);
+            LoadField(archive, "goalDuration", params.goalDuration);
+            LoadField(archive, "panelWidth", params.panelWidth);
+            LoadField(archive, "panelHeight", params.panelHeight);
+            LoadField(archive, "panelBottomMargin", params.panelBottomMargin);
+            LoadField(archive, "promptInsetX", params.promptInsetX);
+            LoadField(archive, "textInsetX", params.textInsetX);
+            LoadField(archive, "counterOffsetY", params.counterOffsetY);
+            LoadField(archive, "textFontScale", params.textFontScale);
+            LoadField(archive, "counterFontScale", params.counterFontScale);
+            LoadField(archive, "panelColor", params.panelColor);
+            LoadField(archive, "textColor", params.textColor);
+            LoadField(archive, "doneColor", params.doneColor);
+            LoadField(archive, "goalColor", params.goalColor);
+            LoadField(archive, "counterColor", params.counterColor);
+        }
 
         //-------------------------------------------------------------
-        // レイアウト（画面下中央。HUDとスキル選択の間の層に置く）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kPanelWidth          = 860.0f;
-        constexpr float kPanelHeight         = 84.0f;
-        constexpr float kPanelBottomMargin   = 170.0f;    //!< 画面下端から板の中心まで
-        constexpr float kPromptInsetX        = 70.0f;     //!< 板の左端からキー表示の中心まで
-        constexpr float kTextInsetX          = 150.0f;    //!< 板の左端から文の左端まで
-        constexpr float kCounterOffsetY      = -60.0f;    //!< 板の中心から見た「操作 n / 6」のY
-        constexpr float kTextFontScale       = 1.0f;
-        constexpr float kCounterFontScale    = 0.65f;
-
-        const hlslpp::float4 kPanelColor   = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);    //!< 取得ログと同じ黒い半透明
-        const hlslpp::float4 kTextColor    = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kDoneColor    = hlslpp::float4(0.55f, 1.0f, 0.55f, 1.0f);     //!< できたときの緑
-        const hlslpp::float4 kGoalColor    = hlslpp::float4(1.0f, 0.85f, 0.45f, 1.0f);     //!< タイトルの副題と同じ金
-        const hlslpp::float4 kCounterColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
+        const TutorialParams& GetParams() {
+            static const TutorialParams s_params = LoadSystemParams<TutorialParams>("Tutorial");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  案内を全部隠す
@@ -135,11 +174,13 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         bool IsStepDone(TutorialComponent& tutorial, const PlayerComponent& player, const PlayerAnimationSetComponent& anim, float deltaTime) {
+            const TutorialParams& params = GetParams();
+
             switch(tutorial.step) {
             case TutorialStep::Move:
                 if(anim.currentState == PlayerAnimState::Run || anim.currentState == PlayerAnimState::FastRun)
                     tutorial.moveTime += deltaTime;
-                return tutorial.moveTime >= kMoveRequired;
+                return tutorial.moveTime >= params.moveRequired;
             case TutorialStep::Attack:
                 return anim.currentState == PlayerAnimState::Attack1 || anim.currentState == PlayerAnimState::Attack2
                        || anim.currentState == PlayerAnimState::Attack3;
@@ -187,6 +228,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void TutorialSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const TutorialParams& params = GetParams();
+
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
             return;
@@ -215,7 +258,7 @@ namespace CombatAndroid::ECS {
             // メニュー中は止めて隠す（暗転板の下に案内が透けないように）。
             // 走行が始まってすぐは、画面が落ち着くまで少し待つ
             //-------------------------------------------------------------
-            if(!player || !anim || !clock || IsGameplayFrozen(registry) || clock->elapsedSeconds < kStartDelay) {
+            if(!player || !anim || !clock || IsGameplayFrozen(registry) || clock->elapsedSeconds < params.startDelay) {
                 HideAll(registry, tutorial);
                 continue;
             }
@@ -226,18 +269,18 @@ namespace CombatAndroid::ECS {
             tutorial.stepTimer += deltaTime;
 
             if(tutorial.step == TutorialStep::Goal) {
-                if(tutorial.stepTimer >= kGoalDuration) {
+                if(tutorial.stepTimer >= params.goalDuration) {
                     tutorial.finished = true;
                     HideAll(registry, tutorial);
                     continue;
                 }
             } else if(tutorial.doneTimer >= 0.0f) {
                 tutorial.doneTimer += deltaTime;
-                if(tutorial.doneTimer >= kDoneHold)
+                if(tutorial.doneTimer >= params.doneHold)
                     AdvanceStep(registry, tutorial, *player);
             } else if(IsStepDone(tutorial, *player, *anim, deltaTime)) {
                 tutorial.doneTimer = 0.0f;
-            } else if(tutorial.stepTimer >= kStepTimeout) {
+            } else if(tutorial.stepTimer >= params.stepTimeout) {
                 AdvanceStep(registry, tutorial, *player);
             }
 
@@ -247,29 +290,29 @@ namespace CombatAndroid::ECS {
             const float screenWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
             const float screenHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
             const float panelCenterX = screenWidth * 0.5f;
-            const float panelCenterY = screenHeight - kPanelBottomMargin;
-            const float panelLeft    = panelCenterX - kPanelWidth * 0.5f;
+            const float panelCenterY = screenHeight - params.panelBottomMargin;
+            const float panelLeft    = panelCenterX - params.panelWidth * 0.5f;
 
             const int                stepIndex = static_cast<int>(tutorial.step);
             const TutorialStepDef&   def       = kStepDefs[stepIndex];
             const bool               isGoal    = tutorial.step == TutorialStep::Goal;
             const bool               isDone    = tutorial.doneTimer >= 0.0f;
 
-            StretchSprite(registry, *ctx, tutorial.panelEntity, panelCenterX, panelCenterY, kPanelWidth, kPanelHeight, kPanelColor);
+            StretchSprite(registry, *ctx, tutorial.panelEntity, panelCenterX, panelCenterY, params.panelWidth, params.panelHeight, params.panelColor);
 
             std::wstring text = def.text;
             if(isDone)
                 text += L"　OK!";
 
-            const hlslpp::float4 textColor = isGoal ? kGoalColor : (isDone ? kDoneColor : kTextColor);
+            const hlslpp::float4 textColor = isGoal ? params.goalColor : (isDone ? params.doneColor : params.textColor);
             if(isGoal) {
                 // 目標はキー表示が無いので、板の中央に置く
                 HideUiText(registry, tutorial.textEntity);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, kTextFontScale, text, textColor);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, params.textFontScale, text, textColor);
             } else {
-                PlaceUiText(registry, tutorial.textEntity, panelLeft + kTextInsetX, panelCenterY, kTextFontScale, text, textColor);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + kCounterOffsetY, kCounterFontScale,
-                            L"操作 " + std::to_wstring(stepIndex + 1) + L" / " + std::to_wstring(kOperationStepCount), kCounterColor);
+                PlaceUiText(registry, tutorial.textEntity, panelLeft + params.textInsetX, panelCenterY, params.textFontScale, text, textColor);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + params.counterOffsetY, params.counterFontScale,
+                            L"操作 " + std::to_wstring(stepIndex + 1) + L" / " + std::to_wstring(kOperationStepCount), params.counterColor);
             }
 
             for(int i = 0; i < static_cast<int>(TutorialStep::Count); ++i) {
@@ -282,7 +325,7 @@ namespace CombatAndroid::ECS {
                 InputPromptStyle style;
                 if(def.useHold && anim->currentState == PlayerAnimState::Charge)
                     style.holdProgress = 1.0f;    // 溜めている間はゲージを満たして見せる
-                ShowInputPromptAtScreen(registry, *ctx, prompt, panelLeft + kPromptInsetX, panelCenterY, style);
+                ShowInputPromptAtScreen(registry, *ctx, prompt, panelLeft + params.promptInsetX, panelCenterY, style);
             }
         }
     }

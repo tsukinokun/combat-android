@@ -1,0 +1,6 @@
+{
+    "AttackMotionBlur": {
+        "baseStrength": 0.6,
+        "attackStrength": 3.0
+    }
+}

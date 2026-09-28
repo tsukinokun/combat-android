@@ -3,6 +3,8 @@
 //! @brief  InputPromptSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/InputPromptSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 
 #include <CombatAndroid/ECS/Component/InputPromptHudComponent.hpp>
@@ -26,21 +28,44 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // 配置のチューニング値（画面ピクセル単位。ワールド追従ぶんはワールド単位）
+        //! @struct InputPromptParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/InputPrompt.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        //! 溜めゲージをプレイヤーのどれだけ上に出すか。頭（約170ユニット）より上で、
-        //! かつ画面上端に逃げない高さ。1ユニット≒1cm規約
-        constexpr float kChargePromptWorldHeight = 250.0f;
+        struct InputPromptParams {
+            //-------------------------------------------------------------
+            // 配置のチューニング値（画面ピクセル単位。ワールド追従ぶんはワールド単位）
+            //-------------------------------------------------------------
+            //! 溜めゲージをプレイヤーのどれだけ上に出すか。頭（約170ユニット）より上で、
+            //! かつ画面上端に逃げない高さ。1ユニット≒1cm規約
+            float chargePromptWorldHeight = 250.0f;
 
-        //! スキル選択のカード（幅760を画面中央に置く）の右端から、プロンプト列までの間隔
-        constexpr float kSkillPromptCardHalfWidth = 380.0f;
-        constexpr float kSkillPromptGapFromCard   = 95.0f;
+            //! スキル選択のカード（SkillSelect.json の cardWidth。画面中央に置く）の右端から、プロンプト列までの間隔
+            float skillPromptGapFromCard = 95.0f;
 
-        constexpr float kSkillPromptUpOffsetY      = -75.0f;    //!< 画面中心から見た[W]のY
-        constexpr float kSkillPromptDownOffsetY    = 20.0f;     //!< 同じく[S]のY
-        constexpr float kSkillPromptConfirmOffsetY = 165.0f;    //!< 同じく決定[F]のY
+            float skillPromptUpOffsetY = -75.0f;    //!< 画面中心から見た[W]のY
+            float skillPromptDownOffsetY = 20.0f;     //!< 同じく[S]のY
+            float skillPromptConfirmOffsetY = 165.0f;    //!< 同じく決定[F]のY
 
-        constexpr float kModalPromptScale = 1.15f;    //!< モーダル上のプロンプトは少し大きく見せる
+            float modalPromptScale = 1.15f;    //!< モーダル上のプロンプトは少し大きく見せる
+        };
+
+        template <class Archive>
+        void load(Archive& archive, InputPromptParams& params) {
+            LoadField(archive, "chargePromptWorldHeight", params.chargePromptWorldHeight);
+            LoadField(archive, "skillPromptGapFromCard", params.skillPromptGapFromCard);
+            LoadField(archive, "skillPromptUpOffsetY", params.skillPromptUpOffsetY);
+            LoadField(archive, "skillPromptDownOffsetY", params.skillPromptDownOffsetY);
+            LoadField(archive, "skillPromptConfirmOffsetY", params.skillPromptConfirmOffsetY);
+            LoadField(archive, "modalPromptScale", params.modalPromptScale);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const InputPromptParams& GetParams() {
+            static const InputPromptParams s_params = LoadSystemParams<InputPromptParams>("InputPrompt");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  溜め段階からゲージの色を求める（白→青→紫）
@@ -63,6 +88,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void InputPromptSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const InputPromptParams& params = GetParams();
+
         (void)deltaTime;
 
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
@@ -117,7 +144,7 @@ namespace CombatAndroid::ECS {
                 style.accentColor  = ResolveChargeGaugeColor(ResolveChargeStage(animSet.chargeTimer, player));
 
                 ShowInputPromptAtWorld(registry, *ctx, hud.chargePrompt, playerEntity,
-                                       hlslpp::float3(0.0f, kChargePromptWorldHeight, 0.0f), style);
+                                       hlslpp::float3(0.0f, params.chargePromptWorldHeight, 0.0f), style);
             } else {
                 HideInputPrompt(registry, hud.chargePrompt);
             }
@@ -126,14 +153,14 @@ namespace CombatAndroid::ECS {
             // スキル選択：カードの右脇に [W] [S]（カーソル移動）と [F]（決定）を縦に並べる
             //-------------------------------------------------------------
             if(skillSelectActive) {
-                const float promptX = screenCenterX + kSkillPromptCardHalfWidth + kSkillPromptGapFromCard;
+                const float promptX = screenCenterX + GetSkillSelectCardWidth() * 0.5f + params.skillPromptGapFromCard;
 
                 InputPromptStyle style;
-                style.scale = kModalPromptScale;
+                style.scale = params.modalPromptScale;
 
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillUpPrompt, promptX, screenCenterY + kSkillPromptUpOffsetY, style);
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillDownPrompt, promptX, screenCenterY + kSkillPromptDownOffsetY, style);
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillConfirmPrompt, promptX, screenCenterY + kSkillPromptConfirmOffsetY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillUpPrompt, promptX, screenCenterY + params.skillPromptUpOffsetY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillDownPrompt, promptX, screenCenterY + params.skillPromptDownOffsetY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillConfirmPrompt, promptX, screenCenterY + params.skillPromptConfirmOffsetY, style);
             } else {
                 HideInputPrompt(registry, hud.skillUpPrompt);
                 HideInputPrompt(registry, hud.skillDownPrompt);

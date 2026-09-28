@@ -1,0 +1,36 @@
+{
+    "GameLog": {
+        "accentColors": {
+            "WeaponAcquired": { "x": 1.0, "y": 0.82, "z": 0.35, "w": 1.0 },
+            "WeaponLevelUp": { "x": 1.0, "y": 0.60, "z": 0.25, "w": 1.0 },
+            "PlayerLevelUp": { "x": 0.40, "y": 0.80, "z": 1.0, "w": 1.0 },
+            "SkillAcquired": { "x": 0.75, "y": 0.55, "z": 1.0, "w": 1.0 },
+            "DangerRankUp": { "x": 0.95, "y": 0.30, "z": 0.30, "w": 1.0 },
+            "WeaponEvolved": { "x": 1.0, "y": 0.92, "z": 0.55, "w": 1.0 },
+            "EliteAppeared": { "x": 0.85, "y": 0.35, "z": 1.0, "w": 1.0 }
+        },
+        "panelWidth": 380.0,
+        "panelHeight": 68.0,
+        "slotGap": 8.0,
+        "marginRight": 28.0,
+        "bottomRatio": 0.62,
+        "accentWidth": 4.0,
+        "accentInsetX": 3.0,
+        "accentInsetY": 10.0,
+        "textInsetX": 22.0,
+        "labelOffsetY": -16.0,
+        "textOffsetY": 15.0,
+        "labelFontScale": 0.55,
+        "textFontScale": 0.95,
+        "outlineWidth": 2.0,
+        "panelColor": { "x": 0.02, "y": 0.02, "z": 0.03, "w": 0.72 },
+        "textColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "outlineColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+        "enterDuration": 0.32,
+        "lifetime": 4.2,
+        "exitDuration": 0.55,
+        "slideInDistance": 120.0,
+        "exitRiseDistance": 34.0,
+        "slotLerpSpeed": 14.0
+    }
+}

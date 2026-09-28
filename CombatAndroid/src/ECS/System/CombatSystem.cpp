@@ -4,6 +4,8 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/CombatSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
@@ -49,20 +51,41 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき
-        // （CombatHit.hppのkHitStopDuration/kHitStopScale）より弱めにする。
-        // プレイヤー操作が止まる時間を短くし、被弾直後にすぐ回避・反撃できるようにするため
+        //! @struct CombatParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/Combat.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kPlayerHitStopDuration = 0.2f;
-        constexpr float kPlayerHitStopScale    = 0.15f;
+        struct CombatParams {
+            //-------------------------------------------------------------
+            // プレイヤーが被弾したときのヒットストップは、敵を殴ったとき
+            // （CombatHit.hppのkHitStopDuration/kHitStopScale）より弱めにする。
+            // プレイヤー操作が止まる時間を短くし、被弾直後にすぐ回避・反撃できるようにするため
+            //-------------------------------------------------------------
+            float playerHitStopDuration = 0.2f;
+            float playerHitStopScale = 0.15f;
+
+            //-------------------------------------------------------------
+            // 浮遊武器のばね追従（WeaponComponent::followSpring*）を目標位置へ強制的に
+            // 置き直す距離。所有者のテレポート・リスポーンで目標が大きく飛んだとき、
+            // ばねのまま追わせるとマップを横切って武器が飛んでくるため打ち切る。
+            // 通常の移動で開く追従の遅れ（速くても100ユニット程度）とは桁が違う値にしてある
+            //-------------------------------------------------------------
+            float followSpringResetDistance = 1500.0f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, CombatParams& params) {
+            LoadField(archive, "playerHitStopDuration", params.playerHitStopDuration);
+            LoadField(archive, "playerHitStopScale", params.playerHitStopScale);
+            LoadField(archive, "followSpringResetDistance", params.followSpringResetDistance);
+        }
 
         //-------------------------------------------------------------
-        // 浮遊武器のばね追従（WeaponComponent::followSpring*）を目標位置へ強制的に
-        // 置き直す距離。所有者のテレポート・リスポーンで目標が大きく飛んだとき、
-        // ばねのまま追わせるとマップを横切って武器が飛んでくるため打ち切る。
-        // 通常の移動で開く追従の遅れ（速くても100ユニット程度）とは桁が違う値にしてある
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kFollowSpringResetDistance = 1500.0f;
+        const CombatParams& GetParams() {
+            static const CombatParams s_params = LoadSystemParams<CombatParams>("Combat");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @struct PendingProjectileSpawn
@@ -254,6 +277,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void CombatSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const CombatParams& params = GetParams();
+
         auto* ctx      = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>();
 
@@ -413,7 +438,7 @@ namespace CombatAndroid::ECS {
                 // ばね側も毎フレームそこへ寄せておかないと、攻撃が終わってattackBlendが0へ
                 // 戻った瞬間に攻撃前の位置へ戻ろうとして武器が飛ぶ（ブロック末尾で行う）
                 float followSpringGap = hlslpp::length(targetPosition - weapon.followSpringPosition);
-                if(!weapon.hasFollowSpringState || followSpringGap > kFollowSpringResetDistance) {
+                if(!weapon.hasFollowSpringState || followSpringGap > params.followSpringResetDistance) {
                     // 初回、および所有者のテレポート・リスポーン等で目標が大きく飛んだとき
                     weapon.followSpringPosition = targetPosition;
                     weapon.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
@@ -959,8 +984,8 @@ namespace CombatAndroid::ECS {
                 if(eventBus) {
                     eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, takenDamage, sweepPoint});
                 }
-                ApplyHitStop(registry, playerEntity, kPlayerHitStopDuration, kPlayerHitStopScale);
-                ApplyHitStop(registry, enemyEntity, kPlayerHitStopDuration, kPlayerHitStopScale);
+                ApplyHitStop(registry, playerEntity, params.playerHitStopDuration, params.playerHitStopScale);
+                ApplyHitStop(registry, enemyEntity, params.playerHitStopDuration, params.playerHitStopScale);
             }
 
 #ifdef _DEBUG

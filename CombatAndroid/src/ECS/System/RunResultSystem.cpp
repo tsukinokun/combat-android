@@ -3,6 +3,9 @@
 //! @brief  RunResultSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerExperienceComponent.hpp>
@@ -49,46 +52,89 @@ namespace CombatAndroid::ECS {
             L"リトライ",
             L"タイトルへ",
         };
+        //-------------------------------------------------------------
+        //! @struct RunResultParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/RunResult.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct RunResultParams {
+            //-------------------------------------------------------------
+            // 走行が終わってからリザルトを出すまでの待ち（実時間）。
+            // 死亡は倒れるモーションと、カメラが倒れた体へ寄るカット（TpsCameraSystem）を見せたいので長め、
+            // クリアは止まった画面を一呼吸見せる程度
+            //-------------------------------------------------------------
+            float deadOverlayDelay = 2.2f;
+            float clearOverlayDelay = 1.0f;
+
+            //! 暗転板を0から既定の濃さまで上げる時間（実時間）。上げきってから文字とメニューを出す
+            float revealFadeSeconds = 0.8f;
+
+            //-------------------------------------------------------------
+            // レイアウト（画面中心からのピクセル）
+            //-------------------------------------------------------------
+            float titleOffsetY = -300.0f;
+            float firstRowOffsetY = -170.0f;
+            float rowPitch = 54.0f;
+            float labelOffsetX = -250.0f;    //!< 項目名の左端
+            float valueOffsetX = 30.0f;      //!< 値の左端
+            float recordOffsetX = 210.0f;     //!< 「NEW RECORD」の左端
+            float skillsOffsetY = 60.0f;
+            float bestOffsetY = 108.0f;
+            float menuTopOffsetY = 200.0f;
+
+            float titleFontScale = 2.6f;
+            float labelFontScale = 1.0f;
+            float valueFontScale = 1.15f;
+            float recordFontScale = 0.8f;
+            float skillsFontScale = 0.85f;
+            float bestFontScale = 0.8f;
+
+            hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.72f);
+            hlslpp::float4 deadTitleColor = hlslpp::float4(1.0f, 0.35f, 0.30f, 1.0f);
+            hlslpp::float4 clearTitleColor = hlslpp::float4(1.0f, 0.88f, 0.35f, 1.0f);
+            hlslpp::float4 labelColor = hlslpp::float4(0.75f, 0.75f, 0.78f, 1.0f);
+            hlslpp::float4 valueColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 recordColor = hlslpp::float4(1.0f, 0.88f, 0.30f, 1.0f);
+            hlslpp::float4 skillsColor = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
+            hlslpp::float4 bestColor = hlslpp::float4(0.70f, 0.70f, 0.74f, 1.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, RunResultParams& params) {
+            LoadField(archive, "deadOverlayDelay", params.deadOverlayDelay);
+            LoadField(archive, "clearOverlayDelay", params.clearOverlayDelay);
+            LoadField(archive, "revealFadeSeconds", params.revealFadeSeconds);
+            LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "firstRowOffsetY", params.firstRowOffsetY);
+            LoadField(archive, "rowPitch", params.rowPitch);
+            LoadField(archive, "labelOffsetX", params.labelOffsetX);
+            LoadField(archive, "valueOffsetX", params.valueOffsetX);
+            LoadField(archive, "recordOffsetX", params.recordOffsetX);
+            LoadField(archive, "skillsOffsetY", params.skillsOffsetY);
+            LoadField(archive, "bestOffsetY", params.bestOffsetY);
+            LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
+            LoadField(archive, "titleFontScale", params.titleFontScale);
+            LoadField(archive, "labelFontScale", params.labelFontScale);
+            LoadField(archive, "valueFontScale", params.valueFontScale);
+            LoadField(archive, "recordFontScale", params.recordFontScale);
+            LoadField(archive, "skillsFontScale", params.skillsFontScale);
+            LoadField(archive, "bestFontScale", params.bestFontScale);
+            LoadField(archive, "backdropColor", params.backdropColor);
+            LoadField(archive, "deadTitleColor", params.deadTitleColor);
+            LoadField(archive, "clearTitleColor", params.clearTitleColor);
+            LoadField(archive, "labelColor", params.labelColor);
+            LoadField(archive, "valueColor", params.valueColor);
+            LoadField(archive, "recordColor", params.recordColor);
+            LoadField(archive, "skillsColor", params.skillsColor);
+            LoadField(archive, "bestColor", params.bestColor);
+        }
 
         //-------------------------------------------------------------
-        // 走行が終わってからリザルトを出すまでの待ち（実時間）。
-        // 死亡は倒れるモーションと、カメラが倒れた体へ寄るカット（TpsCameraSystem）を見せたいので長め、
-        // クリアは止まった画面を一呼吸見せる程度
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kDeadOverlayDelay  = 2.2f;
-        constexpr float kClearOverlayDelay = 1.0f;
-
-        //! 暗転板を0から既定の濃さまで上げる時間（実時間）。上げきってから文字とメニューを出す
-        constexpr float kRevealFadeSeconds = 0.8f;
-
-        //-------------------------------------------------------------
-        // レイアウト（画面中心からのピクセル）
-        //-------------------------------------------------------------
-        constexpr float kTitleOffsetY    = -300.0f;
-        constexpr float kFirstRowOffsetY = -170.0f;
-        constexpr float kRowPitch        = 54.0f;
-        constexpr float kLabelOffsetX    = -250.0f;    //!< 項目名の左端
-        constexpr float kValueOffsetX    = 30.0f;      //!< 値の左端
-        constexpr float kRecordOffsetX   = 210.0f;     //!< 「NEW RECORD」の左端
-        constexpr float kSkillsOffsetY   = 60.0f;
-        constexpr float kBestOffsetY     = 108.0f;
-        constexpr float kMenuTopOffsetY  = 200.0f;
-
-        constexpr float kTitleFontScale  = 2.6f;
-        constexpr float kLabelFontScale  = 1.0f;
-        constexpr float kValueFontScale  = 1.15f;
-        constexpr float kRecordFontScale = 0.8f;
-        constexpr float kSkillsFontScale = 0.85f;
-        constexpr float kBestFontScale   = 0.8f;
-
-        const hlslpp::float4 kBackdropColor   = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.72f);
-        const hlslpp::float4 kDeadTitleColor  = hlslpp::float4(1.0f, 0.35f, 0.30f, 1.0f);
-        const hlslpp::float4 kClearTitleColor = hlslpp::float4(1.0f, 0.88f, 0.35f, 1.0f);
-        const hlslpp::float4 kLabelColor      = hlslpp::float4(0.75f, 0.75f, 0.78f, 1.0f);
-        const hlslpp::float4 kValueColor      = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kRecordColor     = hlslpp::float4(1.0f, 0.88f, 0.30f, 1.0f);
-        const hlslpp::float4 kSkillsColor     = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
-        const hlslpp::float4 kBestColor       = hlslpp::float4(0.70f, 0.70f, 0.74f, 1.0f);
+        const RunResultParams& GetParams() {
+            static const RunResultParams s_params = LoadSystemParams<RunResultParams>("RunResult");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  秒数を「分:秒」の文字列にする
@@ -145,11 +191,13 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void PlaceStatRow(Tsukino::ECS::Registry& registry, const RunResultStatRow& row, float centerX, float y, const std::wstring& label,
                           const std::wstring& value, bool newRecord) {
-            PlaceUiText(registry, row.labelEntity, centerX + kLabelOffsetX, y, kLabelFontScale, label, kLabelColor);
-            PlaceUiText(registry, row.valueEntity, centerX + kValueOffsetX, y, kValueFontScale, value, kValueColor);
+            const RunResultParams& params = GetParams();
+
+            PlaceUiText(registry, row.labelEntity, centerX + params.labelOffsetX, y, params.labelFontScale, label, params.labelColor);
+            PlaceUiText(registry, row.valueEntity, centerX + params.valueOffsetX, y, params.valueFontScale, value, params.valueColor);
 
             if(newRecord)
-                PlaceUiText(registry, row.recordEntity, centerX + kRecordOffsetX, y, kRecordFontScale, L"NEW RECORD", kRecordColor);
+                PlaceUiText(registry, row.recordEntity, centerX + params.recordOffsetX, y, params.recordFontScale, L"NEW RECORD", params.recordColor);
             else
                 HideUiText(registry, row.recordEntity);
         }
@@ -163,6 +211,8 @@ namespace CombatAndroid::ECS {
         //!         最大化や元に戻す操作の後も、暗転板が画面全体を覆い、文字が中央に収まる
         //-------------------------------------------------------------
         void LayoutResultScreen(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& ctx, RunResultComponent& result) {
+            const RunResultParams& params = GetParams();
+
             const float screenWidth   = ctx.window ? static_cast<float>(ctx.window->GetWidth()) : 1700.0f;
             const float screenHeight  = ctx.window ? static_cast<float>(ctx.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
@@ -172,32 +222,32 @@ namespace CombatAndroid::ECS {
             result.layoutHeight = screenHeight;
 
             // 暗転板はフェード中なら途中の濃さで敷く。出だしをなだらかにして、急に暗くなった感じを消す
-            const float    revealProgress = std::clamp(result.revealElapsed / kRevealFadeSeconds, 0.0f, 1.0f);
+            const float    revealProgress = std::clamp(result.revealElapsed / params.revealFadeSeconds, 0.0f, 1.0f);
             const float    revealEase     = revealProgress * revealProgress * (3.0f - 2.0f * revealProgress);
-            hlslpp::float4 backdropColor  = kBackdropColor;
-            backdropColor.w               = kBackdropColor.w * revealEase;
+            hlslpp::float4 backdropColor  = params.backdropColor;
+            backdropColor.w               = params.backdropColor.w * revealEase;
             StretchSprite(registry, ctx, result.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, backdropColor);
 
             // 文字とメニューはフェードが終わってから出す
             if(!result.revealed)
                 return;
 
-            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale,
-                        result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? kClearTitleColor : kDeadTitleColor);
+            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale,
+                        result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? params.clearTitleColor : params.deadTitleColor);
 
             const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
             for(int i = 0; i < kRunResultStatRowCount; ++i) {
-                const float rowY = screenCenterY + kFirstRowOffsetY + kRowPitch * static_cast<float>(i);
+                const float rowY = screenCenterY + params.firstRowOffsetY + params.rowPitch * static_cast<float>(i);
                 PlaceStatRow(registry, result.statRows[i], screenCenterX, rowY, labels[i], result.statValues[i], result.statNewRecords[i]);
             }
 
             if(!result.skillsText.empty())
-                PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + kSkillsOffsetY, kSkillsFontScale, result.skillsText,
-                            kSkillsColor);
+                PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + params.skillsOffsetY, params.skillsFontScale, result.skillsText,
+                            params.skillsColor);
 
-            PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + kBestOffsetY, kBestFontScale, result.bestText, kBestColor);
+            PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + params.bestOffsetY, params.bestFontScale, result.bestText, params.bestColor);
 
-            ShowGameMenu(registry, ctx, result.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, result.cursorIndex);
+            ShowGameMenu(registry, ctx, result.menu, screenCenterX, screenCenterY + params.menuTopOffsetY, kMenuLabels, result.cursorIndex);
         }
     }    // namespace
 
@@ -230,12 +280,15 @@ namespace CombatAndroid::ECS {
         // ハンドラは数を積むだけ。コンポーネントへの反映はUpdateで行う
         //（EnemyDiedEventはビヘイビアツリーのView反復中にPublishされ、Registryも渡ってこないため）
         m_diedConnection = eventBus.Subscribe<EnemyDiedEvent>([this](const EnemyDiedEvent&) { ++m_pendingKills; });
+        (void)GetParams();    // 初回フレームでファイルを読まないよう先に読んでおく
     }
 
     //-------------------------------------------------------------
     //! @brief システムの更新
     //-------------------------------------------------------------
     void RunResultSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const RunResultParams& params = GetParams();
+
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx)
             return;
@@ -289,7 +342,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(!result.shown) {
                 const bool  cleared = result.outcome == RunOutcome::Cleared;
-                const float delay   = cleared ? kClearOverlayDelay : kDeadOverlayDelay;
+                const float delay   = cleared ? params.clearOverlayDelay : params.deadOverlayDelay;
                 if(result.endElapsed < delay)
                     continue;
 
@@ -345,7 +398,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(!result.revealed) {
                 result.revealElapsed += realDeltaTime;
-                if(result.revealElapsed >= kRevealFadeSeconds) {
+                if(result.revealElapsed >= params.revealFadeSeconds) {
                     result.revealed        = true;
                     result.openedThisFrame = true;
                 }

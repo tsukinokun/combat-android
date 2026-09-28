@@ -26,6 +26,14 @@ namespace CombatAndroid::ECS {
     bool IsSkillSelectActive(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
+    //! @brief  スキルカードの幅（ピクセル）を得る
+    //! @return Assets/Tables/Systems/SkillSelect.json の cardWidth
+    //! @note   カードの横に操作の案内を並べるInputPromptSystemが使う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    float GetSkillSelectCardWidth();
+
+    //-------------------------------------------------------------
     //! @class  SkillSelectSystem
     //! @brief  レベルアップ時にスキルの選択肢を提示し、W/S・マウスホイールでの選択と
     //!         スペースキーでの決定を処理するシステム

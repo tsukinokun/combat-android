@@ -33,8 +33,34 @@ Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.j
 
 ## System の調整値（`Systems/`）
 
-System の `.cpp` の無名 namespace にある調整値は、ここへ出してよい。今あるのは
-`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop`。
+System の `.cpp` の無名 namespace にある調整値は、ここへ出す。今あるのは
+
+- UI：`GameLog` `TitleStage` `TitleMenu` `SkillSelect` `RunResult` `Tutorial` `PauseMenu` `InputPrompt` `ScreenFade`
+- HUD：`PlayerHud` `PlayerSkillHud` `HealthBar` `PlayerDamageEffect`
+- 戦闘・演出：`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop` `EnemyAttackTelegraph` `EnemyAttackArea`
+  `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound`
+
+出していない System（`EnemyStressTest` `WeaponGripDebug` `GrassField` `TpsCamera` `Projectile` `EnemySpawnDirector`）は、
+デバッグ専用か、残っているのが下の「残す」ものだけか、調整値を既に Prefab 側に持っているもの。
+
+JSON の書式の補足：
+
+- 色は `{ "x":…, "y":…, "z":…, "w":… }`（float3 は `w` 無し）。`w` はアルファ
+- `GameLog.json` の `accentColors` は種別名（`GameLogCategory` の綴り）ごとの色
+- `TitleStage.json` の `launchStops` は武器の並び（`WeaponId` 順）の配列。**要素数は武器の数ちょうど**にする
+- 1 回ぶんの送り（`GameLog` の段、`SkillSelect` のカード、`PlayerSkillHud` の行）は高さ＋隙間から計算するので、キーは無い
+
+### 揃えておく値
+
+別の System の JSON 同士で、見た目のつながりのために同じ値にしてあるもの。片方を変えたらもう片方も合わせる。
+
+| 値 | 揃える相手 |
+|---|---|
+| `PlayerSkillHud.skillListLeftX` / `skillListTopY` | `PlayerHud` のバーの左端 / EXP バーの下端＋余白12（`hpBarTopY + hpBarHeight + expBarGapY + expBarHeight + 12`） |
+| `EnemyAttackArea.areaColor` | `EnemyAttackTelegraph.telegraphColor`（体の光と足元の範囲を同じ赤にする） |
+| `Tutorial.panelColor` | `GameLog.panelColor`（同じ黒い半透明） |
+
+`InputPrompt` の案内の横位置は `SkillSelect.cardWidth` から計算するので、揃える必要は無い。
 
 - **出す**：見た目・手触り・挙動の調整値（速度・時間・距離・高さ・色・強度・閾値）
 - **残す**：数学定数（`kPi` など）／配列サイズ・分割数・プール数など構造に効くもの／

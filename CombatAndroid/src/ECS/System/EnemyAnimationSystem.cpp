@@ -4,6 +4,8 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyAnimationSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
@@ -17,10 +19,32 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kAnimBlendTime      = 0.15f;    //!< Idle/Walkへ切り替える際のクロスフェード時間（秒）
-        constexpr float kAttackBlendTime    = 0.10f;    //!< Attackへ切り替える際のクロスフェード時間（秒。素早く反応させるため短め）
-        constexpr float kKnockbackBlendTime = 0.06f;    //!< Knockbackへ切り替える際のクロスフェード時間（秒。被弾の反応は最速で入れたい）
-        constexpr float kDeathBlendTime     = 0.10f;    //!< Deathへ切り替える際のクロスフェード時間（秒）
+        //-------------------------------------------------------------
+        //! @struct EnemyAnimationParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/EnemyAnimation.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct EnemyAnimationParams {
+            float animBlendTime = 0.15f;    //!< Idle/Walkへ切り替える際のクロスフェード時間（秒）
+            float attackBlendTime = 0.10f;    //!< Attackへ切り替える際のクロスフェード時間（秒。素早く反応させるため短め）
+            float knockbackBlendTime = 0.06f;    //!< Knockbackへ切り替える際のクロスフェード時間（秒。被弾の反応は最速で入れたい）
+            float deathBlendTime = 0.10f;    //!< Deathへ切り替える際のクロスフェード時間（秒）
+        };
+
+        template <class Archive>
+        void load(Archive& archive, EnemyAnimationParams& params) {
+            LoadField(archive, "animBlendTime", params.animBlendTime);
+            LoadField(archive, "attackBlendTime", params.attackBlendTime);
+            LoadField(archive, "knockbackBlendTime", params.knockbackBlendTime);
+            LoadField(archive, "deathBlendTime", params.deathBlendTime);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const EnemyAnimationParams& GetParams() {
+            static const EnemyAnimationParams s_params = LoadSystemParams<EnemyAnimationParams>("EnemyAnimation");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  「指定クリップへクロスフェードする」OnEnterコールバックを作るヘルパー
@@ -84,11 +108,13 @@ namespace CombatAndroid::ECS {
     //! @brief コンストラクタ。各ステートのOnEnterコールバック（クリップ切り替え）を登録する
     //-------------------------------------------------------------
     EnemyAnimationSystem::EnemyAnimationSystem() {
+        const EnemyAnimationParams& params = GetParams();
+
         // 待機用クリップが無いため、Idle/Walkともに歩行クリップを使う。
         // Idleはin_place=trueでその場足踏みにし、移動を表すWalkと視覚的に区別する必要はない
         // （追跡の有無自体はTransformの移動で表現される）
-        m_stateMachine.RegisterState(EnemyAnimState::Idle, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, kAnimBlendTime, true));
-        m_stateMachine.RegisterState(EnemyAnimState::Walk, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, kAnimBlendTime, true));
+        m_stateMachine.RegisterState(EnemyAnimState::Idle, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, params.animBlendTime, true));
+        m_stateMachine.RegisterState(EnemyAnimState::Walk, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, params.animBlendTime, true));
 
         // Attackへ入るときはattackTimer（ZombieBehavior::PlayAttackの終了判定ウォッチドッグ）も
         // ここでリセットする。PlayAttackはこのOnEnterが実行される1フレーム前から加算を始めているため、
@@ -98,7 +124,7 @@ namespace CombatAndroid::ECS {
         // 併せて、手に武器を持っている敵（Paladin等）はここで武器を「攻撃中」にする。
         // Attackを抜けるときのOnExitで戻すことで、待機・歩行・のけぞり・死亡の間は
         // プレイヤーと同じ浮遊追従に戻る
-        auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, false, kAttackBlendTime, true);
+        auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, false, params.attackBlendTime, true);
         m_stateMachine.RegisterState(
             EnemyAnimState::Attack,
             [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
@@ -117,14 +143,14 @@ namespace CombatAndroid::ECS {
             });
 
         // Knockbackへ入るときはknockbackTimer（ZombieBehavior::PlayKnockbackの終了判定ウォッチドッグ）をリセットする
-        auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, false, kKnockbackBlendTime, true);
+        auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, false, params.knockbackBlendTime, true);
         m_stateMachine.RegisterState(EnemyAnimState::Knockback, [knockbackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             knockbackClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).knockbackTimer = 0.0f;
         });
 
         // Deathへ入るときはdeathTimer（ZombieBehavior::PlayDeathの終了判定ウォッチドッグ）をリセットする
-        auto deathClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::deathClip, false, kDeathBlendTime, true);
+        auto deathClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::deathClip, false, params.deathBlendTime, true);
         m_stateMachine.RegisterState(EnemyAnimState::Death, [deathClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             deathClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).deathTimer = 0.0f;

@@ -1,0 +1,10 @@
+{
+    "InputPrompt": {
+        "chargePromptWorldHeight": 250.0,
+        "skillPromptGapFromCard": 95.0,
+        "skillPromptUpOffsetY": -75.0,
+        "skillPromptDownOffsetY": 20.0,
+        "skillPromptConfirmOffsetY": 165.0,
+        "modalPromptScale": 1.15
+    }
+}

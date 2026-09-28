@@ -1,0 +1,30 @@
+{
+    "TitleMenu": {
+        "leftColumnRatio": 0.26,
+        "menuHighlightWidth": 360.0,
+        "backdropWidthRatio": 0.42,
+        "backdropFadeRatio": 0.30,
+        "titleOffsetY": -250.0,
+        "menuTopOffsetY": -20.0,
+        "bestOffsetY": 280.0,
+        "titleFontScale": 3.2,
+        "bestFontScale": 0.85,
+        "controlsPanelWidth": 980.0,
+        "controlsPanelHeight": 720.0,
+        "controlsHeaderOffsetY": -300.0,
+        "controlsFirstLineY": -220.0,
+        "controlsLinePitch": 48.0,
+        "controlsActionOffsetX": -400.0,
+        "controlsKeyOffsetX": -130.0,
+        "controlsMenuOffsetY": 280.0,
+        "controlsHeaderScale": 1.6,
+        "controlsLineScale": 0.95,
+        "backdropColor": { "x": 0.02, "y": 0.03, "z": 0.05, "w": 0.72 },
+        "fullBackdropColor": { "x": 0.02, "y": 0.03, "z": 0.05, "w": 0.92 },
+        "titleColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "bestColor": { "x": 0.75, "y": 0.75, "z": 0.80, "w": 1.0 },
+        "controlsPanelColor": { "x": 0.09, "y": 0.10, "z": 0.15, "w": 1.0 },
+        "controlsActionColor": { "x": 0.75, "y": 0.75, "z": 0.80, "w": 1.0 },
+        "controlsKeyColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 }
+    }
+}

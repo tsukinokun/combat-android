@@ -1,0 +1,33 @@
+{
+    "TitleStage": {
+        "riseDuration": 0.75,
+        "riseOvershoot": 0.12,
+        "riseSpinTurns": 1.5,
+        "idleSpinSpeed": 0.45,
+        "bobAmplitude": 9.0,
+        "bobFrequency": 0.55,
+        "rimColor": { "x": 1.0, "y": 0.88, "z": 0.62 },
+        "rimBurstAmount": 1.6,
+        "rimSettledAmount": 0.5,
+        "rimFadeDuration": 1.2,
+        "rimPower": 2.5,
+        "burstEffectScale": 14.0,
+        "launchStagger": 0.14,
+        "launchWindUp": 0.20,
+        "launchFlight": 0.45,
+        "launchAfterBurst": 0.18,
+        "launchWindUpDistance": 70.0,
+        "launchSpinRadians": 7.0,
+        "launchRimAmount": 1.6,
+        "launchRimPower": 2.0,
+        "launchBurstEffectScale": 26.0,
+        "launchStops": [
+            { "distance": 100.0, "sideOffset": 0.0, "upOffset": 6.0 },
+            { "distance": 118.0, "sideOffset": 62.0, "upOffset": -14.0 },
+            { "distance": 88.0, "sideOffset": -58.0, "upOffset": 18.0 }
+        ],
+        "cameraSwayPeriod": 17.0,
+        "cameraSwayX": 55.0,
+        "cameraSwayY": 22.0
+    }
+}

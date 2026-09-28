@@ -1,0 +1,11 @@
+{
+    "EnemyAttackTelegraph": {
+        "telegraphColor": { "x": 1.0, "y": 0.12, "z": 0.08 },
+        "rimIntensityMax": 6.0,
+        "glowMax": 0.30,
+        "rimPower": 2.2,
+        "startRatio": 0.25,
+        "eliteRimIntensity": 3.0,
+        "eliteGlow": 0.06
+    }
+}

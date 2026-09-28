@@ -3,6 +3,9 @@
 //! @brief  EnemyAttackTelegraphSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyAttackTelegraphSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
@@ -20,25 +23,50 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // 予兆の見た目のチューニング値。
-        // 敵は数が多いので、常時光る演出ではなく「振りかぶりの間だけ赤くなる」ことを狙う
+        //! @struct EnemyAttackTelegraphParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/EnemyAttackTelegraph.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        const hlslpp::float3 kTelegraphColor = hlslpp::float3(1.0f, 0.12f, 0.08f);    //!< 赤。スキル・拾得の金色と混ざらない色味にする
+        struct EnemyAttackTelegraphParams {
+            //-------------------------------------------------------------
+            // 予兆の見た目のチューニング値。
+            // 敵は数が多いので、常時光る演出ではなく「振りかぶりの間だけ赤くなる」ことを狙う
+            //-------------------------------------------------------------
+            hlslpp::float3 telegraphColor = hlslpp::float3(1.0f, 0.12f, 0.08f);    //!< 赤。スキル・拾得の金色と混ざらない色味にする
 
-        constexpr float kRimIntensityMax = 6.0f;     //!< 判定が出る直前のふちの強さ
-        constexpr float kGlowMax         = 0.30f;    //!< 同じく面全体の持ち上げ量（強くすると白飛びする）
-        constexpr float kRimPower        = 2.2f;     //!< ふちの鋭さ。溜め攻撃（2.5）よりわずかに広く出す
+            float rimIntensityMax = 6.0f;     //!< 判定が出る直前のふちの強さ
+            float glowMax = 0.30f;    //!< 同じく面全体の持ち上げ量（強くすると白飛びする）
+            float rimPower = 2.2f;     //!< ふちの鋭さ。溜め攻撃（2.5）よりわずかに広く出す
 
-        //! 振りかぶりの何割を過ぎてから光らせ始めるか。
-        //! 0から光らせると「攻撃に入った瞬間」に全員が赤くなり、かえって読み取りにくい
-        constexpr float kStartRatio = 0.25f;
+            //! 振りかぶりの何割を過ぎてから光らせ始めるか。
+            //! 0から光らせると「攻撃に入った瞬間」に全員が赤くなり、かえって読み取りにくい
+            float startRatio = 0.25f;
+
+            //-------------------------------------------------------------
+            // エリートが常に纏う発光。予兆より弱くして、予兆（赤）へ向かって
+            // 色と強さが連続的に移るようにする（紫のまま急に赤へ跳ばない）
+            //-------------------------------------------------------------
+            float eliteRimIntensity = 3.0f;
+            float eliteGlow = 0.06f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, EnemyAttackTelegraphParams& params) {
+            LoadField(archive, "telegraphColor", params.telegraphColor);
+            LoadField(archive, "rimIntensityMax", params.rimIntensityMax);
+            LoadField(archive, "glowMax", params.glowMax);
+            LoadField(archive, "rimPower", params.rimPower);
+            LoadField(archive, "startRatio", params.startRatio);
+            LoadField(archive, "eliteRimIntensity", params.eliteRimIntensity);
+            LoadField(archive, "eliteGlow", params.eliteGlow);
+        }
 
         //-------------------------------------------------------------
-        // エリートが常に纏う発光。予兆より弱くして、予兆（赤）へ向かって
-        // 色と強さが連続的に移るようにする（紫のまま急に赤へ跳ばない）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kEliteRimIntensity = 3.0f;
-        constexpr float kEliteGlow         = 0.06f;
+        const EnemyAttackTelegraphParams& GetParams() {
+            static const EnemyAttackTelegraphParams s_params = LoadSystemParams<EnemyAttackTelegraphParams>("EnemyAttackTelegraph");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @struct RimState
@@ -55,11 +83,13 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void EnemyAttackTelegraphSystem::Update(Tsukino::ECS::Registry& registry, float /*deltaTime*/) {
+        const EnemyAttackTelegraphParams& params = GetParams();
+
 
         auto view = registry.View<EnemyComponent, EnemyAnimationSetComponent, EnemyAttackHitboxComponent, HealthComponent,
                                   Tsukino::BuiltIn::ECS::RimGlowComponent>();
 
-        view.each([&registry](Tsukino::ECS::Entity entity, EnemyComponent&, const EnemyAnimationSetComponent& animSet,
+        view.each([&registry, &params](Tsukino::ECS::Entity entity, EnemyComponent&, const EnemyAnimationSetComponent& animSet,
                               const EnemyAttackHitboxComponent& hitbox, const HealthComponent& health,
                               Tsukino::BuiltIn::ECS::RimGlowComponent& rimGlow) {
             //-------------------------------------------------------------
@@ -67,8 +97,8 @@ namespace CombatAndroid::ECS {
             // 死亡中は死亡演出（フェード）の邪魔になるので、エリートでも消す
             //-------------------------------------------------------------
             const bool     isElite = !health.isDead && registry.HasComponent<EliteEnemyComponent>(entity);
-            const RimState rest    = isElite ? RimState{GetEliteSettings().glowColor, kEliteRimIntensity, kEliteGlow}
-                                             : RimState{kTelegraphColor, 0.0f, 0.0f};
+            const RimState rest    = isElite ? RimState{GetEliteSettings().glowColor, params.eliteRimIntensity, params.eliteGlow}
+                                             : RimState{params.telegraphColor, 0.0f, 0.0f};
 
             //-------------------------------------------------------------
             // 予兆を出す条件：攻撃モーション中で、まだ判定が出ていないこと。
@@ -85,13 +115,13 @@ namespace CombatAndroid::ECS {
             float strength = 0.0f;
             if(isWindingUp) {
                 const float windupProgress = std::clamp(animSet.attackTimer / hitbox.hitStartTime, 0.0f, 1.0f);
-                strength = std::clamp((windupProgress - kStartRatio) / (1.0f - kStartRatio), 0.0f, 1.0f);
+                strength = std::clamp((windupProgress - params.startRatio) / std::max(1.0f - params.startRatio, 0.01f), 0.0f, 1.0f);
             }
 
-            rimGlow.rimColor     = hlslpp::lerp(rest.color, kTelegraphColor, strength);
-            rimGlow.rimIntensity = rest.intensity + (kRimIntensityMax - rest.intensity) * strength;
-            rimGlow.rimPower     = kRimPower;
-            rimGlow.glow         = rest.glow + (kGlowMax - rest.glow) * strength;
+            rimGlow.rimColor     = hlslpp::lerp(rest.color, params.telegraphColor, strength);
+            rimGlow.rimIntensity = rest.intensity + (params.rimIntensityMax - rest.intensity) * strength;
+            rimGlow.rimPower     = params.rimPower;
+            rimGlow.glow         = rest.glow + (params.glowMax - rest.glow) * strength;
             rimGlow.active       = rimGlow.rimIntensity > 0.0f || rimGlow.glow > 0.0f;
         });
     }

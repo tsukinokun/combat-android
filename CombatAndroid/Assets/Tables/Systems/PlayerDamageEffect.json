@@ -1,0 +1,5 @@
+{
+    "PlayerDamageEffect": {
+        "screenFlashColor": { "x": 0.9, "y": 0.05, "z": 0.05, "w": 0.35 }
+    }
+}

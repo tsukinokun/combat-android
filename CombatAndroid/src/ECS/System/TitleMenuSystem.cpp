@@ -3,6 +3,9 @@
 //! @brief  TitleMenuSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
@@ -71,46 +74,90 @@ namespace CombatAndroid::ECS {
         };
 
         //-------------------------------------------------------------
-        // レイアウト（画面中心からのピクセル）。
-        // タイトル・メニューは画面の左寄りの1列にまとめ、右半分は3Dの武器（TitleStageSystem）へ譲る
+        //! @struct TitleMenuParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/TitleMenu.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kLeftColumnRatio = 0.26f;    //!< 文字の列の中心（画面幅に対する割合）
+        struct TitleMenuParams {
+            //-------------------------------------------------------------
+            // レイアウト（画面中心からのピクセル）。
+            // タイトル・メニューは画面の左寄りの1列にまとめ、右半分は3Dの武器（TitleStageSystem）へ譲る
+            //-------------------------------------------------------------
+            float leftColumnRatio = 0.26f;    //!< 文字の列の中心（画面幅に対する割合）
 
-        //! メニューの強調帯の幅。既定（440）より細くして、帯の右に出るキーの案内を左半分へ収める
-        constexpr float kMenuHighlightWidth = 360.0f;
+            //! メニューの強調帯の幅。既定（440）より細くして、帯の右に出るキーの案内を左半分へ収める
+            float menuHighlightWidth = 360.0f;
 
-        //! 左側を暗くする板の幅（画面幅に対する割合）と、そこから背景へぼかす帯の幅
-        constexpr float kBackdropWidthRatio = 0.42f;
-        constexpr float kBackdropFadeRatio  = 0.30f;
+            //! 左側を暗くする板の幅（画面幅に対する割合）と、そこから背景へぼかす帯の幅
+            float backdropWidthRatio = 0.42f;
+            float backdropFadeRatio = 0.30f;
 
-        constexpr float kTitleOffsetY    = -250.0f;
-        constexpr float kMenuTopOffsetY  = -20.0f;
-        constexpr float kBestOffsetY     = 280.0f;
+            float titleOffsetY = -250.0f;
+            float menuTopOffsetY = -20.0f;
+            float bestOffsetY = 280.0f;
 
-        constexpr float kTitleFontScale    = 3.2f;
-        constexpr float kBestFontScale     = 0.85f;
+            float titleFontScale = 3.2f;
+            float bestFontScale = 0.85f;
 
-        constexpr float kControlsPanelWidth     = 980.0f;
-        constexpr float kControlsPanelHeight    = 720.0f;
-        constexpr float kControlsHeaderOffsetY  = -300.0f;
-        constexpr float kControlsFirstLineY     = -220.0f;
-        constexpr float kControlsLinePitch      = 48.0f;
-        constexpr float kControlsActionOffsetX  = -400.0f;    //!< 操作の名前の左端
-        constexpr float kControlsKeyOffsetX     = -130.0f;    //!< キーの左端
-        constexpr float kControlsMenuOffsetY    = 280.0f;
-        constexpr float kControlsHeaderScale    = 1.6f;
-        constexpr float kControlsLineScale      = 0.95f;
+            float controlsPanelWidth = 980.0f;
+            float controlsPanelHeight = 720.0f;
+            float controlsHeaderOffsetY = -300.0f;
+            float controlsFirstLineY = -220.0f;
+            float controlsLinePitch = 48.0f;
+            float controlsActionOffsetX = -400.0f;    //!< 操作の名前の左端
+            float controlsKeyOffsetX = -130.0f;    //!< キーの左端
+            float controlsMenuOffsetY = 280.0f;
+            float controlsHeaderScale = 1.6f;
+            float controlsLineScale = 0.95f;
 
-        //! 文字の下を暗くする色。背景の草原を透かすため不透明にはしない
-        const hlslpp::float4 kBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.72f);
+            //! 文字の下を暗くする色。背景の草原を透かすため不透明にはしない
+            hlslpp::float4 backdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.72f);
 
-        //! 操作説明・オプションを開いている間、画面全体を覆う色（板と文字が背景と混ざらないよう濃くする）
-        const hlslpp::float4 kFullBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.92f);
-        const hlslpp::float4 kTitleColor         = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kBestColor          = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
-        const hlslpp::float4 kControlsPanelColor = hlslpp::float4(0.09f, 0.10f, 0.15f, 1.0f);
-        const hlslpp::float4 kControlsActionColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
-        const hlslpp::float4 kControlsKeyColor   = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            //! 操作説明・オプションを開いている間、画面全体を覆う色（板と文字が背景と混ざらないよう濃くする）
+            hlslpp::float4 fullBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.92f);
+            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 bestColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
+            hlslpp::float4 controlsPanelColor = hlslpp::float4(0.09f, 0.10f, 0.15f, 1.0f);
+            hlslpp::float4 controlsActionColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
+            hlslpp::float4 controlsKeyColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, TitleMenuParams& params) {
+            LoadField(archive, "leftColumnRatio", params.leftColumnRatio);
+            LoadField(archive, "menuHighlightWidth", params.menuHighlightWidth);
+            LoadField(archive, "backdropWidthRatio", params.backdropWidthRatio);
+            LoadField(archive, "backdropFadeRatio", params.backdropFadeRatio);
+            LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
+            LoadField(archive, "bestOffsetY", params.bestOffsetY);
+            LoadField(archive, "titleFontScale", params.titleFontScale);
+            LoadField(archive, "bestFontScale", params.bestFontScale);
+            LoadField(archive, "controlsPanelWidth", params.controlsPanelWidth);
+            LoadField(archive, "controlsPanelHeight", params.controlsPanelHeight);
+            LoadField(archive, "controlsHeaderOffsetY", params.controlsHeaderOffsetY);
+            LoadField(archive, "controlsFirstLineY", params.controlsFirstLineY);
+            LoadField(archive, "controlsLinePitch", params.controlsLinePitch);
+            LoadField(archive, "controlsActionOffsetX", params.controlsActionOffsetX);
+            LoadField(archive, "controlsKeyOffsetX", params.controlsKeyOffsetX);
+            LoadField(archive, "controlsMenuOffsetY", params.controlsMenuOffsetY);
+            LoadField(archive, "controlsHeaderScale", params.controlsHeaderScale);
+            LoadField(archive, "controlsLineScale", params.controlsLineScale);
+            LoadField(archive, "backdropColor", params.backdropColor);
+            LoadField(archive, "fullBackdropColor", params.fullBackdropColor);
+            LoadField(archive, "titleColor", params.titleColor);
+            LoadField(archive, "bestColor", params.bestColor);
+            LoadField(archive, "controlsPanelColor", params.controlsPanelColor);
+            LoadField(archive, "controlsActionColor", params.controlsActionColor);
+            LoadField(archive, "controlsKeyColor", params.controlsKeyColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const TitleMenuParams& GetParams() {
+            static const TitleMenuParams s_params = LoadSystemParams<TitleMenuParams>("TitleMenu");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  ベスト記録の1行を作る
@@ -164,11 +211,13 @@ namespace CombatAndroid::ECS {
         //! @param  title    [in] タイトル画面の状態
         //-------------------------------------------------------------
         void RefreshUi(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const TitleMenuComponent& title) {
+            const TitleMenuParams& params = GetParams();
+
             const float screenWidth   = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
             const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
             const float screenCenterY = screenHeight * 0.5f;
-            const float columnX       = screenWidth * kLeftColumnRatio;
+            const float columnX       = screenWidth * params.leftColumnRatio;
 
             //-------------------------------------------------------------
             // 背景の板。普段は文字のある左側だけを暗くし、右端は段々に薄くして
@@ -178,24 +227,24 @@ namespace CombatAndroid::ECS {
 
             if(coverWholeScreen) {
                 StretchSprite(registry, context, title.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight,
-                              kFullBackdropColor);
+                              params.fullBackdropColor);
                 for(Tsukino::ECS::Entity fadeEntity : title.backdropFadeEntities)
                     HideUiSprite(registry, fadeEntity);
             } else {
-                const float backdropWidth = screenWidth * kBackdropWidthRatio;
+                const float backdropWidth = screenWidth * params.backdropWidthRatio;
                 StretchSprite(registry, context, title.backdropEntity, backdropWidth * 0.5f, screenCenterY, backdropWidth, screenHeight,
-                              kBackdropColor);
+                              params.backdropColor);
 
                 // 帯を等分し、右へ行くほど薄くする
                 const int   fadeCount = static_cast<int>(title.backdropFadeEntities.size());
-                const float bandWidth = screenWidth * kBackdropFadeRatio / static_cast<float>(fadeCount);
+                const float bandWidth = screenWidth * params.backdropFadeRatio / static_cast<float>(fadeCount);
 
                 for(int i = 0; i < fadeCount; ++i) {
                     const float bandCenterX = backdropWidth + bandWidth * (static_cast<float>(i) + 0.5f);
                     const float alphaScale  = 1.0f - (static_cast<float>(i) + 0.5f) / static_cast<float>(fadeCount);
 
-                    hlslpp::float4 bandColor = kBackdropColor;
-                    bandColor.w              = kBackdropColor.w * alphaScale;
+                    hlslpp::float4 bandColor = params.backdropColor;
+                    bandColor.w              = params.backdropColor.w * alphaScale;
 
                     StretchSprite(registry, context, title.backdropFadeEntities[i], bandCenterX, screenCenterY, bandWidth, screenHeight,
                                   bandColor);
@@ -214,12 +263,12 @@ namespace CombatAndroid::ECS {
             }
 
             if(!title.showingControls) {
-                PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"人造人間0号機", kTitleColor);
-                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + kBestOffsetY, kBestFontScale, FormatBestRecord(), kBestColor);
+                PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"人造人間0号機", params.titleColor);
+                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + params.bestOffsetY, params.bestFontScale, FormatBestRecord(), params.bestColor);
 
                 // 強調帯を既定（440）より細くして、その右に並ぶキーの案内を武器へ被せない
-                ShowGameMenu(registry, context, title.menu, columnX, screenCenterY + kMenuTopOffsetY, kMenuLabels, title.cursorIndex,
-                             kMenuHighlightWidth);
+                ShowGameMenu(registry, context, title.menu, columnX, screenCenterY + params.menuTopOffsetY, kMenuLabels, title.cursorIndex,
+                             params.menuHighlightWidth);
 
                 HideUiSprite(registry, title.controlsPanelEntity);
                 HideUiText(registry, title.controlsHeaderEntity);
@@ -236,20 +285,20 @@ namespace CombatAndroid::ECS {
             HideUiText(registry, title.bestEntity);
             HideGameMenu(registry, title.menu);
 
-            StretchSprite(registry, context, title.controlsPanelEntity, screenCenterX, screenCenterY, kControlsPanelWidth, kControlsPanelHeight,
-                          kControlsPanelColor);
-            PlaceUiText(registry, title.controlsHeaderEntity, screenCenterX, screenCenterY + kControlsHeaderOffsetY, kControlsHeaderScale,
-                        L"操作説明", kTitleColor);
+            StretchSprite(registry, context, title.controlsPanelEntity, screenCenterX, screenCenterY, params.controlsPanelWidth, params.controlsPanelHeight,
+                          params.controlsPanelColor);
+            PlaceUiText(registry, title.controlsHeaderEntity, screenCenterX, screenCenterY + params.controlsHeaderOffsetY, params.controlsHeaderScale,
+                        L"操作説明", params.titleColor);
 
             for(int i = 0; i < kTitleControlsLineCount; ++i) {
-                const float lineY = screenCenterY + kControlsFirstLineY + kControlsLinePitch * static_cast<float>(i);
-                PlaceUiText(registry, title.controlsActionEntities[i], screenCenterX + kControlsActionOffsetX, lineY, kControlsLineScale,
-                            kControlActions[i], kControlsActionColor);
-                PlaceUiText(registry, title.controlsKeyEntities[i], screenCenterX + kControlsKeyOffsetX, lineY, kControlsLineScale,
-                            kControlKeys[i], kControlsKeyColor);
+                const float lineY = screenCenterY + params.controlsFirstLineY + params.controlsLinePitch * static_cast<float>(i);
+                PlaceUiText(registry, title.controlsActionEntities[i], screenCenterX + params.controlsActionOffsetX, lineY, params.controlsLineScale,
+                            kControlActions[i], params.controlsActionColor);
+                PlaceUiText(registry, title.controlsKeyEntities[i], screenCenterX + params.controlsKeyOffsetX, lineY, params.controlsLineScale,
+                            kControlKeys[i], params.controlsKeyColor);
             }
 
-            ShowGameMenu(registry, context, title.controlsMenu, screenCenterX, screenCenterY + kControlsMenuOffsetY, kControlsMenuLabels, 0);
+            ShowGameMenu(registry, context, title.controlsMenu, screenCenterX, screenCenterY + params.controlsMenuOffsetY, kControlsMenuLabels, 0);
         }
     }    // namespace
 

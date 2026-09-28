@@ -3,6 +3,9 @@
 //! @brief  PauseMenuSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PauseMenuSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
 #include <CombatAndroid/ECS/Component/PauseMenuComponent.hpp>
@@ -50,12 +53,35 @@ namespace CombatAndroid::ECS {
             L"タイトルへ",
         };
 
-        constexpr float kTitleOffsetY   = -170.0f;    //!< 画面中心から見た「PAUSE」のY
-        constexpr float kMenuTopOffsetY = -40.0f;     //!< 画面中心から見た1つ目の項目のY
-        constexpr float kTitleFontScale = 2.4f;
+        //-------------------------------------------------------------
+        //! @struct PauseMenuParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PauseMenu.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct PauseMenuParams {
+            float titleOffsetY = -170.0f;    //!< 画面中心から見た「PAUSE」のY
+            float menuTopOffsetY = -40.0f;     //!< 画面中心から見た1つ目の項目のY
+            float titleFontScale = 2.4f;
 
-        const hlslpp::float4 kBackdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.6f);
-        const hlslpp::float4 kTitleColor    = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.6f);
+            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PauseMenuParams& params) {
+            LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
+            LoadField(archive, "titleFontScale", params.titleFontScale);
+            LoadField(archive, "backdropColor", params.backdropColor);
+            LoadField(archive, "titleColor", params.titleColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PauseMenuParams& GetParams() {
+            static const PauseMenuParams s_params = LoadSystemParams<PauseMenuParams>("PauseMenu");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  メニューを表示し直す
@@ -64,12 +90,14 @@ namespace CombatAndroid::ECS {
         //! @param  pause    [in] 対象のポーズメニュー
         //-------------------------------------------------------------
         void RefreshUi(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const PauseMenuComponent& pause) {
+            const PauseMenuParams& params = GetParams();
+
             const float screenWidth   = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
             const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
             const float screenCenterY = screenHeight * 0.5f;
 
-            StretchSprite(registry, context, pause.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
+            StretchSprite(registry, context, pause.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, params.backdropColor);
 
             // オプション画面を開いている間は暗転板だけ残し、見出しとメニューはオプションの板と重ならないよう隠す
             if(pause.options.isOpen) {
@@ -78,8 +106,8 @@ namespace CombatAndroid::ECS {
                 return;
             }
 
-            PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"PAUSE", kTitleColor);
-            ShowGameMenu(registry, context, pause.menu, screenCenterX, screenCenterY + kMenuTopOffsetY, kMenuLabels, pause.cursorIndex);
+            PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"PAUSE", params.titleColor);
+            ShowGameMenu(registry, context, pause.menu, screenCenterX, screenCenterY + params.menuTopOffsetY, kMenuLabels, pause.cursorIndex);
         }
 
         //-------------------------------------------------------------

@@ -3,6 +3,9 @@
 //! @brief  EnemyAttackAreaSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/EnemyAttackAreaSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
@@ -38,39 +41,64 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //-------------------------------------------------------------
-        // 見た目のチューニング値
-        //-------------------------------------------------------------
-
-        //! 色。EnemyAttackTelegraphSystemのリムライト（kTelegraphColor）と同じ赤にして、
-        //! 体の光と足元の範囲が同じ攻撃の予兆だと一目で結び付くようにする
-        constexpr float kAreaColorR = 1.0f;
-        constexpr float kAreaColorG = 0.12f;
-        constexpr float kAreaColorB = 0.08f;
-
-        //! 範囲全体の薄い面。草の緑と地面の茶の上でも赤と読めるよう、半透明の中では濃いめにしてある
-        constexpr float kOuterAlpha = 0.28f;
-        constexpr float kFillAlpha  = 0.50f;    //!< 判定の瞬間へ向けて広がる内側の塗り（外側の面に重なる）
-
-        //! 攻撃に入った直後に面がパッと出ないよう、この秒数で薄い面を立ち上げる
-        constexpr float kFadeInSeconds = 0.12f;
-
-        //! 地面からの高さ。足元の草（高さ約34、GrassFieldSystem）は地面をほぼ覆っていて、
-        //! 地面すれすれに置くとTPSカメラの浅い角度からは草に隠れて見えない。
-        //! 草の穂先の少し下に置き、面が草の上に乗って見えるようにする（背の高い穂先は面を突き抜けて
-        //! 見えるので、地面から浮いた板には見えない）。深度テストは行うので、敵の脚には正しく隠れる
-        constexpr float kAreaHeight = 28.0f;
+        constexpr int   kSegments = 32;             //!< 円・扇の分割数（メッシュの構造なのでコードに残す）
+        constexpr float kPi       = 3.14159265f;
 
         //-------------------------------------------------------------
-        // 形。当たり判定の形から決める：
-        //   判定が球（頭突き：終点ボーン無し）  → 前方に置いた円
-        //   判定がカプセル（腕・武器を振る）    → 前方の扇
+        //! @struct EnemyAttackAreaParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/EnemyAttackArea.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr int   kSegments           = 32;        //!< 円・扇の分割数
-        constexpr float kFanAngleDegrees    = 120.0f;    //!< 扇の中心角
-        constexpr float kDiscCenterRatio    = 0.6f;      //!< 円の中心を置く位置（attackRangeに対する前方の割合）
-        constexpr float kDiscRadiusScale    = 1.2f;      //!< 円の半径（判定半径に対する倍率。頭の突き出しのぶれを含める）
-        constexpr float kPi                 = 3.14159265f;
+        struct EnemyAttackAreaParams {
+            //-------------------------------------------------------------
+            // 見た目のチューニング値
+            //-------------------------------------------------------------
+
+            //! 色。EnemyAttackTelegraph.json の telegraphColor と同じ赤にして、
+            //! 体の光と足元の範囲が同じ攻撃の予兆だと一目で結び付くようにする
+            hlslpp::float3 areaColor = hlslpp::float3(1.0f, 0.12f, 0.08f);
+
+            //! 範囲全体の薄い面。草の緑と地面の茶の上でも赤と読めるよう、半透明の中では濃いめにしてある
+            float outerAlpha = 0.28f;
+            float fillAlpha = 0.50f;    //!< 判定の瞬間へ向けて広がる内側の塗り（外側の面に重なる）
+
+            //! 攻撃に入った直後に面がパッと出ないよう、この秒数で薄い面を立ち上げる
+            float fadeInSeconds = 0.12f;
+
+            //! 地面からの高さ。足元の草（高さ約34、GrassFieldSystem）は地面をほぼ覆っていて、
+            //! 地面すれすれに置くとTPSカメラの浅い角度からは草に隠れて見えない。
+            //! 草の穂先の少し下に置き、面が草の上に乗って見えるようにする（背の高い穂先は面を突き抜けて
+            //! 見えるので、地面から浮いた板には見えない）。深度テストは行うので、敵の脚には正しく隠れる
+            float areaHeight = 28.0f;
+
+            //-------------------------------------------------------------
+            // 形。当たり判定の形から決める：
+            //   判定が球（頭突き：終点ボーン無し）  → 前方に置いた円
+            //   判定がカプセル（腕・武器を振る）    → 前方の扇
+            //-------------------------------------------------------------
+            float fanAngleDegrees = 120.0f;    //!< 扇の中心角
+            float discCenterRatio = 0.6f;      //!< 円の中心を置く位置（attackRangeに対する前方の割合）
+            float discRadiusScale = 1.2f;      //!< 円の半径（判定半径に対する倍率。頭の突き出しのぶれを含める）
+        };
+
+        template <class Archive>
+        void load(Archive& archive, EnemyAttackAreaParams& params) {
+            LoadField(archive, "areaColor", params.areaColor);
+            LoadField(archive, "outerAlpha", params.outerAlpha);
+            LoadField(archive, "fillAlpha", params.fillAlpha);
+            LoadField(archive, "fadeInSeconds", params.fadeInSeconds);
+            LoadField(archive, "areaHeight", params.areaHeight);
+            LoadField(archive, "fanAngleDegrees", params.fanAngleDegrees);
+            LoadField(archive, "discCenterRatio", params.discCenterRatio);
+            LoadField(archive, "discRadiusScale", params.discRadiusScale);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const EnemyAttackAreaParams& GetParams() {
+            static const EnemyAttackAreaParams s_params = LoadSystemParams<EnemyAttackAreaParams>("EnemyAttackArea");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  XZ平面の扇（中心角360°なら円）のメッシュを作る関数
@@ -112,6 +140,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void EnemyAttackAreaSystem::Update(Tsukino::ECS::Registry& registry, float /*deltaTime*/) {
+        const EnemyAttackAreaParams& params = GetParams();
+
         Tsukino::EngineIntegration::EngineContext* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
         if(!ctx || !ctx->renderer || !ctx->assetManager || !ctx->builtinAssets)
             return;
@@ -121,7 +151,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         if(m_discMesh.indexCount == 0) {
             m_discMesh = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildFanMeshData(360.0f));
-            m_fanMesh  = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildFanMeshData(kFanAngleDegrees));
+            m_fanMesh  = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildFanMeshData(params.fanAngleDegrees));
 
             if(m_discMesh.indexCount == 0 || m_fanMesh.indexCount == 0) {
                 Tsukino::Core::Log::Error("EnemyAttackAreaSystem - failed to create the area meshes. Attack areas will not be drawn.");
@@ -159,7 +189,7 @@ namespace CombatAndroid::ECS {
 
             Tsukino::Renderer::CBufferMaterial& materialData = ctx->renderer->GetDrawQueue().AllocMaterialData();
             materialData                                      = Tsukino::Renderer::CBufferMaterial{};
-            materialData.baseColor                            = hlslpp::float4(kAreaColorR, kAreaColorG, kAreaColorB, alpha);
+            materialData.baseColor                            = hlslpp::float4(params.areaColor, alpha);
 
             Tsukino::Renderer::DrawCommand cmd{};
             cmd.mesh          = &mesh;
@@ -192,22 +222,22 @@ namespace CombatAndroid::ECS {
 
             // 塗りの広がり（0→1）。1になった瞬間に判定が出る
             const float progress = std::clamp(animSet.attackTimer / hitbox.hitStartTime, 0.0f, 1.0f);
-            const float fadeIn   = std::clamp(animSet.attackTimer / kFadeInSeconds, 0.0f, 1.0f);
+            const float fadeIn   = std::clamp(animSet.attackTimer / params.fadeInSeconds, 0.0f, 1.0f);
 
             // モデルの正面は+Z（MoveToPlayerがatan2(x, z)で向きを決めている）
             const hlslpp::float3 forward  = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), transform.rotation);
             hlslpp::float3       basePosition = transform.position;
-            basePosition.y                    = kAreaHeight;
+            basePosition.y                    = params.areaHeight;
 
             if(hitbox.endBoneName.empty()) {
                 //-------------------------------------------------------------
                 // 頭突き：前方に置いた円。塗りは円の中心から広がる
                 //-------------------------------------------------------------
-                const hlslpp::float3 center = basePosition + forward * (enemy.attackRange * kDiscCenterRatio);
-                const float          radius = hitbox.radius * kDiscRadiusScale;
+                const hlslpp::float3 center = basePosition + forward * (enemy.attackRange * params.discCenterRatio);
+                const float          radius = hitbox.radius * params.discRadiusScale;
 
-                pushArea(m_discMesh, center, transform.rotation, radius, kOuterAlpha * fadeIn);
-                pushArea(m_discMesh, center, transform.rotation, radius * progress, kFillAlpha * fadeIn);
+                pushArea(m_discMesh, center, transform.rotation, radius, params.outerAlpha * fadeIn);
+                pushArea(m_discMesh, center, transform.rotation, radius * progress, params.fillAlpha * fadeIn);
             } else {
                 //-------------------------------------------------------------
                 // 薙ぎ払い：足元を要にした前方の扇。塗りは要から外へ広がる。
@@ -215,8 +245,8 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 const float radius = enemy.attackRange + hitbox.radius;
 
-                pushArea(m_fanMesh, basePosition, transform.rotation, radius, kOuterAlpha * fadeIn);
-                pushArea(m_fanMesh, basePosition, transform.rotation, radius * progress, kFillAlpha * fadeIn);
+                pushArea(m_fanMesh, basePosition, transform.rotation, radius, params.outerAlpha * fadeIn);
+                pushArea(m_fanMesh, basePosition, transform.rotation, radius * progress, params.fillAlpha * fadeIn);
             }
         });
     }

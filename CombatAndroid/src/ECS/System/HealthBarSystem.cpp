@@ -3,6 +3,8 @@
 //! @brief  HealthBarSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/HealthBarSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -18,17 +20,37 @@ namespace CombatAndroid::ECS {
     namespace {
         // HPバー用テクスチャ（1辺kBarTexturePixelSizeの単色正方形）をこのピクセルサイズまで引き伸ばして表示する
         constexpr float kBarTexturePixelSize = 4.0f;
-        constexpr float kBarWidthPixels      = 60.0f;    //!< バー全体（満タン時）の幅
-        constexpr float kBarHeightPixels     = 8.0f;     //!< バーの高さ
 
-        constexpr float kFullScaleX = kBarWidthPixels / kBarTexturePixelSize;
-        constexpr float kFullScaleY = kBarHeightPixels / kBarTexturePixelSize;
+        //-------------------------------------------------------------
+        //! @struct HealthBarParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/HealthBar.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct HealthBarParams {
+            float barWidthPixels  = 60.0f;    //!< バー全体（満タン時）の幅
+            float barHeightPixels = 8.0f;     //!< バーの高さ
+        };
+
+        template <class Archive>
+        void load(Archive& archive, HealthBarParams& params) {
+            LoadField(archive, "barWidthPixels", params.barWidthPixels);
+            LoadField(archive, "barHeightPixels", params.barHeightPixels);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const HealthBarParams& GetParams() {
+            static const HealthBarParams s_params = LoadSystemParams<HealthBarParams>("HealthBar");
+            return s_params;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
     //! @brief システムの更新
     //-------------------------------------------------------------
     void HealthBarSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const HealthBarParams& params = GetParams();
+
         auto view = registry.View<HealthComponent>();
         view.each([&](entt::entity, HealthComponent& health) {
             if(health.hpBarBackgroundEntity == entt::null || health.hpBarFillEntity == entt::null)
@@ -53,7 +75,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             Tsukino::BuiltIn::ECS::TransformComponent& backgroundTransform =
                 registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(health.hpBarBackgroundEntity);
-            backgroundTransform.scale = show ? hlslpp::float3(kFullScaleX, kFullScaleY, 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
+            backgroundTransform.scale = show ? hlslpp::float3((params.barWidthPixels / kBarTexturePixelSize), (params.barHeightPixels / kBarTexturePixelSize), 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
 
             //-------------------------------------------------------------
             // 残量バー：ratio分だけ幅を縮める。中央基準で縮むと右端しか動かないように見えるため、
@@ -61,10 +83,10 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             Tsukino::BuiltIn::ECS::TransformComponent& fillTransform =
                 registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(health.hpBarFillEntity);
-            fillTransform.scale = show ? hlslpp::float3(kFullScaleX * ratio, kFullScaleY, 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
+            fillTransform.scale = show ? hlslpp::float3((params.barWidthPixels / kBarTexturePixelSize) * ratio, (params.barHeightPixels / kBarTexturePixelSize), 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
 
             if(auto* fillAnchor = registry.try_get<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(health.hpBarFillEntity)) {
-                fillAnchor->screenOffset.x = -(kBarWidthPixels * (1.0f - ratio) * 0.5f);
+                fillAnchor->screenOffset.x = -(params.barWidthPixels * (1.0f - ratio) * 0.5f);
             }
 
             //-------------------------------------------------------------

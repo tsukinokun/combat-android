@@ -1,0 +1,7 @@
+{
+    "Combat": {
+        "playerHitStopDuration": 0.2,
+        "playerHitStopScale": 0.15,
+        "followSpringResetDistance": 1500.0
+    }
+}

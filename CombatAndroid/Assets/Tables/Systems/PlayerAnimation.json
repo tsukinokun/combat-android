@@ -1,0 +1,7 @@
+{
+    "PlayerAnimation": {
+        "animBlendTime": 0.15,
+        "dodgeBlendTime": 0.08,
+        "deathBlendTime": 0.10
+    }
+}

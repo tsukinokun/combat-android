@@ -3,6 +3,9 @@
 //! @brief  PlayerHudSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/PlayerHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/HealthComponent.hpp>
@@ -25,34 +28,70 @@ namespace CombatAndroid::ECS {
         // HealthBarSystem（敵の頭上HPバー）と同じWhitePixel.pngを流用するので、テクスチャピクセルサイズも合わせる
         constexpr float kBarTexturePixelSize = 4.0f;
 
-        constexpr float kHpBarLeftX      = 24.0f;    //!< HPバー左端のスクリーンX（画面左上基準）
-        constexpr float kHpBarTopY       = 24.0f;    //!< HPバー上端のスクリーンY
-        constexpr float kHpBarWidth      = 220.0f;
-        constexpr float kHpBarHeight     = 18.0f;
+        //-------------------------------------------------------------
+        //! @struct PlayerHudParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PlayerHud.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct PlayerHudParams {
+            float hpBarLeftX = 24.0f;    //!< HPバー左端のスクリーンX（画面左上基準）
+            float hpBarTopY = 24.0f;    //!< HPバー上端のスクリーンY
+            float hpBarWidth = 220.0f;
+            float hpBarHeight = 18.0f;
 
-        constexpr float kExpBarLeftX  = kHpBarLeftX;
-        constexpr float kExpBarTopY   = kHpBarTopY + kHpBarHeight + 6.0f;    //!< HPバーのすぐ下に並べる
-        constexpr float kExpBarWidth  = kHpBarWidth;
-        constexpr float kExpBarHeight = 10.0f;
+            // EXPバーはHPバーのすぐ下に、同じ左端・同じ幅で並べる
+            float expBarGapY = 6.0f;    //!< HPバーの下端からEXPバーの上端までの隙間
+            float expBarHeight = 10.0f;
 
-        constexpr float kTextGapX = 12.0f;    //!< バー右端からテキストまでの余白
+            float textGapX = 12.0f;    //!< バー右端からテキストまでの余白
 
-        //! HP・EXPの数値テキストの拡大率。2本のバーの間隔（24px）に収まる大きさにしないと、
-        //! 上下の行が重なって読めなくなる（既定の1.0は危険度テキストと同じ大きさ）
-        constexpr float kHudTextFontScale = 0.5f;
+            //! HP・EXPの数値テキストの拡大率。2本のバーの間隔（24px）に収まる大きさにしないと、
+            //! 上下の行が重なって読めなくなる（既定の1.0は危険度テキストと同じ大きさ）
+            float hudTextFontScale = 0.5f;
 
-        const hlslpp::float4 kBarBackgroundColor = hlslpp::float4(0.12f, 0.12f, 0.12f, 0.85f);    //!< 背景（暗いグレー半透明）
-        const hlslpp::float4 kExpBarFillColor    = hlslpp::float4(0.35f, 0.65f, 1.0f, 1.0f);       //!< EXPバーの残量色（水色）
+            hlslpp::float4 barBackgroundColor = hlslpp::float4(0.12f, 0.12f, 0.12f, 0.85f);    //!< 背景（暗いグレー半透明）
+            hlslpp::float4 expBarFillColor = hlslpp::float4(0.35f, 0.65f, 1.0f, 1.0f);       //!< EXPバーの残量色（水色）
 
-        //! 危険度テキストの基準拡大率。昇格演出はこの値を一時的に上回る
-        constexpr float kDangerRankFontScale = 1.0f;
+            //! 危険度テキストの基準拡大率。昇格演出はこの値を一時的に上回る
+            float dangerRankFontScale = 1.0f;
 
-        //! 危険度テキストの色が赤へ振り切るランク。ランク数に上限が無いため、
-        //! これ以上は色が変わらない（色で段を数えさせる意図は無く、危険さの気配だけ伝える）
-        constexpr float kDangerRankColorFull = 10.0f;
+            //! 危険度テキストの色が赤へ振り切るランク。ランク数に上限が無いため、
+            //! これ以上は色が変わらない（色で段を数えさせる意図は無く、危険さの気配だけ伝える）
+            float dangerRankColorFull = 10.0f;
 
-        //! 昇格直後に文字を大きくする割合。0.45で最大1.45倍
-        constexpr float kRankUpFlashScaleGain = 0.45f;
+            //! 危険度テキストが赤へ振り切ったときに、緑と青をどれだけ落とすか（白→赤の寄せ方）
+            float dangerRankGreenFade = 0.65f;
+            float dangerRankBlueFade = 0.75f;
+
+            //! 昇格直後に文字を大きくする割合。0.45で最大1.45倍
+            float rankUpFlashScaleGain = 0.45f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, PlayerHudParams& params) {
+            LoadField(archive, "hpBarLeftX", params.hpBarLeftX);
+            LoadField(archive, "hpBarTopY", params.hpBarTopY);
+            LoadField(archive, "hpBarWidth", params.hpBarWidth);
+            LoadField(archive, "hpBarHeight", params.hpBarHeight);
+            LoadField(archive, "expBarGapY", params.expBarGapY);
+            LoadField(archive, "expBarHeight", params.expBarHeight);
+            LoadField(archive, "textGapX", params.textGapX);
+            LoadField(archive, "hudTextFontScale", params.hudTextFontScale);
+            LoadField(archive, "barBackgroundColor", params.barBackgroundColor);
+            LoadField(archive, "expBarFillColor", params.expBarFillColor);
+            LoadField(archive, "dangerRankFontScale", params.dangerRankFontScale);
+            LoadField(archive, "dangerRankColorFull", params.dangerRankColorFull);
+            LoadField(archive, "dangerRankGreenFade", params.dangerRankGreenFade);
+            LoadField(archive, "dangerRankBlueFade", params.dangerRankBlueFade);
+            LoadField(archive, "rankUpFlashScaleGain", params.rankUpFlashScaleGain);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const PlayerHudParams& GetParams() {
+            static const PlayerHudParams s_params = LoadSystemParams<PlayerHudParams>("PlayerHud");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief  1本のバー（背景・残量の2エンティティ）の見た目を更新する
@@ -68,6 +107,8 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void UpdateBar(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity backgroundEntity, Tsukino::ECS::Entity fillEntity, float leftX,
                        float topY, float width, float height, float ratio, const hlslpp::float4& fillColor) {
+            const PlayerHudParams& params = GetParams();
+
             if(backgroundEntity == entt::null || fillEntity == entt::null)
                 return;
 
@@ -84,7 +125,7 @@ namespace CombatAndroid::ECS {
             backgroundTransform.dirty    = true;
 
             if(auto* backgroundSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(backgroundEntity))
-                backgroundSprite->tintColor = kBarBackgroundColor;
+                backgroundSprite->tintColor = params.barBackgroundColor;
 
             //-------------------------------------------------------------
             // 残量：ratio分だけ幅を縮める。左端をleftXに固定したいので、
@@ -104,6 +145,8 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void PlayerHudSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const PlayerHudParams& params = GetParams();
+
         auto view = registry.View<PlayerComponent, HealthComponent, PlayerExperienceComponent, PlayerHudComponent, RunClockComponent>();
         for(entt::entity entity : view) {
             const auto& health = view.get<HealthComponent>(entity);
@@ -116,15 +159,15 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             float hpRatio = health.maxHealth > 0.0f ? health.currentHealth / health.maxHealth : 0.0f;
             hlslpp::float4 hpColor(1.0f - std::clamp(hpRatio, 0.0f, 1.0f), std::clamp(hpRatio, 0.0f, 1.0f), 0.0f, 1.0f);
-            UpdateBar(registry, hud.hpBarBackgroundEntity, hud.hpBarFillEntity, kHpBarLeftX, kHpBarTopY, kHpBarWidth, kHpBarHeight, hpRatio,
+            UpdateBar(registry, hud.hpBarBackgroundEntity, hud.hpBarFillEntity, params.hpBarLeftX, params.hpBarTopY, params.hpBarWidth, params.hpBarHeight, hpRatio,
                       hpColor);
 
             //-------------------------------------------------------------
             // EXPバー
             //-------------------------------------------------------------
             float expRatio = exp.requiredExp > 0 ? static_cast<float>(exp.currentExp) / static_cast<float>(exp.requiredExp) : 0.0f;
-            UpdateBar(registry, hud.expBarBackgroundEntity, hud.expBarFillEntity, kExpBarLeftX, kExpBarTopY, kExpBarWidth, kExpBarHeight,
-                      expRatio, kExpBarFillColor);
+            UpdateBar(registry, hud.expBarBackgroundEntity, hud.expBarFillEntity, params.hpBarLeftX, (params.hpBarTopY + params.hpBarHeight + params.expBarGapY), params.hpBarWidth, params.expBarHeight,
+                      expRatio, params.expBarFillColor);
 
             //-------------------------------------------------------------
             // 数値テキスト
@@ -136,8 +179,8 @@ namespace CombatAndroid::ECS {
                 }
                 if(auto* hpTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.hpTextEntity)) {
                     hpTextTransform->position =
-                        hlslpp::float3(kHpBarLeftX + kHpBarWidth + kTextGapX, kHpBarTopY + kHpBarHeight * 0.5f, 0.0f);
-                    hpTextTransform->scale = hlslpp::float3(kHudTextFontScale, kHudTextFontScale, 1.0f);
+                        hlslpp::float3(params.hpBarLeftX + params.hpBarWidth + params.textGapX, params.hpBarTopY + params.hpBarHeight * 0.5f, 0.0f);
+                    hpTextTransform->scale = hlslpp::float3(params.hudTextFontScale, params.hudTextFontScale, 1.0f);
                     hpTextTransform->dirty = true;
                 }
             }
@@ -149,8 +192,8 @@ namespace CombatAndroid::ECS {
                 }
                 if(auto* expTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.expTextEntity)) {
                     expTextTransform->position =
-                        hlslpp::float3(kExpBarLeftX + kExpBarWidth + kTextGapX, kExpBarTopY + kExpBarHeight * 0.5f, 0.0f);
-                    expTextTransform->scale = hlslpp::float3(kHudTextFontScale, kHudTextFontScale, 1.0f);
+                        hlslpp::float3(params.hpBarLeftX + params.hpBarWidth + params.textGapX, (params.hpBarTopY + params.hpBarHeight + params.expBarGapY) + params.expBarHeight * 0.5f, 0.0f);
+                    expTextTransform->scale = hlslpp::float3(params.hudTextFontScale, params.hudTextFontScale, 1.0f);
                     expTextTransform->dirty = true;
                 }
             }
@@ -188,8 +231,8 @@ namespace CombatAndroid::ECS {
 
                     // ランクが上がるほど白→赤へ寄せる。段数に上限が無いので
                     // kDangerRankColorFullで頭打ちにする
-                    float rankT = std::clamp(static_cast<float>(clock.dangerRank - 1) / kDangerRankColorFull, 0.0f, 1.0f);
-                    rankFont->color = hlslpp::float4(1.0f, 1.0f - 0.65f * rankT, 1.0f - 0.75f * rankT, 1.0f);
+                    float rankT = std::clamp(static_cast<float>(clock.dangerRank - 1) / params.dangerRankColorFull, 0.0f, 1.0f);
+                    rankFont->color = hlslpp::float4(1.0f, 1.0f - params.dangerRankGreenFade * rankT, 1.0f - params.dangerRankBlueFade * rankT, 1.0f);
                 }
 
                 //-----------------------------------------------------
@@ -199,7 +242,7 @@ namespace CombatAndroid::ECS {
                 //-----------------------------------------------------
                 if(auto* rankTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.dangerRankTextEntity)) {
                     float flash = std::clamp(clock.rankUpFlashTimer / kRankUpFlashDuration, 0.0f, 1.0f);
-                    float scale = kDangerRankFontScale * (1.0f + kRankUpFlashScaleGain * flash * flash);
+                    float scale = params.dangerRankFontScale * (1.0f + params.rankUpFlashScaleGain * flash * flash);
 
                     rankTransform->scale = hlslpp::float3(scale, scale, 1.0f);
                     rankTransform->dirty = true;

@@ -1,0 +1,8 @@
+{
+    "EnemyAnimation": {
+        "animBlendTime": 0.15,
+        "attackBlendTime": 0.10,
+        "knockbackBlendTime": 0.06,
+        "deathBlendTime": 0.10
+    }
+}

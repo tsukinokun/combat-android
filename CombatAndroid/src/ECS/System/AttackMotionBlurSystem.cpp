@@ -4,6 +4,8 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/AttackMotionBlurSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/MotionBlurComponent.hpp>
@@ -14,22 +16,44 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // 演出パラメータ
+        //! @struct AttackMotionBlurParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/AttackMotionBlur.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        //! @brief 非攻撃時のブラー強度
-        //! @note  0にすると走っているときも一切ブレなくなる。
-        //!        通常移動でもうっすら効かせておくと、攻撃時の跳ね上がりが
-        //!        「急に別の絵になる」感じにならず馴染む。
-        constexpr float kBaseStrength = 0.6f;
+        struct AttackMotionBlurParams {
+            //-------------------------------------------------------------
+            // 演出パラメータ
+            //-------------------------------------------------------------
+            //! @brief 非攻撃時のブラー強度
+            //! @note  0にすると走っているときも一切ブレなくなる。
+            //!        通常移動でもうっすら効かせておくと、攻撃時の跳ね上がりが
+            //!        「急に別の絵になる」感じにならず馴染む。
+            float baseStrength = 0.6f;
 
-        //! @brief 攻撃ピーク時のブラー強度
-        constexpr float kAttackStrength = 3.0f;
+            //! @brief 攻撃ピーク時のブラー強度
+            float attackStrength = 3.0f;
+        };
+
+        template <class Archive>
+        void load(Archive& archive, AttackMotionBlurParams& params) {
+            LoadField(archive, "baseStrength", params.baseStrength);
+            LoadField(archive, "attackStrength", params.attackStrength);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const AttackMotionBlurParams& GetParams() {
+            static const AttackMotionBlurParams s_params = LoadSystemParams<AttackMotionBlurParams>("AttackMotionBlur");
+            return s_params;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
     //! @brief システムの更新
     //-------------------------------------------------------------
     void AttackMotionBlurSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        const AttackMotionBlurParams& params = GetParams();
+
         (void)deltaTime;
 
         //-------------------------------------------------------------
@@ -58,7 +82,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // カメラに付いている MotionBlurComponent へ強度を書き込む
         //-------------------------------------------------------------
-        const float strength = kBaseStrength + attackBlend * (kAttackStrength - kBaseStrength);
+        const float strength = params.baseStrength + attackBlend * (params.attackStrength - params.baseStrength);
 
         auto blurView = registry.View<Tsukino::BuiltIn::ECS::MotionBlurComponent>();
         blurView.each([&](entt::entity entity, Tsukino::BuiltIn::ECS::MotionBlurComponent& blur) {

@@ -3,6 +3,9 @@
 //! @brief  SkillSelectSystemクラスの実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
@@ -43,44 +46,85 @@
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // カードの見た目のチューニング値（全て画面ピクセル単位）。
-        // 位置はメニューを開くたびにウィンドウサイズから計算し直す
+        //! @struct SkillSelectParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/SkillSelect.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
-        constexpr float kCardWidth        = 760.0f;
-        constexpr float kCardHeight       = 150.0f;
-        constexpr float kCardGap          = 24.0f;                     //!< カード同士の縦の隙間
-        constexpr float kCardPitch        = kCardHeight + kCardGap;    //!< カード1枚ぶんの送り
-        constexpr float kHighlightInflate = 8.0f;                      //!< 選択中カードの強調枠が四辺へはみ出す量
-        constexpr float kTextInsetX       = 32.0f;                     //!< カード左端からテキストまでの余白
-        constexpr float kNameOffsetY      = -26.0f;                    //!< カード中心から見たスキル名のY
-        constexpr float kDescOffsetY      = 30.0f;                     //!< カード中心から見た説明文のY
-        constexpr float kTitleOffsetY     = -310.0f;                   //!< 画面中心から見た「LEVEL UP!」のY
+        struct SkillSelectParams {
+            //-------------------------------------------------------------
+            // カードの見た目のチューニング値（全て画面ピクセル単位）。
+            // 位置はメニューを開くたびにウィンドウサイズから計算し直す
+            //-------------------------------------------------------------
+            float cardWidth = 760.0f;
+            float cardHeight = 150.0f;
+            float cardGap = 24.0f;                     //!< カード同士の縦の隙間（カード1枚ぶんの送りは cardHeight + cardGap）
+            float highlightInflate = 8.0f;                      //!< 選択中カードの強調枠が四辺へはみ出す量
+            float textInsetX = 32.0f;                     //!< カード左端からテキストまでの余白
+            float nameOffsetY = -26.0f;                    //!< カード中心から見たスキル名のY
+            float descOffsetY = 30.0f;                     //!< カード中心から見た説明文のY
+            float titleOffsetY = -310.0f;                   //!< 画面中心から見た「LEVEL UP!」のY
 
-        constexpr float kTitleFontScale = 2.2f;
-        constexpr float kNameFontScale  = 1.3f;
-        constexpr float kDescFontScale  = 0.85f;
+            float titleFontScale = 2.2f;
+            float nameFontScale = 1.3f;
+            float descFontScale = 0.85f;
 
-        const hlslpp::float4 kBackdropColor  = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.65f);      //!< 画面全体の暗転
-        const hlslpp::float4 kHighlightColor = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.95f);    //!< 選択中カードの枠（黄色）
-        const hlslpp::float4 kTitleColor     = hlslpp::float4(1.0f, 0.95f, 0.6f, 1.0f);
-        const hlslpp::float4 kNameColor      = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-        const hlslpp::float4 kDescColor      = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
+            hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.65f);      //!< 画面全体の暗転
+            hlslpp::float4 highlightColor = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.95f);    //!< 選択中カードの枠（黄色）
+            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 0.95f, 0.6f, 1.0f);
+            hlslpp::float4 nameColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 descColor = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
 
-        constexpr float kUnselectedPanelAlpha = 0.78f;    //!< 非選択カードは少し沈ませる
+            float unselectedPanelAlpha = 0.78f;    //!< 非選択カードは少し沈ませる
+
+            //-------------------------------------------------------------
+            // レベルアップ後無敵（PlayerComponent::levelUpInvincibleTimer）の間、
+            // プレイヤーモデルへ焼く発光のチューニング値。武器レベルアップの金色発光
+            // （PickupSystem）と似た色味にしつつ、脈動させて「拾得」ではなく
+            // 「無敵中」だと分かるようにしている
+            //-------------------------------------------------------------
+            float levelUpInvincibleFadeOutDuration = 0.5f;    //!< 無敵が切れる直前、この秒数かけて発光を落とす
+            float levelUpInvinciblePulseSpeed = 6.0f;    //!< 脈動速度（rad/sec相当）
+            hlslpp::float3 levelUpInvincibleRimColor = hlslpp::float3(1.0f, 0.95f, 0.75f);    //!< 金〜白系のリムカラー
+            float levelUpInvincibleRimIntensityMax = 5.0f;
+            float levelUpInvincibleRimPower = 2.5f;
+            float levelUpInvincibleGlowMin = 0.15f;    //!< 白発光の脈動の下限
+            float levelUpInvincibleGlowMax = 0.5f;     //!< 白発光の脈動の上限
+        };
+
+        template <class Archive>
+        void load(Archive& archive, SkillSelectParams& params) {
+            LoadField(archive, "cardWidth", params.cardWidth);
+            LoadField(archive, "cardHeight", params.cardHeight);
+            LoadField(archive, "cardGap", params.cardGap);
+            LoadField(archive, "highlightInflate", params.highlightInflate);
+            LoadField(archive, "textInsetX", params.textInsetX);
+            LoadField(archive, "nameOffsetY", params.nameOffsetY);
+            LoadField(archive, "descOffsetY", params.descOffsetY);
+            LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "titleFontScale", params.titleFontScale);
+            LoadField(archive, "nameFontScale", params.nameFontScale);
+            LoadField(archive, "descFontScale", params.descFontScale);
+            LoadField(archive, "backdropColor", params.backdropColor);
+            LoadField(archive, "highlightColor", params.highlightColor);
+            LoadField(archive, "titleColor", params.titleColor);
+            LoadField(archive, "nameColor", params.nameColor);
+            LoadField(archive, "descColor", params.descColor);
+            LoadField(archive, "unselectedPanelAlpha", params.unselectedPanelAlpha);
+            LoadField(archive, "levelUpInvincibleFadeOutDuration", params.levelUpInvincibleFadeOutDuration);
+            LoadField(archive, "levelUpInvinciblePulseSpeed", params.levelUpInvinciblePulseSpeed);
+            LoadField(archive, "levelUpInvincibleRimColor", params.levelUpInvincibleRimColor);
+            LoadField(archive, "levelUpInvincibleRimIntensityMax", params.levelUpInvincibleRimIntensityMax);
+            LoadField(archive, "levelUpInvincibleRimPower", params.levelUpInvincibleRimPower);
+            LoadField(archive, "levelUpInvincibleGlowMin", params.levelUpInvincibleGlowMin);
+            LoadField(archive, "levelUpInvincibleGlowMax", params.levelUpInvincibleGlowMax);
+        }
 
         //-------------------------------------------------------------
-        // レベルアップ後無敵（PlayerComponent::levelUpInvincibleTimer）の間、
-        // プレイヤーモデルへ焼く発光のチューニング値。武器レベルアップの金色発光
-        // （PickupSystem）と似た色味にしつつ、脈動させて「拾得」ではなく
-        // 「無敵中」だと分かるようにしている
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
         //-------------------------------------------------------------
-        constexpr float kLevelUpInvincibleFadeOutDuration = 0.5f;    //!< 無敵が切れる直前、この秒数かけて発光を落とす
-        constexpr float kLevelUpInvinciblePulseSpeed      = 6.0f;    //!< 脈動速度（rad/sec相当）
-        const hlslpp::float3 kLevelUpInvincibleRimColor   = hlslpp::float3(1.0f, 0.95f, 0.75f);    //!< 金〜白系のリムカラー
-        constexpr float kLevelUpInvincibleRimIntensityMax = 5.0f;
-        constexpr float kLevelUpInvincibleRimPower        = 2.5f;
-        constexpr float kLevelUpInvincibleGlowMin         = 0.15f;    //!< 白発光の脈動の下限
-        constexpr float kLevelUpInvincibleGlowMax         = 0.5f;     //!< 白発光の脈動の上限
+        const SkillSelectParams& GetParams() {
+            static const SkillSelectParams s_params = LoadSystemParams<SkillSelectParams>("SkillSelect");
+            return s_params;
+        }
 
         //-------------------------------------------------------------
         //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
@@ -96,6 +140,8 @@ namespace CombatAndroid::ECS {
         //!        RimGlowComponentへ発光値を書き込む。0を切ったら消灯する
         //-------------------------------------------------------------
         void TickLevelUpInvincibility(Tsukino::ECS::Registry& registry, entt::entity entity, PlayerComponent& player, float deltaTime) {
+            const SkillSelectParams& params = GetParams();
+
             player.levelUpInvincibleTimer     = std::max(player.levelUpInvincibleTimer - deltaTime, 0.0f);
             player.levelUpInvinciblePulseTime += deltaTime;
 
@@ -109,16 +155,16 @@ namespace CombatAndroid::ECS {
             }
 
             // 無敵終了間際だけイーズアウトさせ、それ以外は1.0（フル発光）のまま
-            float fadeEase = SmoothStep01(player.levelUpInvincibleTimer / kLevelUpInvincibleFadeOutDuration);
+            float fadeEase = SmoothStep01(player.levelUpInvincibleTimer / params.levelUpInvincibleFadeOutDuration);
 
-            float wave  = std::sin(player.levelUpInvinciblePulseTime * kLevelUpInvinciblePulseSpeed);
+            float wave  = std::sin(player.levelUpInvinciblePulseTime * params.levelUpInvinciblePulseSpeed);
             float pulse = wave * wave;
 
             rimGlow->active       = true;
-            rimGlow->rimColor     = kLevelUpInvincibleRimColor;
-            rimGlow->rimIntensity = kLevelUpInvincibleRimIntensityMax * fadeEase;
-            rimGlow->rimPower     = kLevelUpInvincibleRimPower;
-            rimGlow->glow         = (kLevelUpInvincibleGlowMin + (kLevelUpInvincibleGlowMax - kLevelUpInvincibleGlowMin) * pulse) * fadeEase;
+            rimGlow->rimColor     = params.levelUpInvincibleRimColor;
+            rimGlow->rimIntensity = params.levelUpInvincibleRimIntensityMax * fadeEase;
+            rimGlow->rimPower     = params.levelUpInvincibleRimPower;
+            rimGlow->glow         = (params.levelUpInvincibleGlowMin + (params.levelUpInvincibleGlowMax - params.levelUpInvincibleGlowMin) * pulse) * fadeEase;
         }
 
         //-------------------------------------------------------------
@@ -150,7 +196,9 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         float CalculateCardCenterY(float screenCenterY, int index, int candidateCount) {
-            return screenCenterY + (static_cast<float>(index) - static_cast<float>(candidateCount - 1) * 0.5f) * kCardPitch;
+            const SkillSelectParams& params = GetParams();
+
+            return screenCenterY + (static_cast<float>(index) - static_cast<float>(candidateCount - 1) * 0.5f) * (params.cardHeight + params.cardGap);
         }
 
         //-------------------------------------------------------------
@@ -190,7 +238,9 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void RefreshUi(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, SkillSelectComponent& select,
                        const PlayerSkillComponent& skills, const PlayerComponent& player) {
-            const float screenWidth   = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
+            const SkillSelectParams& params = GetParams();
+
+            const float screenWidth  = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
             const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
             const float screenCenterX = screenWidth * 0.5f;
             const float screenCenterY = screenHeight * 0.5f;
@@ -198,8 +248,8 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             // 画面全体の暗転とタイトル
             //-------------------------------------------------------------
-            StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
-            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale, L"LEVEL UP!", kTitleColor);
+            StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, params.backdropColor);
+            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"LEVEL UP!", params.titleColor);
 
             //-------------------------------------------------------------
             // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
@@ -207,13 +257,13 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             const int cursorIndex = std::clamp(select.cursorIndex, 0, std::max(select.candidateCount - 1, 0));
             StretchSprite(registry, context, select.highlightEntity, screenCenterX,
-                          CalculateCardCenterY(screenCenterY, cursorIndex, select.candidateCount), kCardWidth + kHighlightInflate * 2.0f,
-                          kCardHeight + kHighlightInflate * 2.0f, kHighlightColor);
+                          CalculateCardCenterY(screenCenterY, cursorIndex, select.candidateCount), params.cardWidth + params.highlightInflate * 2.0f,
+                          params.cardHeight + params.highlightInflate * 2.0f, params.highlightColor);
 
             //-------------------------------------------------------------
             // カード本体
             //-------------------------------------------------------------
-            const float textLeftX = screenCenterX - kCardWidth * 0.5f + kTextInsetX;
+            const float textLeftX = screenCenterX - params.cardWidth * 0.5f + params.textInsetX;
 
             for(int i = 0; i < kSkillChoiceMax; ++i) {
                 SkillSelectCardEntities& card = select.cards[static_cast<size_t>(i)];
@@ -242,11 +292,11 @@ namespace CombatAndroid::ECS {
                 }
 
                 // 非選択のカードはアルファだけ下げて沈ませる（PlayerDamageEffectSystemと同じ組み立て方）
-                const float          panelAlpha = selected ? entry.panelColor.w : entry.panelColor.w * kUnselectedPanelAlpha;
+                const float          panelAlpha = selected ? entry.panelColor.w : entry.panelColor.w * params.unselectedPanelAlpha;
                 const hlslpp::float4 panelColor =
                     hlslpp::float4(entry.panelColor.x, entry.panelColor.y, entry.panelColor.z, panelAlpha);
 
-                StretchSprite(registry, context, card.panelEntity, screenCenterX, centerY, kCardWidth, kCardHeight, panelColor);
+                StretchSprite(registry, context, card.panelEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight, panelColor);
 
                 //-------------------------------------------------------------
                 // 文言。levelは取得済みの段階数なので、今回取ると level+1 段階目になる
@@ -265,9 +315,9 @@ namespace CombatAndroid::ECS {
                     nameText += L"]";
                 }
 
-                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + kNameOffsetY, kNameFontScale, nameText, kNameColor);
-                PlaceUiText(registry, card.descEntity, textLeftX, centerY + kDescOffsetY, kDescFontScale,
-                          entry.levels[static_cast<size_t>(level)].description, kDescColor);
+                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + params.nameOffsetY, params.nameFontScale, nameText, params.nameColor);
+                PlaceUiText(registry, card.descEntity, textLeftX, centerY + params.descOffsetY, params.descFontScale,
+                          entry.levels[static_cast<size_t>(level)].description, params.descColor);
             }
         }
 
@@ -288,6 +338,13 @@ namespace CombatAndroid::ECS {
             }
         }
     }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief スキルカードの幅を得る
+    //-------------------------------------------------------------
+    float GetSkillSelectCardWidth() {
+        return GetParams().cardWidth;
+    }
 
     //-------------------------------------------------------------
     //! @brief 今スキル選択で進行を止めているかを問い合わせる
