@@ -1,7 +1,7 @@
 //-------------------------------------------------------------
 //! @file    Bgm.hpp
 //! @brief   BGMの再生・停止の宣言
-//! @note    BGMは合成せず、実素材の .wav を Assets/Audio へ置く運用にしている
+//! @note    BGMは合成せず、実素材の .wav / .mp3 を Assets/Audio へ置く運用にしている
 //!          （詳細は Assets/Audio/README.md）。ファイルが無ければ何も鳴らないだけで、
 //!          ゲームはそのまま動く
 //-------------------------------------------------------------
@@ -15,7 +15,7 @@ namespace Tsukino::EngineIntegration {
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //! タイトル画面のBGM。置かれていなければ無音
-    inline constexpr const char* kTitleBgmPath = "CombatAndroid/Assets/Audio/BgmTitle.wav";
+    inline constexpr const char* kTitleBgmPath = "CombatAndroid/Assets/Audio/Title.mp3";
     //! 戦闘中のBGM。置かれていなければ無音
     inline constexpr const char* kBattleBgmPath = "CombatAndroid/Assets/Audio/BgmBattle.wav";
 
@@ -25,7 +25,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  BGMをループ再生する
     //! @param  context [in] エンジンコンテキスト
-    //! @param  path    [in] .wavのパス
+    //! @param  path    [in] .wav / .mp3のパス
     //! @param  volume  [in] 音量（オプションのBGM音量はここへさらに掛ける）
     //! @note   シーンのOnInitializeから呼ぶ。ファイルが無い等で読めなければ何もしない
     //-------------------------------------------------------------
@@ -42,7 +42,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  BGMを止める
     //! @param  context [in] エンジンコンテキスト
-    //! @param  path    [in] 止める.wavのパス
+    //! @param  path    [in] 止める.wav / .mp3のパス
     //! @note   シーンのOnExitから呼ぶ。止め忘れるとシーンを移っても鳴り続ける
     //-------------------------------------------------------------
     void StopBgm(Tsukino::EngineIntegration::EngineContext& context, const char* path);
