@@ -1,5 +1,6 @@
 {
     "GroundVisual": {
-        "groundTileWorldSize": 250.0
+        "groundTileWorldSize": 250.0,
+        "groundHalfSize": 5000.0
     }
 }

@@ -36,10 +36,6 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        //! 板の半径（一辺の半分）。地面コライダーの半径2000より一回り広くして、
-        //! 板の端が画面に映り込まないようにする
-        constexpr float kGroundHalfSize = 2500.0f;
-
         //-------------------------------------------------------------
         //! @struct GroundVisualParams
         //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/GroundVisual.json。ここの初期値はJSONにキーが無いときの既定値）
@@ -48,11 +44,18 @@ namespace CombatAndroid::ECS {
             //! タイル1枚ぶんのワールド距離。Ground.vs.hlslがUVをワールド座標から
             //! 算出する際に使う（CBufferGround::tileParams.x）
             float groundTileWorldSize = 250.0f;
+
+            //! 板の半径（一辺の半分）。地面コライダーの半径2000より一回り広くして、
+            //! 板の端が画面に映り込まないようにする。草原（GrassFieldComponent）の
+            //! 届く範囲より必ず広く保つこと（狭いと、草の隙間や外周より奥で
+            //! 土のテクスチャが途切れて見える）
+            float groundHalfSize = 2500.0f;
         };
 
         template <class Archive>
         void load(Archive& archive, GroundVisualParams& params) {
             LoadField(archive, "groundTileWorldSize", params.groundTileWorldSize);
+            LoadField(archive, "groundHalfSize", params.groundHalfSize);
         }
 
         //-------------------------------------------------------------
@@ -74,16 +77,16 @@ namespace CombatAndroid::ECS {
         //!         繰り返し表示。継ぎ目が出ないようgenerate_dirt_ground.py側で
         //!         タイル張り前提に作ってある）
         //--------------------------------------------------------------
-        Tsukino::GraphicsCommon::MeshData BuildGroundMeshData() {
+        Tsukino::GraphicsCommon::MeshData BuildGroundMeshData(float groundHalfSize) {
             Tsukino::GraphicsCommon::MeshData mesh;
             mesh.format       = Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV;
             mesh.vertexStride = sizeof(Tsukino::GraphicsCommon::VertexPNUV);
 
             std::vector<Tsukino::GraphicsCommon::VertexPNUV> vertices(4);
-            vertices[0].position = {-kGroundHalfSize, 0.0f, -kGroundHalfSize};
-            vertices[1].position = {kGroundHalfSize, 0.0f, -kGroundHalfSize};
-            vertices[2].position = {kGroundHalfSize, 0.0f, kGroundHalfSize};
-            vertices[3].position = {-kGroundHalfSize, 0.0f, kGroundHalfSize};
+            vertices[0].position = {-groundHalfSize, 0.0f, -groundHalfSize};
+            vertices[1].position = {groundHalfSize, 0.0f, -groundHalfSize};
+            vertices[2].position = {groundHalfSize, 0.0f, groundHalfSize};
+            vertices[3].position = {-groundHalfSize, 0.0f, groundHalfSize};
 
             for(auto& v : vertices) {
                 v.normal = {0.0f, 1.0f, 0.0f};
@@ -135,7 +138,7 @@ namespace CombatAndroid::ECS {
         // 板メッシュの作成（形状は固定なので初回のみ）
         //--------------------------------------------------------------
         if(m_groundMesh.indexCount == 0) {
-            const Tsukino::GraphicsCommon::MeshData meshData = BuildGroundMeshData();
+            const Tsukino::GraphicsCommon::MeshData meshData = BuildGroundMeshData(params.groundHalfSize);
 
             m_groundMesh = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), meshData);
 
