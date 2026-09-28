@@ -150,13 +150,22 @@ namespace CombatAndroid::ECS {
             for(int i = 0; i < static_cast<int>(OptionsItem::Count); ++i)
                 labels[static_cast<size_t>(i)] = FormatItem(static_cast<OptionsItem>(i));
 
+            const OptionsItem cursorItem = static_cast<OptionsItem>(options.cursorIndex);
+
+            //-------------------------------------------------------------
+            // [F]はマウス感度・BGMの音量・効果音の音量ではA/Dしか受け付けないので隠す
+            // （画面揺れはFでも切り替えられ、もどるはFで閉じるので出したまま）
+            //-------------------------------------------------------------
+            const bool showConfirm = cursorItem == OptionsItem::ScreenShake || cursorItem == OptionsItem::Back;
+
             const float menuTopY = screenCenterY + kMenuTopOffsetY;
-            ShowGameMenu(registry, context, options.menu, screenCenterX, menuTopY, labels, options.cursorIndex, kHighlightWidth);
+            ShowGameMenu(registry, context, options.menu, screenCenterX, menuTopY, labels, options.cursorIndex, kHighlightWidth,
+                        showConfirm);
 
             //-------------------------------------------------------------
             // [A][D] は値を持つ項目を選んでいるときだけ、強調帯の左に出す
             //-------------------------------------------------------------
-            if(static_cast<OptionsItem>(options.cursorIndex) == OptionsItem::Back) {
+            if(cursorItem == OptionsItem::Back) {
                 HideInputPrompt(registry, options.decreasePrompt);
                 HideInputPrompt(registry, options.increasePrompt);
                 return;

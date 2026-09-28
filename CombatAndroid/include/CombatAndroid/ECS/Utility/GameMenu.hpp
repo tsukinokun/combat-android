@@ -64,10 +64,13 @@ namespace CombatAndroid::ECS {
     //! @param  topY     [in] 1つ目の選択肢の中心のスクリーンY
     //! @param  labels   [in] 選択肢の文字（kGameMenuMaxItems個まで。超えた分は出さない）
     //! @param  cursor   [in] 選択中の選択肢
-    //! @param  highlightWidth [in] 強調帯の幅（選択肢の文字が長いメニューで広げる）
+    //! @param  highlightWidth   [in] 強調帯の幅（選択肢の文字が長いメニューで広げる）
+    //! @param  showConfirmPrompt [in] [F]の決定案内を出すか。falseなら隠す
+    //!         （A/Dだけで値を変える項目のように、選択中の行でFが何もしない場合に使う）
     //-------------------------------------------------------------
     void ShowGameMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const GameMenuWidget& widget,
-                      float centerX, float topY, std::span<const std::wstring> labels, int cursor, float highlightWidth = kGameMenuDefaultHighlightWidth);
+                      float centerX, float topY, std::span<const std::wstring> labels, int cursor,
+                      float highlightWidth = kGameMenuDefaultHighlightWidth, bool showConfirmPrompt = true);
 
     //-------------------------------------------------------------
     //! @brief  メニューを丸ごと非表示にする

@@ -79,7 +79,8 @@ namespace CombatAndroid::ECS {
     //! @brief メニューを表示する
     //-------------------------------------------------------------
     void ShowGameMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const GameMenuWidget& widget,
-                      float centerX, float topY, std::span<const std::wstring> labels, int cursor, float highlightWidth) {
+                      float centerX, float topY, std::span<const std::wstring> labels, int cursor, float highlightWidth,
+                      bool showConfirmPrompt) {
         const int count = std::min(static_cast<int>(labels.size()), kGameMenuMaxItems);
         if(count <= 0) {
             HideGameMenu(registry, widget);
@@ -117,7 +118,10 @@ namespace CombatAndroid::ECS {
             HideInputPrompt(registry, widget.upPrompt);
             HideInputPrompt(registry, widget.downPrompt);
         }
-        ShowInputPromptAtScreen(registry, context, widget.confirmPrompt, promptX + kPromptConfirmGapX, cursorY, style);
+        if(showConfirmPrompt)
+            ShowInputPromptAtScreen(registry, context, widget.confirmPrompt, promptX + kPromptConfirmGapX, cursorY, style);
+        else
+            HideInputPrompt(registry, widget.confirmPrompt);
     }
 
     //-------------------------------------------------------------
