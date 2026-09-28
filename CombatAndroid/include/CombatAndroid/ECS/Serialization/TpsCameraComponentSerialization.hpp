@@ -1,7 +1,7 @@
 //-------------------------------------------------------------
 //! @file   TpsCameraComponentSerialization.hpp
 //! @brief  TpsCameraComponentのcerealシリアライズ定義
-//! @note   カメラの調整値（距離・ばね・被弾の揺れ・大技のズーム・マウス旋回・地面の下限）だけを保存する。
+//! @note   カメラの調整値（距離・ばね・被弾の揺れ・大技のズーム・死亡時の寄り・マウス旋回・地面の下限）だけを保存する。
 //!         target（Entity）・ばねの位置/速度・ズームの進行・キャプチャ状態などの実行時状態は保存しない
 //-------------------------------------------------------------
 #pragma once
@@ -31,6 +31,12 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("zoomHoldAfterImpact", camera.zoomHoldAfterImpact),
                 cereal::make_nvp("zoomInFrequency", camera.zoomInFrequency),
                 cereal::make_nvp("zoomOutFrequency", camera.zoomOutFrequency),
+                cereal::make_nvp("deathDistanceScale", camera.deathDistanceScale),
+                cereal::make_nvp("deathLookHeight", camera.deathLookHeight),
+                cereal::make_nvp("deathPitch", camera.deathPitch),
+                cereal::make_nvp("deathFovScale", camera.deathFovScale),
+                cereal::make_nvp("deathFocusFrequency", camera.deathFocusFrequency),
+                cereal::make_nvp("deathOrbitSpeed", camera.deathOrbitSpeed),
                 cereal::make_nvp("yaw", camera.yaw),
                 cereal::make_nvp("pitch", camera.pitch),
                 cereal::make_nvp("mouseSensitivity", camera.mouseSensitivity),
@@ -59,6 +65,12 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "zoomHoldAfterImpact", camera.zoomHoldAfterImpact);
         LoadField(archive, "zoomInFrequency", camera.zoomInFrequency);
         LoadField(archive, "zoomOutFrequency", camera.zoomOutFrequency);
+        LoadField(archive, "deathDistanceScale", camera.deathDistanceScale);
+        LoadField(archive, "deathLookHeight", camera.deathLookHeight);
+        LoadField(archive, "deathPitch", camera.deathPitch);
+        LoadField(archive, "deathFovScale", camera.deathFovScale);
+        LoadField(archive, "deathFocusFrequency", camera.deathFocusFrequency);
+        LoadField(archive, "deathOrbitSpeed", camera.deathOrbitSpeed);
         LoadField(archive, "yaw", camera.yaw);
         LoadField(archive, "pitch", camera.pitch);
         LoadField(archive, "mouseSensitivity", camera.mouseSensitivity);

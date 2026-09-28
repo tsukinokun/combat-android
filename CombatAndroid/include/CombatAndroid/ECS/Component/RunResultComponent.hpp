@@ -46,7 +46,9 @@ namespace CombatAndroid::ECS {
         int        killCount = 0;                   //!< 走行中に倒した敵の数
 
         float endElapsed      = 0.0f;     //!< 走行が終わってからの実時間（秒）。リザルトを出すまでの待ちに使う
-        bool  shown           = false;    //!< リザルトを表示済みか
+        bool  shown           = false;    //!< リザルトを出し始めたか（暗転板のフェードを始めた。記録はこの時点で保存済み）
+        float revealElapsed   = 0.0f;     //!< 暗転板のフェードを始めてからの実時間（秒）
+        bool  revealed        = false;    //!< フェードが終わり、文字とメニューを出したか（ここから操作を受け付ける）
         bool  openedThisFrame = false;    //!< 表示した最初のフレームか（そのまま決定入力を拾わない）
         int   cursorIndex     = 0;        //!< 選択中の項目（リトライ／タイトルへ）
 

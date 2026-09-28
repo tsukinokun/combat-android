@@ -4,9 +4,11 @@
 //! @author 山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/TpsCameraSystem.hpp>
+#include <CombatAndroid/ECS/System/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/GameSettings.hpp>
 
@@ -135,7 +137,10 @@ namespace CombatAndroid::ECS {
         // 併せてwasCapturedLastFrameを倒しておくと、復帰後の最初の1フレームぶんの
         // マウス移動量は上の「キャプチャ復帰フレームは旋回に使わない」分岐が捨ててくれる
         //-------------------------------------------------------------
-        if(IsGameplayFrozen(registry)) {
+        // 走行が終わった後（リザルト）は世界が止まっても、倒れたプレイヤーの周りを回るカットを続ける。
+        // マウスは使わせず、カーソルはメニュー用に出す
+        const bool frozen = IsGameplayFrozen(registry);
+        if(frozen && !IsRunEnded(registry)) {
             // ポーズ中にウィンドウを動かしたり他のアプリへ移ったりできるよう、カーソルを出す
             if(ctx->window)
                 ctx->window->SetCursorVisible(true);
@@ -188,7 +193,7 @@ namespace CombatAndroid::ECS {
                 registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(tpsCamera.target);
 
             // Escはポーズメニュー（PauseMenuSystem）が使う。キャプチャを外したいときはポーズを開く
-            bool shouldCapture = tpsCamera.mouseCaptured && windowFocused;
+            bool shouldCapture = tpsCamera.mouseCaptured && windowFocused && !frozen;
 
             if(ctx->window)
                 ctx->window->SetCursorVisible(!shouldCapture);
@@ -196,10 +201,16 @@ namespace CombatAndroid::ECS {
             Tsukino::i32 mouseDx = rawMouseDx;
             Tsukino::i32 mouseDy = rawMouseDy;
 
+            //-------------------------------------------------------------
+            // 対象が倒れたか。倒れた後はマウスで回させず、カメラが自分で寄って回る
+            //-------------------------------------------------------------
+            const bool targetDead =
+                registry.HasComponent<HealthComponent>(tpsCamera.target) && registry.GetComponent<HealthComponent>(tpsCamera.target).isDead;
+
             if(shouldCapture) {
                 // 直前フレームまでキャプチャが外れていた場合、カーソルがどこにあったか分からないため
                 // このフレームの分は旋回に使わず、中央への位置合わせだけ行う
-                if(!tpsCamera.wasCapturedLastFrame) {
+                if(!tpsCamera.wasCapturedLastFrame || targetDead) {
                     mouseDx = 0;
                     mouseDy = 0;
                 }
@@ -230,13 +241,30 @@ namespace CombatAndroid::ECS {
             tpsCamera.wasCapturedLastFrame = shouldCapture;
 
             //-------------------------------------------------------------
+            // 死亡時の寄り。倒れたら寄りの目標を1にし、ゆっくり寄せながら周りを回る。
+            // リトライでは新しいシーンのカメラになるので、0へ戻す処理は要らない
+            //-------------------------------------------------------------
+            StepSpring(tpsCamera.deathFocusAmount, tpsCamera.deathFocusVelocity, targetDead ? 1.0f : 0.0f, tpsCamera.deathFocusFrequency, 1.0f,
+                       realDeltaTime);
+            const float deathFocus = std::clamp(tpsCamera.deathFocusAmount, 0.0f, 1.0f);
+
+            if(targetDead)
+                tpsCamera.yaw += tpsCamera.deathOrbitSpeed * realDeltaTime;
+
+            // 距離・回転中心の高さ・注視の高さ・見下ろし角を、寄りの量に応じて通常の値から寄せる
+            const float distance   = std::lerp(tpsCamera.distance, tpsCamera.distance * tpsCamera.deathDistanceScale, deathFocus);
+            const float height     = std::lerp(tpsCamera.height, tpsCamera.deathLookHeight, deathFocus);
+            const float lookHeight = std::lerp(tpsCamera.lookHeight, tpsCamera.deathLookHeight, deathFocus);
+            const float pitch      = std::lerp(tpsCamera.pitch, tpsCamera.deathPitch, deathFocus);
+
+            //-------------------------------------------------------------
             // yaw=0, pitch=0のとき-Z方向（後方）を基準とした球面座標でオフセットを求める
             //-------------------------------------------------------------
-            float horizontalDist = tpsCamera.distance * std::cos(tpsCamera.pitch);
+            float horizontalDist = distance * std::cos(pitch);
 
             hlslpp::float3 offset;
             offset.x = horizontalDist * std::sin(tpsCamera.yaw);
-            offset.y = tpsCamera.height + tpsCamera.distance * std::sin(tpsCamera.pitch);
+            offset.y = height + distance * std::sin(pitch);
             offset.z = -horizontalDist * std::cos(tpsCamera.yaw);
 
             hlslpp::float3 desiredPosition = targetTransform.position + offset;
@@ -256,8 +284,9 @@ namespace CombatAndroid::ECS {
                 tpsCamera.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
                 tpsCamera.hasFollowSpringState = true;
             } else {
+                // 倒れた後はリザルトで世界が止まってもカメラだけは回り続けるよう、実時間で追う
                 StepSpring(tpsCamera.followSpringPosition, tpsCamera.followSpringVelocity, desiredPosition, tpsCamera.followSpringFrequency,
-                           tpsCamera.followSpringDamping, deltaTime);
+                           tpsCamera.followSpringDamping, targetDead ? realDeltaTime : deltaTime);
 
                 // 目標を下限で止めても、ばねは行き過ぎるので地面の下まで沈みうる。
                 // 床に当たったら下向きの速度を捨てて、跳ね返らずにそこへ留める
@@ -267,7 +296,7 @@ namespace CombatAndroid::ECS {
                 }
             }
 
-            hlslpp::float3 lookAtTarget = targetTransform.position + hlslpp::float3(0.0f, tpsCamera.lookHeight, 0.0f);
+            hlslpp::float3 lookAtTarget = targetTransform.position + hlslpp::float3(0.0f, lookHeight, 0.0f);
 
             //-------------------------------------------------------------
             // 大技のズーム。
@@ -307,7 +336,7 @@ namespace CombatAndroid::ECS {
             hlslpp::float3 toLookAt       = lookAtTarget - cameraPosition;
             float          toLookAtLength = hlslpp::length(toLookAt);
             if(toLookAtLength > 1.0e-3f) {
-                const float approach = tpsCamera.distance * (1.0f - tpsCamera.zoomDistanceScale) * tpsCamera.zoomAmount;
+                const float approach = distance * (1.0f - tpsCamera.zoomDistanceScale) * tpsCamera.zoomAmount;
                 cameraPosition       = cameraPosition + (toLookAt / toLookAtLength) * std::min(approach, toLookAtLength * 0.9f);
             }
 
@@ -322,7 +351,8 @@ namespace CombatAndroid::ECS {
                 tpsCamera.baseFov    = camera.fov;
                 tpsCamera.hasBaseFov = true;
             }
-            camera.fov = tpsCamera.baseFov * (1.0f + (tpsCamera.zoomFovScale - 1.0f) * tpsCamera.zoomAmount);
+            camera.fov = tpsCamera.baseFov * (1.0f + (tpsCamera.zoomFovScale - 1.0f) * tpsCamera.zoomAmount)
+                         * std::lerp(1.0f, tpsCamera.deathFovScale, deathFocus);
 
             //-------------------------------------------------------------
             // 被弾時の揺れ。
@@ -331,7 +361,8 @@ namespace CombatAndroid::ECS {
             // 画面に平行な向きに限る
             //-------------------------------------------------------------
             // オプションで画面揺れを切っているときは、溜まった揺れを捨てて何もしない
-            if(!GetGameSettings().screenShakeEnabled)
+            // 倒れた後も敵の攻撃は当たり続けるが、寄りのカットを揺らさないよう捨てる
+            if(!GetGameSettings().screenShakeEnabled || targetDead)
                 m_pendingShakeDamage = 0.0f;
 
             if(m_pendingShakeDamage > 0.0f) {

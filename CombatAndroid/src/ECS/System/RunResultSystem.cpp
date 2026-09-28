@@ -52,10 +52,14 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         // 走行が終わってからリザルトを出すまでの待ち（実時間）。
-        // 死亡は倒れるモーションを見せたいので長め、クリアは止まった画面を一呼吸見せる程度
+        // 死亡は倒れるモーションと、カメラが倒れた体へ寄るカット（TpsCameraSystem）を見せたいので長め、
+        // クリアは止まった画面を一呼吸見せる程度
         //-------------------------------------------------------------
-        constexpr float kDeadOverlayDelay  = 1.5f;
+        constexpr float kDeadOverlayDelay  = 2.2f;
         constexpr float kClearOverlayDelay = 1.0f;
+
+        //! 暗転板を0から既定の濃さまで上げる時間（実時間）。上げきってから文字とメニューを出す
+        constexpr float kRevealFadeSeconds = 0.8f;
 
         //-------------------------------------------------------------
         // レイアウト（画面中心からのピクセル）
@@ -167,7 +171,16 @@ namespace CombatAndroid::ECS {
             result.layoutWidth  = screenWidth;
             result.layoutHeight = screenHeight;
 
-            StretchSprite(registry, ctx, result.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, kBackdropColor);
+            // 暗転板はフェード中なら途中の濃さで敷く。出だしをなだらかにして、急に暗くなった感じを消す
+            const float    revealProgress = std::clamp(result.revealElapsed / kRevealFadeSeconds, 0.0f, 1.0f);
+            const float    revealEase     = revealProgress * revealProgress * (3.0f - 2.0f * revealProgress);
+            hlslpp::float4 backdropColor  = kBackdropColor;
+            backdropColor.w               = kBackdropColor.w * revealEase;
+            StretchSprite(registry, ctx, result.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, backdropColor);
+
+            // 文字とメニューはフェードが終わってから出す
+            if(!result.revealed)
+                return;
 
             PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + kTitleOffsetY, kTitleFontScale,
                         result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? kClearTitleColor : kDeadTitleColor);
@@ -320,8 +333,25 @@ namespace CombatAndroid::ECS {
                                   + std::to_wstring(record.bestKills) + L"　Lv " + std::to_wstring(record.bestLevel)
                                   + L"　クリア " + std::to_wstring(record.clearCount) + L"回";
 
+                result.revealElapsed = 0.0f;
+                result.revealed      = false;
+
                 LayoutResultScreen(registry, *ctx, result);
                 continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
+            }
+
+            //-------------------------------------------------------------
+            // 暗転板のフェード。上げきったら文字とメニューを出し、次のフレームから操作を受け付ける
+            //-------------------------------------------------------------
+            if(!result.revealed) {
+                result.revealElapsed += realDeltaTime;
+                if(result.revealElapsed >= kRevealFadeSeconds) {
+                    result.revealed        = true;
+                    result.openedThisFrame = true;
+                }
+
+                LayoutResultScreen(registry, *ctx, result);
+                continue;
             }
 
             //-------------------------------------------------------------

@@ -70,6 +70,20 @@ namespace CombatAndroid::ECS {
         float baseFov       = 60.0f;    //!< 寄っていないときの画角（内部状態。最初のフレームにCameraComponent::fovから覚える）
         bool  hasBaseFov    = false;    //!< baseFovを覚えたか（内部状態）
 
+        // --- 死亡時の寄り ---
+        // 対象が倒れたら操作を切り、倒れた体へゆっくり寄りながら周りを回る。
+        // 寄りの量（0〜1）をばねで動かし、距離・注視の高さ・見下ろし角・画角を通常の値から寄せる。
+        // リザルトで世界が止まっても回り続けるよう、すべて実時間で進める
+        float deathDistanceScale  = 0.45f;    //!< 寄りきったときの距離の倍率（400→180）
+        float deathLookHeight     = 60.0f;    //!< 寄りきったときの注視点・回転中心の高さ（倒れた体のあたり）
+        float deathPitch          = 0.55f;    //!< 寄りきったときの見下ろし角（ラジアン）
+        float deathFovScale       = 0.9f;     //!< 寄りきったときの画角の倍率
+        float deathFocusFrequency = 0.9f;     //!< 寄るばねの速さ（Hz・実時間）。0.9Hzなら約1秒でほぼ寄りきる
+        float deathOrbitSpeed     = 0.18f;    //!< 周りを回る速さ（ラジアン/秒・実時間）
+
+        float deathFocusAmount   = 0.0f;    //!< 死亡時の寄りの量（内部状態。0で通常、1で寄りきり）
+        float deathFocusVelocity = 0.0f;    //!< 上記の速度（内部状態）
+
         // --- マウスによる旋回 ---
         float yaw   = 0.0f;    //!< 現在のカメラyaw（ラジアン。0でプレイヤーの初期正面=+Z方向を映す）
         float pitch = 0.2f;    //!< 現在のカメラpitch（ラジアン。正で見下ろし、負で見上げ）
