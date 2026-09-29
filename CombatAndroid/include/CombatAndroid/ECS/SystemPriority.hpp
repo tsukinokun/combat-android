@@ -84,6 +84,8 @@ namespace CombatAndroid::ECS {
         Camera,           // カメラ行列は描画前に計算する
         WorldAnchor,      // WorldAnchorComponentを持つエンティティ（拾得プロンプト・HPバー等）の
                           // ワールド→スクリーン座標変換は今フレームのカメラ行列を使うためCameraの後に置く
+        EliteIndicator,   // 画面外のエリートへ向く矢印。WorldAnchorと同じくカメラ行列が要るのでCameraの後、
+                          // 書いた位置・回転がworldMatrixへ焼き込まれる前という同じ制約でTransformUIの前に置く
         TransformUI,      // WorldAnchorSystemが書いたUI要素のposition（画面ピクセル座標）をworldMatrixへ反映する。
                           // FontRendererSystemはworldMatrix[3]を読むため、これが無いと1フレーム遅れて表示がスウィムする
         AttackMotionBlur,    // 攻撃の進行度（CombatSystemが更新するattackBlend）をブラー強度へ反映する。
