@@ -38,7 +38,7 @@ System の `.cpp` の無名 namespace にある調整値は、ここへ出す。
 - UI：`GameLog` `TitleStage` `TitleMenu` `SkillSelect` `RunResult` `Tutorial` `PauseMenu` `InputPrompt` `ScreenFade`
 - HUD：`PlayerHud` `PlayerSkillHud` `HealthBar` `PlayerDamageEffect`
 - 戦闘・演出：`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop` `EnemyAttackTelegraph` `EnemyAttackArea`
-  `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound`
+  `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound` `HitImpactEffect`
 
 出していない System（`EnemyStressTest` `WeaponGripDebug` `GrassField` `TpsCamera` `Projectile` `EnemySpawnDirector`）は、
 デバッグ専用か、残っているのが下の「残す」ものだけか、調整値を既に Prefab 側に持っているもの。

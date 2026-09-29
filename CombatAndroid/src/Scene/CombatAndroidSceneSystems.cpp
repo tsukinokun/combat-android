@@ -45,6 +45,7 @@
 #include <CombatAndroid/ECS/System/ChargeSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
+#include <CombatAndroid/ECS/System/HitImpactEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
 #include <CombatAndroid/ECS/System/FogFollowSystem.hpp>
@@ -236,6 +237,12 @@ namespace CombatAndroid {
             auto hitSoundSystem = std::make_shared<CombatAndroid::ECS::HitSoundSystem>();
             m_scene.AddSystem(hitSoundSystem, (int)ECS::SystemPriority::Audio);
             hitSoundSystem->Initialize(eventBus);
+        }
+        {
+            // WeaponHitEventを購読してヒット位置へ命中エフェクトを再生する
+            auto hitImpactEffectSystem = std::make_shared<CombatAndroid::ECS::HitImpactEffectSystem>();
+            m_scene.AddSystem(hitImpactEffectSystem, (int)ECS::SystemPriority::Audio);
+            hitImpactEffectSystem->Initialize(eventBus);
         }
         {
             // 被弾・撃破・取得・メニュー操作など、ゲーム全体の効果音

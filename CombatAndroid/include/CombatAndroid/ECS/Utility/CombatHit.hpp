@@ -81,7 +81,8 @@ namespace CombatAndroid::ECS {
     //! @param  sourceEntity        [in]     WeaponHitEvent::weaponへ載せる実体（武器エンティティ／弾エンティティ）
     //! @param  hitEntity           [in]     ヒット対象。敵でない・死亡済みなら何もしない
     //! @param  dealtDamage         [in]     与える実ダメージ（倍率適用後の確定値）
-    //! @param  hitPositionFallback [in]     対象にTransformComponentが無い場合に使う位置
+    //! @param  hitPositionFallback [in]     対象にTransformComponentが無い場合に使う位置。
+    //!         判定に使った武器/斬撃弾の中心位置でもあり、そのままWeaponHitEvent::contactPositionへ発行される
     //! @param  hitRecord           [in,out] 多重ヒット防止の記録。既に載っている相手はスキップし、当てたら追加する
     //! @param  lifeStealRatio      [in]     スキル「嫉妬」の吸収割合（0なら吸収しない）
     //! @param  lifeStealHealed     [in,out] 上記の吸収済み総量。上限（kLifeStealCapRatioPerAttack）の判定に使う

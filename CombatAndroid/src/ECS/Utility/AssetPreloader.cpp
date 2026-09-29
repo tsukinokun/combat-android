@@ -45,6 +45,7 @@ namespace CombatAndroid::ECS {
             "CombatAndroid/Assets/Audio/HitImpactBlunt.wav",
             "CombatAndroid/Assets/Audio/HitImpactSharp.wav",
             "CombatAndroid/Assets/Audio/ChargeFire.wav",
+            "CombatAndroid/Assets/Effect/attackImpact.efkefc",
             "CombatAndroid/Assets/Textures/Ground/DirtGround.bmp",
             "CombatAndroid/Assets/Textures/UI/ExpOrb.png",
             "CombatAndroid/Assets/Textures/UI/WhitePixel.png",
