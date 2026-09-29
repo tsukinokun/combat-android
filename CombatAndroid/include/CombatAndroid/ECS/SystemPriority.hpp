@@ -103,7 +103,11 @@ namespace CombatAndroid::ECS {
         Light,      // ディレクショナル/点光源/スポットをまとめてRendererへ渡す。
                     // worldMatrixから位置を取るのでTransform系より後である必要がある
         SkyAtmosphere,
-        Fog,    // フォグはカメラ位置と太陽方向を使うため、Camera / Light より後に置く
+        FogFollow,      // フォグの距離基準点をプレイヤー位置へ書き込む。Movementでプレイヤーの
+                        // positionが確定した後に置く必要があり、FogSystemがCBufferFogへ
+                        // 転送する前（Fogより前）である必要がある。それ以外の依存は無い
+        Fog,    // フォグはカメラ位置・太陽方向に加え、FogFollowが書いたプレイヤー位置
+                // （距離フォグの基準点）を使うため、Camera / Light / FogFollowより後に置く
         AmbientParticle,    // 環境パーティクル。カメラ位置も行列も頂点シェーダーがb0から直接読むため
                             // 実質どこに置いてもよいが、同じ大気の演出であるSkyAtmosphere / Fogと並べておく
         GrassField,         // 地面の草。カメラ位置は頂点シェーダーがb0から読むが、かき分け用の

@@ -47,6 +47,7 @@
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
+#include <CombatAndroid/ECS/System/FogFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/EnemyAttackAreaSystem.hpp>
 #ifdef _DEBUG
 #include <CombatAndroid/ECS/System/WeaponGripDebugSystem.hpp>
@@ -259,6 +260,8 @@ namespace CombatAndroid {
         }
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::LightSystem>(), (int)ECS::SystemPriority::Light);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SkyAtmosphereSystem>(), (int)ECS::SystemPriority::SkyAtmosphere);
+        // フォグの距離基準点をプレイヤー位置へ書き込む（TPSカメラの旋回でフォグの入り方が変わらないように）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::FogFollowSystem>(), (int)ECS::SystemPriority::FogFollow);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FogSystem>(), (int)ECS::SystemPriority::Fog);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AmbientParticleSystem>(), (int)ECS::SystemPriority::AmbientParticle);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GrassFieldSystem>(), (int)ECS::SystemPriority::GrassField);
