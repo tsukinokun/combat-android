@@ -41,6 +41,7 @@ namespace CombatAndroid::UI {
     constexpr int kHudSkillIcon     = 202;    //!< EXPバーの下に並ぶ取得済みスキルのアイコン枠
     constexpr int kHudText          = 210;    //!< HP/EXPの数値・生存時間・取得済みスキル名
     constexpr int kEliteIndicator   = 215;    //!< 画面外のエリートの方向を示す矢印
+    constexpr int kPickupIndicator  = 216;    //!< 画面外の拾得アイテム（落ちている武器）の方向を示す矢印
 
     //! 画面右の取得ログ（武器取得・レベルアップ等が右からスライドインして上へ消える）。
     //! スキル選択の暗転板(400)より奥なので、レベルアップメニュー表示中はモーダルの下に沈む

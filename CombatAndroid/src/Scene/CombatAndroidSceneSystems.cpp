@@ -47,6 +47,7 @@
 #include <CombatAndroid/ECS/System/HitSoundSystem.hpp>
 #include <CombatAndroid/ECS/System/HitImpactEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/EliteIndicatorSystem.hpp>
+#include <CombatAndroid/ECS/System/PickupIndicatorSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundFollowSystem.hpp>
 #include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
 #include <CombatAndroid/ECS/System/FogFollowSystem.hpp>
@@ -216,6 +217,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::WorldAnchorSystem>(), (int)ECS::SystemPriority::WorldAnchor);
         // 画面外のエリートへ向く矢印
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EliteIndicatorSystem>(), (int)ECS::SystemPriority::EliteIndicator);
+        // 画面外の拾得アイテム（落ちている武器）へ向く矢印
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PickupIndicatorSystem>(), (int)ECS::SystemPriority::PickupIndicator);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformUI);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FontRendererSystem>(), (int)ECS::SystemPriority::Font);
         // 攻撃演出→ブラー強度→Rendererの順に流す

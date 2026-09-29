@@ -1,0 +1,8 @@
+{
+    "PickupIndicator": {
+        "edgeMargin": 60.0,
+        "indicatorLength": 36.0,
+        "indicatorWidth": 10.0,
+        "indicatorColor": { "x": 0.3, "y": 0.9, "z": 1.0 }
+    }
+}
