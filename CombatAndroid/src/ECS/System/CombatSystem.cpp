@@ -698,7 +698,13 @@ namespace CombatAndroid::ECS {
                         KnockbackParams areaKnockback = MakeKnockbackParams(registry, weapon, transform.position, /* isAreaAttack */ true);
 
                         for(entt::entity hitEntity : areaHits) {
-                            ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, transform.position, skillAttackMultiplier,
+                            // WeaponHitEvent::contactPosition（HitImpactEffectSystemがヒットエフェクトを
+                            // 出す位置）に使われるため、武器の位置ではなく実際にヒットした敵の位置を渡す
+                            hlslpp::float3 hitPosition = transform.position;    // フォールバック（対象にTransformComponentが無い場合）
+                            if(const auto* hitTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
+                                hitPosition = hitTransform->position;
+
+                            ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, hitPosition, skillAttackMultiplier,
                                                    skillLifeStealRatio, /* isAreaAttack */ true);
 
                             if(areaKnockback.speed > 0.0f)
