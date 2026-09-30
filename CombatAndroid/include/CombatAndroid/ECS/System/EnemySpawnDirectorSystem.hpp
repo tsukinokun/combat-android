@@ -65,8 +65,8 @@ namespace CombatAndroid::ECS {
         //! @param  playerPosition [in]     プレイヤーの現在位置
         //! @param  sectorCounts   [in,out] 扇形ごとの敵の数（湧かせた扇形を+1する）
         //! @return 湧き位置
-        //! @note   敵の少ない扇形から順に試す。地面（±kGroundLimit）の外を引いた場合は引き直す。
-        //!         clampで内側へ押し込むと地面の端でプレイヤーの目の前に湧いてしまうため
+        //! @note   一番敵の少ない扇形（同数なら乱数）の中に湧かせる。
+        //!         地面はプレイヤーへ追従する（GroundFollowSystem）ので、地面の範囲は判定しない
         //-------------------------------------------------------------
         [[nodiscard]]
         hlslpp::float3 ResolveSpawnPosition(const hlslpp::float3& playerPosition, SectorCounts& sectorCounts);
@@ -171,16 +171,8 @@ namespace CombatAndroid::ECS {
         //! 湧いた敵へ向かって走ると（接近速度 約400/秒）時間だけでは目の前で半透明のままになるため
         static constexpr float kFadeInOpaqueDistance = 800.0f;
 
-        //! 地面（±5000の板）から落とさないための実効境界。
-        //! 端に余白を取るのは、境界ちょうどに湧くとカプセルが床の縁からはみ出すため
-        static constexpr float kGroundLimit = 4500.0f;
-
         //! 生成時の浮かせ量。EnemyStressTestSystem::kSpawnHeightと同値
         static constexpr float kSpawnHeight = 20.0f;
-
-        //! 扇形1つあたりの引き直し回数。地面外へ出た場合に同じ扇形の中で引き直し、
-        //! それでも外れたら次に敵の少ない扇形を試す
-        static constexpr int kSpawnAttemptCount = 3;
 
         //! 湧かせる敵に与える索敵距離。湧き半径より十分大きくないとBTのMoveToPlayerが
         //! Failureを返し、その場で足踏みしたまま近づいてこない

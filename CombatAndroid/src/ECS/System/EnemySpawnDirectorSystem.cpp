@@ -289,7 +289,7 @@ namespace CombatAndroid::ECS {
         std::uniform_real_distribution<float> radiusDist(kSpawnRadiusMin, kSpawnRadiusMax);
 
         //-----------------------------------------------------
-        // 方角は「いま敵の少ない扇形」から順に試す。一様に引くだけだと、
+        // 方角は「いま敵の少ない扇形」から選ぶ。一様に引くだけだと、
         // 一方向へ逃げたときに半分が背後へ湧いて即座に置き去りになり、行く手が空になる。
         // 敵の少ない方角＝逃げている先なので、自然に行く手の霧の奥から湧く。
         // 同数の扇形の並びは先にシャッフルして偏りを出さない（stable_sortで順序を保つ）。
@@ -306,36 +306,23 @@ namespace CombatAndroid::ECS {
             return sectorCounts[static_cast<size_t>(a)] < sectorCounts[static_cast<size_t>(b)];
         });
 
+        //-----------------------------------------------------
+        // 地面の範囲による判定はしない。地面はGroundFollowSystemがプレイヤーへ追従させており、
+        // プレイヤーの周囲は常に地面の上にある。以前はワールド原点中心の±4500を地面とみなして
+        // いたため、原点から遠くまで走ると候補が全て外れ、その四角の端（プレイヤーのはるか後ろ）へ
+        // 押し戻されて湧いた直後に間引かれ、敵が一切湧かなくなっていた
+        //-----------------------------------------------------
+        const int   sector      = order[0];
         const float sectorWidth = 2.0f * kPi / static_cast<float>(kSectorCount);
+        const float angle       = -kPi + (static_cast<float>(sector) + unitDist(m_rng)) * sectorWidth;
+        const float radius      = radiusDist(m_rng);
 
-        hlslpp::float3 candidate = playerPosition;
+        // 同じバッチの次の1体が同じ扇形へ偏らないよう、湧かせた分をすぐ数えに入れる
+        ++sectorCounts[static_cast<size_t>(sector)];
 
-        for(int sector : order) {
-            for(int attempt = 0; attempt < kSpawnAttemptCount; ++attempt) {
-                const float angle  = -kPi + (static_cast<float>(sector) + unitDist(m_rng)) * sectorWidth;
-                const float radius = radiusDist(m_rng);
-
-                candidate = hlslpp::float3(playerPosition.x + std::cos(angle) * radius,
-                                           kSpawnHeight,
-                                           playerPosition.z + std::sin(angle) * radius);
-
-                if(std::abs(candidate.x) <= kGroundLimit && std::abs(candidate.z) <= kGroundLimit) {
-                    // 同じバッチの次の1体が同じ扇形へ偏らないよう、湧かせた分をすぐ数えに入れる
-                    ++sectorCounts[static_cast<size_t>(sector)];
-                    return candidate;
-                }
-            }
-        }
-
-        // 全て外れた（プレイヤーが地面の隅にいる）場合のみ、最後に引いた候補を
-        // 地面の内側へ押し込んで諦める。稀なうえ、湧かないよりは近くに湧くほうがまだよい。
-        // hlslppのfloat3::x/zはswizzleプロキシ型のため、std::clampへ渡す前に
-        // 一度plainなfloatへ落としてから代入し直す
-        const float clampedX = std::clamp(static_cast<float>(candidate.x), -kGroundLimit, kGroundLimit);
-        const float clampedZ = std::clamp(static_cast<float>(candidate.z), -kGroundLimit, kGroundLimit);
-        candidate.x = clampedX;
-        candidate.z = clampedZ;
-        return candidate;
+        return hlslpp::float3(playerPosition.x + std::cos(angle) * radius,
+                              kSpawnHeight,
+                              playerPosition.z + std::sin(angle) * radius);
     }
 
     //-------------------------------------------------------------
