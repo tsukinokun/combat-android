@@ -14,6 +14,8 @@ namespace CombatAndroid::ECS {
     //!         湧かせた敵を巻き込んで消してしまわないための境界線
     //-------------------------------------------------------------
     struct SpawnedEnemyComponent {
-        float aliveTime = 0.0f;    //!< 湧いてからの経過秒数（デバッグ表示・将来の時限消滅用）
+        float aliveTime     = 0.0f;     //!< 湧いてからの経過秒数（フェードインの時間の進みに使う）
+        float spawnDistance = 0.0f;     //!< 湧いた時点のプレイヤーとの水平距離（フェードインの距離の進みに使う）
+        bool  fadeInDone    = false;    //!< 霧の中からのフェードインを終えたか（以後は不透明度に触らない）
     };
 }    // namespace CombatAndroid::ECS

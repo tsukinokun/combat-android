@@ -53,6 +53,10 @@ cbuffer CBufferGrass : register(b12)
 static const uint  kSpeciesCount  = 3;
 static const float kGradientRows  = 32.0f;    // GrassFieldSystem.cpp の kGradientHeight と一致させること
 
+// 遠景の隙間埋めの草が、しきい値を割る手前のこの幅で背を0まで縮める。
+// 縮めずに二値で切ると、近づいたときに6〜8割の背丈の草が1フレームで消えて見える
+static const float kFillShrinkBand = 0.15f;
+
 //--------------------------------------------------------------
 // 入力（刃メッシュの頂点）
 //--------------------------------------------------------------
@@ -338,9 +342,15 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float horizonFill = smoothstep(coverageParams.x, coverageParams.y, distFromCam);
     const float inside      = lerp(clumpInside, 1.0f, horizonFill);
 
-    const bool  inClump  = Rand01(seed + 6u) < inside;
-    const bool  isFiller = !inClump && (Rand01(seed + 7u) < clumpShapeParams.z);
-    const float presence = inClump ? lerp(0.6f, 1.0f, inside) : (isFiller ? clumpShapeParams.w : 0.0f);
+    const float clumpRoll = Rand01(seed + 6u);
+    const bool  inClump   = clumpRoll < inside;
+    const bool  isFiller  = !inClump && (Rand01(seed + 7u) < clumpShapeParams.z);
+
+    // 隙間埋めの草は、近づいてしきい値を割る手前で背を縮め、割った瞬間には高さ0にしておく
+    // （遠ざかるときは地面から伸びて生える）。horizonFillが0の近景では縮めないので、
+    // 草むらの縁のギザギザな間引きは従来どおり
+    const float fillShrink = lerp(1.0f, saturate((inside - clumpRoll) / kFillShrinkBand), horizonFill);
+    const float presence   = inClump ? lerp(0.6f, 1.0f, inside) * fillShrink : (isFiller ? clumpShapeParams.w : 0.0f);
 
     // 生えない草は高さと幅の両方を0にして、9頂点すべてを根元の1点へ潰す。
     // 面積ゼロなので1ピクセルも塗らない（高さだけ0だと地面に寝た三角形が残る）

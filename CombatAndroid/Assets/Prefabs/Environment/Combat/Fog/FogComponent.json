@@ -6,8 +6,8 @@
             "y": 0.46000000834465029,
             "z": 0.5199999809265137
         },
-        "density": 0.0010499999625608326,
-        "startDistance": 500.0,
+        "density": 0.0035000001080334187,
+        "startDistance": 600.0,
         "maxOpacity": 1.0,
         "heightFogEnabled": true,
         "height": 0.0,

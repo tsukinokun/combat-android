@@ -10,7 +10,9 @@
 
 #include <hlsl++.h>
 
+#include <array>
 #include <random>
+#include <vector>
 
 // 前方宣言
 namespace Tsukino::EngineIntegration {
@@ -36,29 +38,57 @@ namespace CombatAndroid::ECS {
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
 
     private:
+        //! 湧きの方角を数える扇形の分割数
+        static constexpr int kSectorCount = 8;
+
+        //! 扇形ごとの敵の数
+        using SectorCounts = std::array<int, kSectorCount>;
+
         //-------------------------------------------------------------
         //! @brief 敵を1体、抽選テーブルに従って湧かせる関数
-        //! @param registry       [in] エンティティレジストリ
-        //! @param context        [in] エンジンコンテキスト
-        //! @param playerPosition  [in] プレイヤーの現在位置
-        //! @param elapsedSeconds  [in] 走行の経過秒数（種類の解禁判定に使う）
-        //! @param dangerRank      [in] 現在の危険度ランク（EnemyDifficultyTableの倍率を引くのに使う）
+        //! @param registry       [in]     エンティティレジストリ
+        //! @param context        [in]     エンジンコンテキスト
+        //! @param playerPosition  [in]     プレイヤーの現在位置
+        //! @param elapsedSeconds  [in]     走行の経過秒数（種類の解禁判定に使う）
+        //! @param dangerRank      [in]     現在の危険度ランク（EnemyDifficultyTableの倍率を引くのに使う）
+        //! @param sectorCounts    [in,out] 扇形ごとの敵の数（湧かせた扇形を+1する）
         //-------------------------------------------------------------
         void SpawnOne(Tsukino::ECS::Registry& registry,
                       Tsukino::EngineIntegration::EngineContext& context,
                       const hlslpp::float3& playerPosition,
                       float elapsedSeconds,
-                      int dangerRank);
+                      int dangerRank,
+                      SectorCounts& sectorCounts);
 
         //-------------------------------------------------------------
         //! @brief  プレイヤーを中心に、フォグの外側の湧き位置を1つ決める関数
-        //! @param  playerPosition [in] プレイヤーの現在位置
+        //! @param  playerPosition [in]     プレイヤーの現在位置
+        //! @param  sectorCounts   [in,out] 扇形ごとの敵の数（湧かせた扇形を+1する）
         //! @return 湧き位置
-        //! @note   地面（±kGroundLimit）の外を引いた場合は角度を引き直す。
+        //! @note   敵の少ない扇形から順に試す。地面（±kGroundLimit）の外を引いた場合は引き直す。
         //!         clampで内側へ押し込むと地面の端でプレイヤーの目の前に湧いてしまうため
         //-------------------------------------------------------------
         [[nodiscard]]
-        hlslpp::float3 ResolveSpawnPosition(const hlslpp::float3& playerPosition);
+        hlslpp::float3 ResolveSpawnPosition(const hlslpp::float3& playerPosition, SectorCounts& sectorCounts);
+
+        //-------------------------------------------------------------
+        //! @brief  囲み半径（kSurroundRadius）内の生存敵を、プレイヤーから見た方角の扇形ごとに数える関数
+        //! @param  registry       [in] エンティティレジストリ
+        //! @param  playerPosition [in] プレイヤーの現在位置
+        //! @return 扇形ごとの敵の数
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        SectorCounts CountEnemiesPerSector(Tsukino::ECS::Registry& registry, const hlslpp::float3& playerPosition) const;
+
+        //-------------------------------------------------------------
+        //! @brief  囲み半径の外に取り残された、本Systemが湧かせた雑魚を遠い順に集める関数
+        //! @param  registry       [in] エンティティレジストリ
+        //! @param  playerPosition [in] プレイヤーの現在位置
+        //! @return 取り残された個体（遠い順）
+        //! @note   エリートは告知済みなので黙って消さない（kDespawnRadiusの間引きだけに任せる）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        std::vector<Tsukino::ECS::Entity> CollectStragglers(Tsukino::ECS::Registry& registry, const hlslpp::float3& playerPosition) const;
 
         //-------------------------------------------------------------
         //! @brief 遠くへ離れた、本Systemが湧かせた個体を間引く関数
@@ -68,6 +98,32 @@ namespace CombatAndroid::ECS {
         //!        持たないため対象にならない
         //-------------------------------------------------------------
         void CullDistantEnemies(Tsukino::ECS::Registry& registry, const hlslpp::float3& playerPosition);
+
+        //-------------------------------------------------------------
+        //! @brief 本Systemが湧かせた敵1体を、HPバー・持ち武器ごと破棄予約する関数
+        //! @param registry [in] エンティティレジストリ
+        //! @param entity   [in] 破棄する敵
+        //-------------------------------------------------------------
+        static void DespawnSpawnedEnemy(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity);
+
+        //-------------------------------------------------------------
+        //! @brief 湧いたばかりの敵を、霧の中から浮かび上がるようにフェードインさせる関数
+        //! @param registry       [in] エンティティレジストリ
+        //! @param playerPosition [in] プレイヤーの現在位置
+        //! @param deltaTime      [in] デルタタイム
+        //! @note  霧はノイズで濃淡が揺れるため、湧き半径でも薄い所ではシルエットが透ける。
+        //!        そのまま出すとパッと生成されたように見える
+        //-------------------------------------------------------------
+        void UpdateSpawnFadeIn(Tsukino::ECS::Registry& registry, const hlslpp::float3& playerPosition, float deltaTime);
+
+        //-------------------------------------------------------------
+        //! @brief 敵本体と持っている武器の不透明度をまとめて書く関数
+        //! @param registry [in] エンティティレジストリ
+        //! @param entity   [in] 敵
+        //! @param opacity  [in] 不透明度（0〜1）
+        //! @note  本体だけ消すと武器が宙に浮いて見えるので、Paladinの武器にも同じ値を書く
+        //-------------------------------------------------------------
+        static void ApplyEnemyOpacity(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float opacity);
 
         //-------------------------------------------------------------
         //! @brief 生存中（死亡演出中を除く）の敵の総数を数える関数
@@ -90,17 +146,30 @@ namespace CombatAndroid::ECS {
         //---------------------------------------------------------
         // 湧き位置
         //---------------------------------------------------------
-        //! 湧き半径の内側。距離フォグ・高さフォグを合わせた不透明度で、
-        //! この距離ならシルエットがほぼ見えなくなる想定値
-        static constexpr float kSpawnRadiusMin = 900.0f;
+        //! 湧き半径の内側。Combatの霧（Fog/FogComponent.json：開始600・density 0.0035）で
+        //! 約88%隠れる距離。霧の設定を変えたらここも見直すこと
+        static constexpr float kSpawnRadiusMin = 1200.0f;
 
-        //! 湧き半径の外側。SmallZombie(moveSpeed=100)基準で到達まで約13秒。
+        //! 湧き半径の外側（霧で約96%隠れる）。SmallZombie(moveSpeed=100)基準で到達まで約15秒。
         //! これ以上遠くすると湧いた敵が戦闘に絡むまでの待ち時間が間延びする
-        static constexpr float kSpawnRadiusMax = 1300.0f;
+        static constexpr float kSpawnRadiusMax = 1500.0f;
 
         //! 間引き半径。湧き外周より十分外に置く。近すぎると、湧いた直後に
         //! プレイヤーがほんの少し逆走しただけで即座に消えて湧き直しが延々と続く
         static constexpr float kDespawnRadius = 2400.0f;
+
+        //! 囲み半径。これより内側の敵を「プレイヤーを囲んでいる」とみなして方角ごとに数える。
+        //! 外側の雑魚は霧の奥に取り残された個体として、上限に達しているときに湧きと入れ替える。
+        //! 湧き外周（kSpawnRadiusMax）より外なので、入れ替えで消える瞬間は霧の中で見えない。
+        //! これが無いと、一方向へ逃げたときに背後へ置き去りにした敵が上限を埋め、行く手に何も湧かなくなる
+        static constexpr float kSurroundRadius = 1700.0f;
+
+        //! 湧いてから不透明になりきるまでの秒数
+        static constexpr float kFadeInSeconds = 2.5f;
+
+        //! この距離まで近づいたら、経過時間に関係なく不透明にしきる。
+        //! 湧いた敵へ向かって走ると（接近速度 約400/秒）時間だけでは目の前で半透明のままになるため
+        static constexpr float kFadeInOpaqueDistance = 800.0f;
 
         //! 地面（±5000の板）から落とさないための実効境界。
         //! 端に余白を取るのは、境界ちょうどに湧くとカプセルが床の縁からはみ出すため
@@ -109,8 +178,9 @@ namespace CombatAndroid::ECS {
         //! 生成時の浮かせ量。EnemyStressTestSystem::kSpawnHeightと同値
         static constexpr float kSpawnHeight = 20.0f;
 
-        //! 角度の引き直し回数。地面外へ出た場合に別の方角を試す
-        static constexpr int kSpawnAttemptCount = 8;
+        //! 扇形1つあたりの引き直し回数。地面外へ出た場合に同じ扇形の中で引き直し、
+        //! それでも外れたら次に敵の少ない扇形を試す
+        static constexpr int kSpawnAttemptCount = 3;
 
         //! 湧かせる敵に与える索敵距離。湧き半径より十分大きくないとBTのMoveToPlayerが
         //! Failureを返し、その場で足踏みしたまま近づいてこない
