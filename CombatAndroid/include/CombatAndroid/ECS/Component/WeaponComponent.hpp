@@ -94,6 +94,15 @@ namespace CombatAndroid::ECS {
                                                      //!< PlayerSystemが武器切り替え時に更新する
         float floatSelectedHeightBoost = 40.0f;    //!< floatSelected中に追加で浮かせる高さ
 
+        //-------------------------------------------------------------
+        // 選択中の武器を大きさ・不透明度・回転でも見分けさせるための状態（プレイヤーの武器だけ。
+        // CombatSystemが毎フレーム更新する。倍率などの調整値は Assets/Tables/Systems/Combat.json）
+        //-------------------------------------------------------------
+        float          floatSelectBlend  = 0.0f;                                //!< 0=非選択の見た目〜1=選択中の見た目。floatSelectedへ向けて連続的に寄せる
+        float          floatSpinAngle    = 0.0f;                                //!< 選択中に縦軸で回している角度（ラジアン）
+        hlslpp::float3 floatBaseScale    = hlslpp::float3(1.0f, 1.0f, 1.0f);    //!< 倍率を掛ける前の元のスケール（初回に1度だけ記録する）
+        bool           hasFloatBaseScale = false;                               //!< floatBaseScaleを記録済みか
+
         float damage           = 20.0f;    //!< 命中時に与える基礎ダメージ
         float damageMultiplier = 1.0f;     //!< 実ダメージ = damage * damageMultiplier。連撃の段ごとにPlayerAnimationSystemが書き換える
                                              //!< （AttackStep::damageMultiplier）。ノックバック閾値の判定もこの実ダメージで行う

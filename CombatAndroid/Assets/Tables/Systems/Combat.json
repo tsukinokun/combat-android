@@ -2,6 +2,11 @@
     "Combat": {
         "playerHitStopDuration": 0.2,
         "playerHitStopScale": 0.15,
-        "followSpringResetDistance": 1500.0
+        "followSpringResetDistance": 1500.0,
+        "selectedWeaponScale": 1.15,
+        "unselectedWeaponScale": 0.8,
+        "unselectedWeaponOpacity": 0.45,
+        "selectedWeaponSpinSpeed": 1.2,
+        "weaponSelectBlendSpeed": 10.0
     }
 }

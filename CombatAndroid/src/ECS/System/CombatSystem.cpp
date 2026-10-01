@@ -70,6 +70,18 @@ namespace CombatAndroid::ECS {
             // 通常の移動で開く追従の遅れ（速くても100ユニット程度）とは桁が違う値にしてある
             //-------------------------------------------------------------
             float followSpringResetDistance = 1500.0f;
+
+            //-------------------------------------------------------------
+            // プレイヤーが浮かせている武器のうち、選択中の1本を見分けやすくする演出。
+            // 高さの差（WeaponComponent::floatSelectedHeightBoost）だけでは分かりにくいため、
+            // 大きさ・不透明度・回転でも差をつける。リム発光は進化・レベルアップ・拾える武器で
+            // 使っているので、ここでは使わない
+            //-------------------------------------------------------------
+            float selectedWeaponScale     = 1.15f;    //!< 選択中の武器の大きさの倍率
+            float unselectedWeaponScale   = 0.8f;     //!< 非選択の武器の大きさの倍率
+            float unselectedWeaponOpacity = 0.45f;    //!< 非選択の武器の不透明度（選択中は1）
+            float selectedWeaponSpinSpeed = 1.2f;     //!< 選択中の武器が縦軸で回る速さ（rad/秒）
+            float weaponSelectBlendSpeed  = 10.0f;    //!< 選択の切り替えで見た目が入れ替わる速さ（大きいほど素早い）
         };
 
         template <class Archive>
@@ -77,6 +89,11 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "playerHitStopDuration", params.playerHitStopDuration);
             LoadField(archive, "playerHitStopScale", params.playerHitStopScale);
             LoadField(archive, "followSpringResetDistance", params.followSpringResetDistance);
+            LoadField(archive, "selectedWeaponScale", params.selectedWeaponScale);
+            LoadField(archive, "unselectedWeaponScale", params.unselectedWeaponScale);
+            LoadField(archive, "unselectedWeaponOpacity", params.unselectedWeaponOpacity);
+            LoadField(archive, "selectedWeaponSpinSpeed", params.selectedWeaponSpinSpeed);
+            LoadField(archive, "weaponSelectBlendSpeed", params.weaponSelectBlendSpeed);
         }
 
         //-------------------------------------------------------------
@@ -406,6 +423,54 @@ namespace CombatAndroid::ECS {
                     float               swayX = std::sin(weapon.floatTime * weapon.floatSwaySpeed) * weapon.floatSwayAngle;
                     float               swayZ = std::cos(weapon.floatTime * weapon.floatSwaySpeed * 0.8f) * weapon.floatSwayAngle;
                     hlslpp::quaternion localSway    = hlslpp::mul(hlslpp::quaternion::rotation_x(swayX), hlslpp::quaternion::rotation_z(swayZ));
+
+                    //-------------------------------------------------
+                    // 選択中の武器の見分け（プレイヤーの武器だけ）。
+                    // 大きさ・不透明度・回転の3つを、floatSelectedへ向けて連続的に寄せる
+                    // floatSelectBlend で補間し、切り替えの瞬間にパッと入れ替わらないようにする。
+                    // エリートPaladinの浮遊武器もfloatSelectedを使うが、敵の武器の不透明度は
+                    // 別の処理が書くことがあるので取り合わないよう対象外にする（高さの差は残る）
+                    //-------------------------------------------------
+                    const bool isPlayerWeapon = registry.HasComponent<PlayerComponent>(weapon.owner);
+                    if(isPlayerWeapon) {
+                        const float selectTarget = weapon.floatSelected ? 1.0f : 0.0f;
+                        weapon.floatSelectBlend += (selectTarget - weapon.floatSelectBlend) * (1.0f - std::exp(-params.weaponSelectBlendSpeed * deltaTime));
+
+                        // 回転：選択中だけ縦軸で回す。非選択に戻ったら、一番近い1回転の区切り
+                        // （＝正面向き）へ寄せて止める。途中の角度で止めると向きがばらばらに見える
+                        constexpr float kTwoPi = 6.28318531f;
+                        if(weapon.floatSelected) {
+                            weapon.floatSpinAngle = std::fmod(weapon.floatSpinAngle + params.selectedWeaponSpinSpeed * deltaTime, kTwoPi);
+                        } else {
+                            const float rest = std::round(weapon.floatSpinAngle / kTwoPi) * kTwoPi;
+                            weapon.floatSpinAngle += (rest - weapon.floatSpinAngle) * (1.0f - std::exp(-params.weaponSelectBlendSpeed * deltaTime));
+                        }
+
+                        // 回転は揺れより内側（武器自身の縦軸）に掛ける。浮遊姿勢側に入れるので、
+                        // 攻撃中は下のattackBlendのslerpで手ボーンの姿勢へ自然に置き換わる
+                        localSway = hlslpp::mul(localSway, hlslpp::quaternion::rotation_y(weapon.floatSpinAngle));
+
+                        // 大きさ：基準のスケールを最初に1度だけ覚えておき、倍率を掛ける。
+                        // 攻撃中はattackBlendで元の大きさへ戻す。振っている武器の見た目を
+                        // 当たり判定（range。スケールの影響を受けない）と一致させるため
+                        if(!weapon.hasFloatBaseScale) {
+                            weapon.floatBaseScale    = transform.scale;
+                            weapon.hasFloatBaseScale = true;
+                        }
+                        const float floatScale = params.unselectedWeaponScale
+                                                 + (params.selectedWeaponScale - params.unselectedWeaponScale) * weapon.floatSelectBlend;
+                        const float scale      = floatScale + (1.0f - floatScale) * weapon.attackBlend;
+                        transform.scale        = weapon.floatBaseScale * scale;
+
+                        // 不透明度：非選択を薄くして後ろへ引かせる。visibleには触らない
+                        // （PickupSystemの吸収演出がvisible=falseで消すため）。
+                        // RimGlowは不透明度と独立なので、進化武器の金色のふちは薄くても光る
+                        if(auto* model = registry.try_get<Tsukino::BuiltIn::ECS::ModelComponent>(entity)) {
+                            model->opacity = params.unselectedWeaponOpacity
+                                             + (1.0f - params.unselectedWeaponOpacity) * weapon.floatSelectBlend;
+                        }
+                    }
+
                     hlslpp::quaternion floatRotation = hlslpp::mul(ownerTransform.rotation, localSway);
 
                     // attackBlendが1に近いほどボーン追従の姿勢（targetRotation）、0に近いほど浮遊姿勢へ
