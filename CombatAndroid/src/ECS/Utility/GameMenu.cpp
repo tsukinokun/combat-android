@@ -7,6 +7,8 @@
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
+#include <Tsukino/BuiltIn/ECS/Component/PointerTargetComponent.hpp>
+
 #include <Tsukino/Core/Input/InputSystem.hpp>
 
 #include <algorithm>
@@ -35,6 +37,10 @@ namespace CombatAndroid::ECS {
         constexpr int kHighlightLayer = 0;
         constexpr int kItemLayer      = 10;
         constexpr int kPromptLayer    = 20;
+        constexpr int kHitLayer       = 25;    //!< マウスの当たり判定。最前面のスプライトにしか反応しないので一番手前に置く
+
+        //! 当たり判定の矩形の色。見えないよう完全に透明にする（スケールは寸法として当たり判定に使われる）
+        const hlslpp::float4 kHitRectColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f);
 
         //-------------------------------------------------------------
         //! @brief  キーキャップのプロンプトを1つ作る
@@ -68,6 +74,9 @@ namespace CombatAndroid::ECS {
         for(Tsukino::ECS::Entity& item : widget.itemEntities)
             item = CreateUiTextEntity(registry, sortOrderBase + kItemLayer, UiTextAlign::Center);
 
+        for(Tsukino::ECS::Entity& hit : widget.hitEntities)
+            hit = CreatePointerHitRect(registry, context, sortOrderBase + kHitLayer);
+
         widget.upPrompt      = CreateKeyPrompt(registry, context, L"W", PromptChevron::Up, sortOrderBase + kPromptLayer);
         widget.downPrompt    = CreateKeyPrompt(registry, context, L"S", PromptChevron::Down, sortOrderBase + kPromptLayer);
         widget.confirmPrompt = CreateKeyPrompt(registry, context, L"F", PromptChevron::Right, sortOrderBase + kPromptLayer);
@@ -92,12 +101,16 @@ namespace CombatAndroid::ECS {
         for(int i = 0; i < kGameMenuMaxItems; ++i) {
             if(i >= count) {
                 HideUiText(registry, widget.itemEntities[i]);
+                HideUiSprite(registry, widget.hitEntities[i]);
                 continue;
             }
 
             const float itemY = topY + kItemPitch * static_cast<float>(i);
             PlaceUiText(registry, widget.itemEntities[i], centerX, itemY, kItemFontScale, labels[i],
                         (i == cursor) ? kSelectedTextColor : kItemTextColor);
+
+            // マウスの当たり判定は強調帯の幅×1段の送り。上下の行と隙間なく接するので、行の間で途切れない
+            StretchSprite(registry, context, widget.hitEntities[i], centerX, itemY, highlightWidth, kItemPitch, kHitRectColor);
         }
 
         const float cursorY = topY + kItemPitch * static_cast<float>(cursor);
@@ -132,6 +145,10 @@ namespace CombatAndroid::ECS {
 
         for(Tsukino::ECS::Entity item : widget.itemEntities)
             HideUiText(registry, item);
+
+        // 隠したメニューがマウスに反応しないよう、当たり判定も面積ゼロにする
+        for(Tsukino::ECS::Entity hit : widget.hitEntities)
+            HideUiSprite(registry, hit);
 
         HideInputPrompt(registry, widget.upPrompt);
         HideInputPrompt(registry, widget.downPrompt);
@@ -175,5 +192,52 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     bool IsGameMenuConfirmPressed(const Tsukino::Input::InputSystem& input) {
         return input.IsKeyPressed(Tsukino::Input::KeyCode::F) || input.IsKeyPressed(Tsukino::Input::KeyCode::Enter);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief このフレームのマウス操作を読む
+    //-------------------------------------------------------------
+    GameMenuPointer ReadGameMenuPointer(Tsukino::ECS::Registry& registry, const Tsukino::Input::InputSystem& input,
+                                        const GameMenuWidget& widget) {
+        return ReadPointerOverRows(registry, input, widget.hitEntities);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief マウスの当たり判定に使う透明な矩形を、非表示で作る
+    //-------------------------------------------------------------
+    Tsukino::ECS::Entity CreatePointerHitRect(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                              int sortOrder) {
+        Tsukino::ECS::Entity entity = CreateUiRectEntity(registry, context, sortOrder);
+        registry.AddComponent<Tsukino::BuiltIn::ECS::PointerTargetComponent>(entity);
+        return entity;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 当たり判定の矩形の並びに対するマウス操作を読む
+    //-------------------------------------------------------------
+    GameMenuPointer ReadPointerOverRows(Tsukino::ECS::Registry& registry, const Tsukino::Input::InputSystem& input,
+                                        std::span<const Tsukino::ECS::Entity> rows) {
+        GameMenuPointer pointer;
+
+        for(int i = 0; i < static_cast<int>(rows.size()); ++i) {
+            const auto* target = registry.try_get<Tsukino::BuiltIn::ECS::PointerTargetComponent>(rows[static_cast<size_t>(i)]);
+            if(!target || !target->hovered)
+                continue;
+
+            //-------------------------------------------------------------
+            // 選択を合わせるのは、マウスが動いたかクリックしたフレームだけ。
+            // 止まっているマウスの下の行で毎フレーム上書きすると、W/Sで選んでもすぐ戻されてしまう。
+            // メニューを開いた瞬間に、たまたまカーソルがあった行が選ばれることも防げる
+            //-------------------------------------------------------------
+            Tsukino::i32 deltaX = 0, deltaY = 0;
+            input.GetMouseDelta(&deltaX, &deltaY);
+            if(deltaX != 0 || deltaY != 0 || target->clicked)
+                pointer.hoverIndex = i;
+
+            pointer.clicked = target->clicked;
+            break;    // InteractionSystemは最前面の1つにしか立てない
+        }
+
+        return pointer;
     }
 }    // namespace CombatAndroid::ECS

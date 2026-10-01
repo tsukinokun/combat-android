@@ -144,7 +144,7 @@ namespace CombatAndroid::ECS {
             StretchSprite(registry, context, options.panelEntity, screenCenterX, screenCenterY, kPanelWidth, kPanelHeight, kPanelColor);
             PlaceUiText(registry, options.headerEntity, screenCenterX, screenCenterY + kHeaderOffsetY, kHeaderFontScale, L"オプション", kHeaderColor);
             PlaceUiText(registry, options.hintEntity, screenCenterX, screenCenterY + kHintOffsetY, kHintFontScale,
-                        L"W / S：項目を選ぶ　　A / D：値を変える　　Esc：もどる", kHintColor);
+                        L"W / S・マウス：項目を選ぶ　　A / D：値を変える　　Esc：もどる", kHintColor);
 
             std::array<std::wstring, static_cast<size_t>(OptionsItem::Count)> labels;
             for(int i = 0; i < static_cast<int>(OptionsItem::Count); ++i)
@@ -232,29 +232,37 @@ namespace CombatAndroid::ECS {
             return false;
         }
 
-        const Tsukino::Input::InputSystem& input = *context.inputSystem;
-        const OptionsItem                  item  = static_cast<OptionsItem>(options.cursorIndex);
+        const Tsukino::Input::InputSystem& input   = *context.inputSystem;
+        const GameMenuPointer              pointer = ReadGameMenuPointer(registry, input, options.menu);
 
         //-------------------------------------------------------------
-        // 項目の移動
+        // 項目の移動。マウスが乗った項目があればそちらへ合わせる。
+        // キーで動かしたフレームはそこで終える（従来どおり）。クリックした項目は、
+        // 移った上でそのまま下の決定（画面揺れの切り替え・もどる）まで進める
         //-------------------------------------------------------------
         const int step = ReadGameMenuStep(input);
-        if(step != 0) {
-            const int nextIndex = std::clamp(options.cursorIndex + step, 0, static_cast<int>(OptionsItem::Count) - 1);
-            if(nextIndex != options.cursorIndex) {
+        if(step != 0 || pointer.hoverIndex >= 0) {
+            const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                          : std::clamp(options.cursorIndex + step, 0, static_cast<int>(OptionsItem::Count) - 1);
+            const bool movedCursor = nextIndex != options.cursorIndex;
+            if(movedCursor) {
                 options.cursorIndex = nextIndex;
                 PlaySound(registry, SoundId::MenuMove);
                 RefreshUi(registry, context, options);
             }
-            return false;
+            if(step != 0 || (movedCursor && !pointer.clicked))
+                return false;
         }
+
+        const OptionsItem item      = static_cast<OptionsItem>(options.cursorIndex);
+        const bool        confirmed = IsGameMenuConfirmPressed(input) || pointer.clicked;
 
         //-------------------------------------------------------------
         // 値の変更。画面揺れはFでも切り替えられるようにする（ON/OFFは決定で押したくなるため）。
         // 変えた直後の効果音は新しい音量で鳴るので、効果音の音量はその場で確かめられる
         //-------------------------------------------------------------
         int valueStep = ReadGameMenuValueStep(input);
-        if(valueStep == 0 && item == OptionsItem::ScreenShake && IsGameMenuConfirmPressed(input))
+        if(valueStep == 0 && item == OptionsItem::ScreenShake && confirmed)
             valueStep = 1;
 
         if(valueStep != 0) {
@@ -270,7 +278,7 @@ namespace CombatAndroid::ECS {
         // 閉じる：「もどる」の決定かEsc。変えていれば保存し、BGMの音量が変わっていれば鳴らし直す
         //-------------------------------------------------------------
         const bool closeByEscape  = input.IsKeyPressed(Tsukino::Input::KeyCode::Escape);
-        const bool closeByConfirm = item == OptionsItem::Back && IsGameMenuConfirmPressed(input);
+        const bool closeByConfirm = item == OptionsItem::Back && confirmed;
         if(!closeByEscape && !closeByConfirm)
             return false;
 

@@ -19,6 +19,7 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::Entity panelEntity = entt::null;    //!< 背景パネル（Sprite）
         Tsukino::ECS::Entity nameEntity  = entt::null;    //!< スキル名（Font）
         Tsukino::ECS::Entity descEntity  = entt::null;    //!< 効果の説明文（Font）
+        Tsukino::ECS::Entity hitEntity   = entt::null;    //!< マウスの当たり判定（透明な矩形＋PointerTargetComponent）
     };
 
     //-------------------------------------------------------------

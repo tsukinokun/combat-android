@@ -33,6 +33,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/EffectSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FontRendererSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/InteractionSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/ModelSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
@@ -74,6 +75,8 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         using CombatAndroid::ECS::SystemPriority;
 
+        // マウスの重なり・クリックは、それを読むTitleMenuSystemより先に書いておく
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::InteractionSystem>(), (int)SystemPriority::PointerInput);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::Transform);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleStageSystem>(), (int)SystemPriority::Gameplay);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleMenuSystem>(), (int)SystemPriority::PlayerHud);

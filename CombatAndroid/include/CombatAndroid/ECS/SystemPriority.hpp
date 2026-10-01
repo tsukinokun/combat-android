@@ -9,7 +9,11 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     enum class SystemPriority : int {
-        RunClock = -5,                // 走行の経過時間と危険度ランクを進める。全システムの先頭に置く。
+        PointerInput = -6,            // マウスの重なり・クリックをPointerTargetComponentへ書く（エンジンのInteractionSystem）。
+                                      // メニュー（SkillSelect/PauseMenu/TitleMenu/RunResult）が同じフレームで結果を読むため、
+                                      // それらより前に置く。さらにUIを動かす処理・TransformSystemより前なので、
+                                      // 判定は前フレームに描いた＝画面に見えている配置で行われる
+        RunClock = -5,              // 走行の経過時間と危険度ランクを進める。全システムの先頭に置く。
                                       // EnemySpawnが同じフレームでこの危険度を読んで敵を強化し、
                                       // PlayerHudが同じ値を表示するため、ここが最初に進んでいないと
                                       // 「画面に出ている危険度」と「実際に湧いた敵の危険度」が1フレームずれる

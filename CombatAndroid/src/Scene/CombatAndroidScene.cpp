@@ -42,6 +42,7 @@
 #include <CombatAndroid/ECS/Utility/Bgm.hpp>
 #include <CombatAndroid/ECS/System/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
+#include <CombatAndroid/ECS/Utility/GameMenu.hpp>
 
 #include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
@@ -542,6 +543,10 @@ namespace CombatAndroid {
                 card.panelEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectCard);
                 card.nameEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 3.0f);
                 card.descEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 2.0f);
+
+                // マウスで選ぶための透明な当たり判定。マウスは最前面のスプライトにしか反応しないので、
+                // カードの文字より手前の層に置く
+                card.hitEntity = CombatAndroid::ECS::CreatePointerHitRect(registry, *context, CombatAndroid::UI::kSkillSelectHit);
             }
         }
 

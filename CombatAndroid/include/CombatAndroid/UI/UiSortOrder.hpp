@@ -62,6 +62,7 @@ namespace CombatAndroid::UI {
     constexpr int kSkillSelectHighlight = 410;    //!< 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
     constexpr int kSkillSelectCard      = 420;    //!< カードの背景パネル
     constexpr int kSkillSelectText      = 430;    //!< タイトル・スキル名・説明文
+    constexpr int kSkillSelectHit       = 435;    //!< カードのマウス当たり判定（透明）。マウスは最前面にしか反応しないのでカードの一番手前
 
     //! モーダルの上に重ねる操作プロンプト。カード(420)・説明文(430)より手前に置かないと
     //! 暗転板ではなくカード自身の下に沈む。kInputPromptBaseと同じく+4までの5層を使う
@@ -72,13 +73,13 @@ namespace CombatAndroid::UI {
     //! リザルトが暗転板の下に沈んで「操作が効かないのに理由が分からない」状態にならないようにする
     constexpr int kRunResultBackdrop = 500;    //!< 画面全体の暗転板
     constexpr int kRunResultText     = 510;    //!< 見出し・成績・ベスト記録
-    constexpr int kRunResultMenuBase = 520;    //!< リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kRunResultMenuBase = 520;    //!< リトライ／タイトルへ（GameMenuWidgetが+0〜+25を使う）
 
     //! モーダル：ポーズ。走行中にしか開けないのでリザルトとは重ならないが、
     //! 念のため全てのモーダルより手前に置く
     constexpr int kPauseBackdrop = 600;    //!< 画面全体の暗転板
     constexpr int kPauseText     = 610;    //!< 「PAUSE」の見出し
-    constexpr int kPauseMenuBase = 620;    //!< 再開／オプション／リトライ／タイトルへ（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kPauseMenuBase = 620;    //!< 再開／オプション／リトライ／タイトルへ（GameMenuWidgetが+0〜+25を使う）
     constexpr int kPauseOptionsBase = 700;    //!< ポーズから開くオプション画面（OptionsMenuが+0〜+44を使う）。ポーズの暗転板より手前
 
     //! カットシーン（CutsceneSystem）の演出。ポーズのオプション画面(700〜744)より手前、
@@ -89,7 +90,7 @@ namespace CombatAndroid::UI {
     //! タイトル画面（TitleScene。戦闘シーンとは別のシーンなので上の帯とは衝突しない）
     constexpr int kTitleBackdrop      = 100;    //!< 背景の板
     constexpr int kTitleText          = 110;    //!< タイトル・副題・ベスト記録
-    constexpr int kTitleMenuBase      = 120;    //!< はじめる／操作説明／終了（GameMenuWidgetが+0〜+24を使う）
+    constexpr int kTitleMenuBase      = 120;    //!< はじめる／操作説明／終了（GameMenuWidgetが+0〜+25を使う）
     constexpr int kTitleControlsPanel = 200;    //!< 操作説明の板
     constexpr int kTitleControlsText  = 210;    //!< 操作説明の文字
     constexpr int kTitleControlsMenuBase = 220;    //!< 操作説明の「もどる」

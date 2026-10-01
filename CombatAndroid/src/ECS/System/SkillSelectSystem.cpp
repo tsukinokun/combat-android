@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
 #include <CombatAndroid/ECS/Event/SoundEvent.hpp>
 #include <CombatAndroid/ECS/System/RunResultSystem.hpp>
+#include <CombatAndroid/ECS/Utility/GameMenu.hpp>
 #include <CombatAndroid/ECS/Utility/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
@@ -273,6 +274,7 @@ namespace CombatAndroid::ECS {
                     HideEntity(registry, card.panelEntity);
                     HideEntity(registry, card.nameEntity);
                     HideEntity(registry, card.descEntity);
+                    HideEntity(registry, card.hitEntity);
                     continue;
                 }
 
@@ -297,6 +299,10 @@ namespace CombatAndroid::ECS {
                     hlslpp::float4(entry.panelColor.x, entry.panelColor.y, entry.panelColor.z, panelAlpha);
 
                 StretchSprite(registry, context, card.panelEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight, panelColor);
+
+                // マウスの当たり判定はカードと同じ矩形。透明なので見た目には出ない
+                StretchSprite(registry, context, card.hitEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight,
+                              hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
 
                 //-------------------------------------------------------------
                 // 文言。levelは取得済みの段階数なので、今回取ると level+1 段階目になる
@@ -335,6 +341,7 @@ namespace CombatAndroid::ECS {
                 HideEntity(registry, card.panelEntity);
                 HideEntity(registry, card.nameEntity);
                 HideEntity(registry, card.descEntity);
+                HideEntity(registry, card.hitEntity);    // 閉じている間はマウスに反応させない
             }
         }
     }    // namespace
@@ -468,8 +475,20 @@ namespace CombatAndroid::ECS {
             else if(wheelDelta < 0.0f)
                 ++step;
 
-            if(step != 0) {
-                const int nextIndex = std::clamp(select.cursorIndex + step, 0, select.candidateCount - 1);
+            //-------------------------------------------------------------
+            // マウス。カードに乗せたらそのカードへ合わせ、クリックで決定する。
+            // 開いた最初のフレームは上（openedThisFrame）で捨てており、クリックは押した瞬間しか
+            // 立たないので、戦闘中に押していた攻撃のクリックで勝手に選ばれることはない
+            //-------------------------------------------------------------
+            std::array<Tsukino::ECS::Entity, kSkillChoiceMax> cardHits{};
+            for(int i = 0; i < kSkillChoiceMax; ++i)
+                cardHits[static_cast<size_t>(i)] = select.cards[static_cast<size_t>(i)].hitEntity;
+            const GameMenuPointer pointer =
+                ReadPointerOverRows(registry, *ctx->inputSystem, std::span<const Tsukino::ECS::Entity>(cardHits.data(), select.candidateCount));
+
+            if(step != 0 || pointer.hoverIndex >= 0) {
+                const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                              : std::clamp(select.cursorIndex + step, 0, select.candidateCount - 1);
                 if(nextIndex != select.cursorIndex) {
                     select.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
@@ -482,7 +501,7 @@ namespace CombatAndroid::ECS {
             // pendingLevelUpsがまだ残っていれば次のフレームで2回目のメニューが開く
             //（IsSkillSelectActiveはpendingLevelUpsも見ているので停止は続いたまま）
             //-------------------------------------------------------------
-            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F)) {
+            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F) || pointer.clicked) {
                 const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];

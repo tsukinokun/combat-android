@@ -75,6 +75,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/InteractionSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/AmbientParticleSystem.hpp>
 #include <CombatAndroid/ECS/System/GrassFieldSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionBlurSystem.hpp>
@@ -103,6 +104,9 @@ namespace CombatAndroid {
         // モーションブラー用の前フレーム退避は、TransformSystem/AnimationSystemが
         // 今フレームの値で上書きする前に読む必要があるので最初に登録する
         //
+        // マウスの重なり・クリックは、それを読むメニュー（スキル選択・ポーズ・リザルト）より先に書いておく
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::InteractionSystem>(), (int)ECS::SystemPriority::PointerInput);
+
         // 走行の経過時間と危険度ランクは、それらを読む湧き潰しより先に進めておく
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::RunClockSystem>(), (int)ECS::SystemPriority::RunClock);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySpawnDirectorSystem>(), (int)ECS::SystemPriority::EnemySpawn);

@@ -343,7 +343,8 @@ namespace CombatAndroid::ECS {
             // 操作説明：決定かEscでタイトルのメニューへ戻る
             //-------------------------------------------------------------
             if(title.showingControls) {
-                if(IsGameMenuConfirmPressed(input) || input.IsKeyPressed(Tsukino::Input::KeyCode::Escape)) {
+                const bool clicked = ReadGameMenuPointer(registry, input, title.controlsMenu).clicked;
+                if(IsGameMenuConfirmPressed(input) || clicked || input.IsKeyPressed(Tsukino::Input::KeyCode::Escape)) {
                     PlaySound(registry, SoundId::MenuConfirm);
                     title.showingControls  = false;
                     title.changedThisFrame = true;
@@ -351,9 +352,12 @@ namespace CombatAndroid::ECS {
                 continue;
             }
 
-            const int step = ReadGameMenuStep(input);
-            if(step != 0) {
-                const int nextIndex = std::clamp(title.cursorIndex + step, 0, static_cast<int>(TitleMenuItem::Count) - 1);
+            const int             step    = ReadGameMenuStep(input);
+            const GameMenuPointer pointer = ReadGameMenuPointer(registry, input, title.menu);
+            if(step != 0 || pointer.hoverIndex >= 0) {
+                // マウスが乗った選択肢があればそちらへ合わせる
+                const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                              : std::clamp(title.cursorIndex + step, 0, static_cast<int>(TitleMenuItem::Count) - 1);
                 if(nextIndex != title.cursorIndex) {
                     title.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
@@ -361,7 +365,7 @@ namespace CombatAndroid::ECS {
                 }
             }
 
-            if(!IsGameMenuConfirmPressed(input))
+            if(!IsGameMenuConfirmPressed(input) && !pointer.clicked)
                 continue;
 
             PlaySound(registry, SoundId::MenuConfirm);

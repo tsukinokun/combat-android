@@ -429,9 +429,12 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             const Tsukino::Input::InputSystem& input = *ctx->inputSystem;
 
-            const int step = ReadGameMenuStep(input);
-            if(step != 0) {
-                const int nextIndex = std::clamp(result.cursorIndex + step, 0, static_cast<int>(ResultMenuItem::Count) - 1);
+            const int             step    = ReadGameMenuStep(input);
+            const GameMenuPointer pointer = ReadGameMenuPointer(registry, input, result.menu);
+            if(step != 0 || pointer.hoverIndex >= 0) {
+                // マウスが乗った選択肢があればそちらへ合わせる
+                const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                              : std::clamp(result.cursorIndex + step, 0, static_cast<int>(ResultMenuItem::Count) - 1);
                 if(nextIndex != result.cursorIndex) {
                     result.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
@@ -441,7 +444,8 @@ namespace CombatAndroid::ECS {
             }
 
             // 暗転が始まったら、もう選択は受け付けない（連打で二重に切り替えないため）
-            if(!IsGameMenuConfirmPressed(input) || !ctx->gameSceneManager || IsScreenFadingOut(registry))
+            const bool confirmed = IsGameMenuConfirmPressed(input) || pointer.clicked;
+            if(!confirmed || !ctx->gameSceneManager || IsScreenFadingOut(registry))
                 continue;
 
             PlaySound(registry, SoundId::MenuConfirm);

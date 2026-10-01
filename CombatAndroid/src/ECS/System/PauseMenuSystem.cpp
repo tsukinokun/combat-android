@@ -205,9 +205,12 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             // カーソル移動と決定。Escをもう一度押しても再開する
             //-------------------------------------------------------------
-            const int step = ReadGameMenuStep(input);
-            if(step != 0) {
-                const int nextIndex = std::clamp(pause.cursorIndex + step, 0, static_cast<int>(PauseMenuItem::Count) - 1);
+            const int             step    = ReadGameMenuStep(input);
+            const GameMenuPointer pointer = ReadGameMenuPointer(registry, input, pause.menu);
+            if(step != 0 || pointer.hoverIndex >= 0) {
+                // マウスが乗った選択肢があればそちらへ合わせる
+                const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                              : std::clamp(pause.cursorIndex + step, 0, static_cast<int>(PauseMenuItem::Count) - 1);
                 if(nextIndex != pause.cursorIndex) {
                     pause.cursorIndex = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
@@ -220,7 +223,7 @@ namespace CombatAndroid::ECS {
                 continue;
 
             const bool resumeByEscape = input.IsKeyPressed(Tsukino::Input::KeyCode::Escape);
-            if(!resumeByEscape && !IsGameMenuConfirmPressed(input))
+            if(!resumeByEscape && !IsGameMenuConfirmPressed(input) && !pointer.clicked)
                 continue;
 
             const PauseMenuItem selected = resumeByEscape ? PauseMenuItem::Resume : static_cast<PauseMenuItem>(pause.cursorIndex);

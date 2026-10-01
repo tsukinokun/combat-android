@@ -1,7 +1,7 @@
 //-------------------------------------------------------------
 //! @file    GameMenu.hpp
 //! @brief   縦に並んだ選択肢のメニュー（ポーズ・リザルト・タイトル共通）の宣言
-//! @note    スキル選択と同じ操作（W/Sで選ぶ・Fで決定）と見た目のキーキャップを、
+//! @note    スキル選択と同じ操作（W/Sで選ぶ・Fで決定、またはマウスを重ねて左クリック）と見た目のキーキャップを、
 //!          画面ごとに書き直さずに済むよう1つにまとめたもの。
 //!          選択肢の文字・強調帯・[W][S][F]のプロンプトだけを受け持ち、
 //!          暗転板や見出しは各画面が持つ
@@ -42,13 +42,23 @@ namespace CombatAndroid::ECS {
         InputPromptWidget                                     upPrompt;                        //!< [W] カーソル上
         InputPromptWidget                                     downPrompt;                      //!< [S] カーソル下
         InputPromptWidget                                     confirmPrompt;                   //!< [F] 決定
+        std::array<Tsukino::ECS::Entity, kGameMenuMaxItems>   hitEntities{};                   //!< 行ごとのマウス当たり判定（透明な矩形＋PointerTargetComponent）
+    };
+
+    //-------------------------------------------------------------
+    //! @struct GameMenuPointer
+    //! @brief  このフレームのマウスによるメニュー操作
+    //-------------------------------------------------------------
+    struct GameMenuPointer {
+        int  hoverIndex = -1;       //!< カーソルを合わせる選択肢（マウスが動いたかクリックしたフレームだけ。無ければ-1）
+        bool clicked    = false;    //!< 選択肢の上で左クリックした（＝決定）
     };
 
     //-------------------------------------------------------------
     //! @brief  メニューのエンティティ一式を非表示で作る
     //! @param  registry      [in] ECSレジストリ
     //! @param  context       [in] エンジンコンテキスト
-    //! @param  sortOrderBase [in] 重なり順の基準。帯=+0、文字=+10、プロンプト=+20〜+24を使う
+    //! @param  sortOrderBase [in] 重なり順の基準。帯=+0、文字=+10、プロンプト=+20〜+24、マウスの当たり判定=+25を使う
     //! @return 生成したエンティティ束
     //-------------------------------------------------------------
     [[nodiscard]]
@@ -103,5 +113,44 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     bool IsGameMenuConfirmPressed(const Tsukino::Input::InputSystem& input);
+
+    //-------------------------------------------------------------
+    //! @brief  このフレームのマウス操作を読む
+    //! @param  registry [in] ECSレジストリ
+    //! @param  input    [in] 入力
+    //! @param  widget   [in] 対象のメニュー
+    //! @return カーソルを合わせる選択肢と、クリックで決定したか
+    //! @note   重なりの判定はエンジンのInteractionSystemがPointerTargetComponentへ書いたものを読む。
+    //!         選択肢へカーソルを合わせるのは、マウスが動いたかクリックしたフレームだけ。
+    //!         止まっているマウスがW/Sの選択を毎フレーム上書きしないようにするため
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    GameMenuPointer ReadGameMenuPointer(Tsukino::ECS::Registry& registry, const Tsukino::Input::InputSystem& input,
+                                        const GameMenuWidget& widget);
+
+    //-------------------------------------------------------------
+    //! @brief  マウスの当たり判定に使う透明な矩形を、非表示で作る
+    //! @param  registry  [in] ECSレジストリ
+    //! @param  context   [in] エンジンコンテキスト
+    //! @param  sortOrder [in] 描画層。マウスは最前面のスプライトにだけ反応するので、
+    //!                   反応させたい見た目（帯・カード）より手前に置く
+    //! @return 作ったエンティティ（PointerTargetComponent付き）
+    //! @note   配置はStretchSpriteでアルファ0の色を渡して行い、隠すときはHideUiSprite
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    Tsukino::ECS::Entity CreatePointerHitRect(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                              int sortOrder);
+
+    //-------------------------------------------------------------
+    //! @brief  当たり判定の矩形の並び（上から順の選択肢）に対するマウス操作を読む
+    //! @param  registry [in] ECSレジストリ
+    //! @param  input    [in] 入力
+    //! @param  rows     [in] 選択肢ごとの当たり判定の矩形（CreatePointerHitRectで作ったもの）
+    //! @return カーソルを合わせる選択肢と、クリックで決定したか
+    //! @note   GameMenu以外の選択画面（スキル選択のカード）からも使う
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    GameMenuPointer ReadPointerOverRows(Tsukino::ECS::Registry& registry, const Tsukino::Input::InputSystem& input,
+                                        std::span<const Tsukino::ECS::Entity> rows);
 
 }    // namespace CombatAndroid::ECS
