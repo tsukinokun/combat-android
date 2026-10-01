@@ -108,25 +108,6 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<PlayerComponent, InputPromptHudComponent>();
         view.each([&](entt::entity playerEntity, PlayerComponent& player, InputPromptHudComponent& hud) {
             //-------------------------------------------------------------
-            // 拾う：範囲内に対象がいるときだけ、対象の頭上に [F] と上向き矢印と名前を出す。
-            // メニュー中はFが決定に取られる（PickupSystemも同じ理由で早期リターンしている）ので消す
-            //-------------------------------------------------------------
-            const bool canShowPickup = !gameplayFrozen && player.pickupTarget != entt::null
-                                       && registry.HasComponent<PickupComponent>(player.pickupTarget);
-
-            if(canShowPickup) {
-                const PickupComponent& pickup = registry.GetComponent<PickupComponent>(player.pickupTarget);
-
-                InputPromptStyle style;
-                style.caption = pickup.displayName;
-
-                ShowInputPromptAtWorld(registry, *ctx, hud.pickupPrompt, player.pickupTarget,
-                                       hlslpp::float3(0.0f, pickup.labelHeight, 0.0f), style);
-            } else {
-                HideInputPrompt(registry, hud.pickupPrompt);
-            }
-
-            //-------------------------------------------------------------
             // 溜め攻撃：溜め中だけ、プレイヤーの頭上にマウスの絵と長押しゲージを出す。
             // 進行度は「強制解放までの時間」に対する割合なので、ゲージが一周した瞬間に解放される
             //-------------------------------------------------------------

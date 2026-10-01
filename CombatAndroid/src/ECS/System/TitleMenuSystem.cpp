@@ -67,7 +67,7 @@ namespace CombatAndroid::ECS {
             L"左クリック（続けて押すと連撃）",
             L"左クリック長押し（バトルアックス）",
             L"Space",
-            L"F",
+            L"近づくだけ",
             L"マウスホイール",
             L"マウス",
             L"Esc",

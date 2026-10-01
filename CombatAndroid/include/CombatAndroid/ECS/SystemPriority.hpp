@@ -68,8 +68,7 @@ namespace CombatAndroid::ECS {
         PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                           // （ExpOrbが確定）の両方より後に置く
         InputPrompt,      // 操作を促すUI（キーキャップ・長押しゲージ）の表示判断と値の反映。
-                          // 拾得対象（PlayerComponent::pickupTarget）と溜め状態（PlayerAnimationSetComponent::
-                          // chargeTimer）はどちらもGameplayで確定するのでその後に置き、
+                          // 溜め状態（PlayerAnimationSetComponent::chargeTimer）はGameplayで確定するのでその後に置き、
                           // かつWorldAnchorSystemが座標を確定させる前でなければならない
                           // （プロンプトは部品ごとのtarget/screenOffsetをここで書くため）
         Tutorial,         // タイトルから始めたときの操作の案内。できたかの判定にプレイヤーの

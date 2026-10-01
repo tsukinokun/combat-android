@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/WeaponAbsorbComponent.hpp>
+#include <CombatAndroid/ECS/Component/WeaponDropFallComponent.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponTable.hpp>
 #include <CombatAndroid/ECS/Utility/WeaponEvolutionTable.hpp>
 #include <CombatAndroid/ECS/Event/GameLogEvent.hpp>
@@ -42,14 +43,24 @@ namespace CombatAndroid::ECS {
         //! @brief  演出のチューニング値（Assets/Tables/Systems/Pickup.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
         struct PickupParams {
-            // 拾える武器のリムグロー
-            float          rimGlowBlendSpeed = 10.0f;                                //!< rimGlowBlendが0↔1へ遷移する速さ（大きいほど素早く切り替わる）
+            // 拾える武器のリムグロー。遠くでも弱く光らせ、近づくほど強くする
+            float          rimGlowBlendSpeed = 10.0f;                                //!< rimGlowBlendが近さの値へ追従する速さ（大きいほど素早く切り替わる）
             float          pulseSpeed        = 3.0f;                                 //!< 白発光の脈動速度（rad/sec相当）
             hlslpp::float3 rimColor          = hlslpp::float3(0.3f, 0.9f, 1.0f);    //!< ネオン風リムカラー（シアン系）
-            float          rimIntensityMax   = 4.0f;                                 //!< 完全点灯時のリム強度
+            float          rimIntensityMax   = 4.0f;                                 //!< 近くにいるときのリム強度
             float          rimPower          = 2.5f;                                 //!< リムの鋭さ
-            float          glowMin           = 0.05f;                                //!< 白発光の脈動の下限
-            float          glowMax           = 0.35f;                                //!< 白発光の脈動の上限
+            float          glowMin           = 0.05f;                                //!< 近くにいるときの白発光の脈動の下限
+            float          glowMax           = 0.35f;                                //!< 近くにいるときの白発光の脈動の上限
+            float          idleRimIntensity  = 1.5f;                                 //!< 遠くにあるときのリム強度（草むらの中でも目に留まる程度）
+            float          idleGlow          = 0.08f;                                //!< 遠くにあるときの白発光の脈動の上限
+            float          glowNearDistance  = 400.0f;                               //!< この距離から近づくほど、遠くの発光→近くの発光へ強まる
+
+            // 落ちている武器を草の上に浮かせる演出（草の丈は22〜46あり、横倒しのままだと埋もれる）
+            float groundFloatHeight  = 50.0f;    //!< 地面から浮かせる高さ（武器の原点＝握りの位置）
+            float groundBobAmplitude = 8.0f;     //!< 上下に漂う振れ幅
+            float groundBobSpeed     = 2.0f;     //!< 上下に漂う角速度（rad/sec）
+            float groundSpinSpeed    = 1.5f;     //!< 縦軸で回る速さ（rad/sec）
+            float groundRiseDuration = 0.5f;     //!< 着地した横倒しの姿勢から、浮かぶ姿勢へ起き上がるまでの秒数
 
             float floatSpacing = 70.0f;     //!< 浮遊武器を横に並べる間隔（隣同士のx距離）
             float floatHeight  = 170.0f;    //!< 浮遊武器の高さ（既存の初期配置に合わせる）
@@ -87,6 +98,14 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "rimPower", params.rimPower);
             LoadField(archive, "glowMin", params.glowMin);
             LoadField(archive, "glowMax", params.glowMax);
+            LoadField(archive, "idleRimIntensity", params.idleRimIntensity);
+            LoadField(archive, "idleGlow", params.idleGlow);
+            LoadField(archive, "glowNearDistance", params.glowNearDistance);
+            LoadField(archive, "groundFloatHeight", params.groundFloatHeight);
+            LoadField(archive, "groundBobAmplitude", params.groundBobAmplitude);
+            LoadField(archive, "groundBobSpeed", params.groundBobSpeed);
+            LoadField(archive, "groundSpinSpeed", params.groundSpinSpeed);
+            LoadField(archive, "groundRiseDuration", params.groundRiseDuration);
             LoadField(archive, "floatSpacing", params.floatSpacing);
             LoadField(archive, "floatHeight", params.floatHeight);
             LoadField(archive, "floatDepth", params.floatDepth);
@@ -132,18 +151,15 @@ namespace CombatAndroid::ECS {
         // コンテキストの取得
         //-------------------------------------------------------------
         Tsukino::EngineIntegration::EngineContext* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
-        if(!ctx || !ctx->inputSystem)
+        if(!ctx)
             return;
 
         //-------------------------------------------------------------
-        // メニュー（スキル選択・ポーズ・リザルト）中（決定直後の1フレームも含む）はFキーがメニューの
-        // 決定入力と衝突するため、拾得を一切処理しない
-        // （PlayerSystem等、他の入力Systemと同じ流儀）
+        // メニュー（スキル選択・ポーズ・リザルト）中（決定直後の1フレームも含む）は世界が止まっているので、
+        // 拾得も演出も進めない（PlayerSystem等、他のゲームプレイSystemと同じ流儀）
         //-------------------------------------------------------------
         if(IsGameplayFrozen(registry))
             return;
-
-        Tsukino::Input::InputSystem* inputSystem = ctx->inputSystem;
 
         //-------------------------------------------------------------
         // プレイヤーを取得（単一プレイヤー前提）
@@ -302,53 +318,87 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        // 拾える対象のうち、プレイヤーに最も近い1つだけを選ぶ
-        // （範囲内に複数あっても常に1つだけを拾える対象にするための絞り込み）
+        // 落ちている武器の演出と、拾う対象の絞り込みを1回の反復で行う。
+        // 落下中（WeaponDropFallComponent）はEnemyWeaponDropSystemが動かしているので触らない
         //-------------------------------------------------------------
         entt::entity nearest         = entt::null;
         float        nearestDistance = FLT_MAX;
 
         auto pickupView = registry.View<PickupComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
         pickupView.each([&](entt::entity entity, PickupComponent& pickup, Tsukino::BuiltIn::ECS::TransformComponent& transform) {
-            hlslpp::float3 toItem = transform.position - playerPosition;
-            toItem.y              = 0.0f;    // 高さのずれで拾えなくならないよう水平距離のみで判定する
+            if(registry.HasComponent<WeaponDropFallComponent>(entity))
+                return;
 
-            float distance = hlslpp::length(toItem);
+            pickup.pulseTime += deltaTime;
+
+            //-------------------------------------------------
+            // 草の上に浮かせる。草の丈（22〜46）より高く、縦向きにして回しながら上下させる。
+            // 初めて扱うフレームの位置・姿勢を「地面に横たわった状態」として覚え、そこから
+            // groundRiseDurationかけて起き上がらせる（落ちて→横たわって→ふわっと浮く）
+            //-------------------------------------------------
+            if(!pickup.hasRest) {
+                pickup.restPosition = transform.position;
+                pickup.restRotation = transform.rotation;
+                pickup.hasRest      = true;
+            }
+
+            pickup.riseTimer += deltaTime;
+            pickup.spinAngle = std::fmod(pickup.spinAngle + params.groundSpinSpeed * deltaTime, 6.28318531f);
+
+            hlslpp::float3 floatPosition = pickup.restPosition;
+            floatPosition.y += params.groundFloatHeight + std::sin(pickup.pulseTime * params.groundBobSpeed) * params.groundBobAmplitude;
+
+            // 武器のモデルは刃が+Y（手持ちの浮遊武器と同じ前提）なので、縦軸で回すだけで縦向きになる
+            const hlslpp::quaternion floatRotation = hlslpp::quaternion::rotation_y(pickup.spinAngle);
+
+            const float rise   = params.groundRiseDuration > 0.0f ? SmoothStep01(pickup.riseTimer / params.groundRiseDuration) : 1.0f;
+            transform.position = hlslpp::lerp(pickup.restPosition, floatPosition, rise);
+            transform.rotation = Tsukino::Core::Math::SlerpShortestPath(pickup.restRotation, floatRotation, rise);
+            transform.dirty    = true;
+
+            //-------------------------------------------------
+            // 拾う対象の絞り込み。高さのずれで拾えなくならないよう水平距離で判定し、
+            // 範囲内に複数あっても1フレームに拾うのは一番近い1本だけにする
+            //-------------------------------------------------
+            hlslpp::float3 toItem = pickup.restPosition - playerPosition;
+            toItem.y              = 0.0f;
+
+            const float distance = hlslpp::length(toItem);
             if(distance <= pickup.radius && distance < nearestDistance) {
                 nearestDistance = distance;
                 nearest         = entity;
             }
-        });
-        player->pickupTarget = nearest;
 
-        //-------------------------------------------------------------
-        // 全ての拾えるアイテムのリムグローを更新する。
-        // 対象になっているものだけ0→1へ、それ以外は1→0へ滑らかに戻す
-        //-------------------------------------------------------------
-        pickupView.each([&](entt::entity entity, PickupComponent& pickup, Tsukino::BuiltIn::ECS::TransformComponent& transform) {
-            float target = (entity == nearest) ? 1.0f : 0.0f;
-            float t      = 1.0f - std::exp(-params.rimGlowBlendSpeed * deltaTime);
-            pickup.rimGlowBlend += (target - pickup.rimGlowBlend) * t;
-            pickup.pulseTime += deltaTime;
+            //-------------------------------------------------
+            // リムグロー。遠くにあっても弱く光らせて草むらの中で目に留まるようにし、
+            // glowNearDistanceより近づくほど強める（拾う直前が一番明るい）
+            //-------------------------------------------------
+            const float nearness = 1.0f - SmoothStep01((distance - pickup.radius) / std::max(params.glowNearDistance - pickup.radius, 1.0f));
+            const float blendT   = 1.0f - std::exp(-params.rimGlowBlendSpeed * deltaTime);
+            pickup.rimGlowBlend += (nearness - pickup.rimGlowBlend) * blendT;
 
             // 0→1→0を往復する脈動。sinを2乗して滑らかな山にする
-            float wave  = std::sin(pickup.pulseTime * params.pulseSpeed);
-            float pulse = wave * wave;
+            const float wave  = std::sin(pickup.pulseTime * params.pulseSpeed);
+            const float pulse = wave * wave;
 
             if(auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
-                rimGlow->active       = pickup.rimGlowBlend > 0.001f;
+                const float nearGlow = params.glowMin + (params.glowMax - params.glowMin) * pulse;
+                const float idleGlow = params.idleGlow * pulse;
+
+                rimGlow->active       = true;
                 rimGlow->rimColor     = params.rimColor;
-                rimGlow->rimIntensity = params.rimIntensityMax * pickup.rimGlowBlend;
+                rimGlow->rimIntensity = params.idleRimIntensity + (params.rimIntensityMax - params.idleRimIntensity) * pickup.rimGlowBlend;
                 rimGlow->rimPower     = params.rimPower;
-                rimGlow->glow         = (params.glowMin + (params.glowMax - params.glowMin) * pulse) * pickup.rimGlowBlend;
+                rimGlow->glow         = idleGlow + (nearGlow - idleGlow) * pickup.rimGlowBlend;
             }
         });
 
         //-------------------------------------------------------------
-        // Fキーで取得する。反復中にコンポーネント構成を変えるとViewが壊れるため、
-        // 上の絞り込み・演出更新が終わった後にここでまとめて行う
+        // 触れたら自動で取得する。持てる数に上限が無く、同じ種類はレベルアップになるので
+        // 拾って損する場面が無く、キーで選ばせる意味が無いため。
+        // 反復中にコンポーネント構成を変えるとViewが壊れるため、反復の後でまとめて行う
         //-------------------------------------------------------------
-        if(nearest != entt::null && inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F)) {
+        if(nearest != entt::null) {
             if(registry.HasComponent<WeaponComponent>(nearest)) {
                 WeaponComponent& pickedWeapon = registry.GetComponent<WeaponComponent>(nearest);
 
@@ -398,7 +448,6 @@ namespace CombatAndroid::ECS {
                 rimGlow->active = false;
             }
             registry.RemoveComponent<PickupComponent>(nearest);
-            player->pickupTarget = entt::null;
         }
     }
 }    // namespace CombatAndroid::ECS

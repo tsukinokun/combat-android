@@ -278,15 +278,6 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         CombatAndroid::ECS::InputPromptHudComponent inputPromptHud;
         {
-            // 拾う：[F] ＋ 拾い上げる向きの矢印 ＋ 対象名。対象の頭上へワールド追従
-            CombatAndroid::ECS::InputPromptDesc pickupDesc;
-            pickupDesc.keyLabel      = L"F";
-            pickupDesc.chevron       = CombatAndroid::ECS::PromptChevron::Up;
-            pickupDesc.useCaption    = true;
-            pickupDesc.worldAnchored = true;
-            pickupDesc.sortOrderBase = CombatAndroid::UI::kInputPromptBase;
-            inputPromptHud.pickupPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, pickupDesc);
-
             // 溜め攻撃：マウスの絵を長押しゲージが囲む。プレイヤーの頭上へワールド追従
             CombatAndroid::ECS::InputPromptDesc chargeDesc;
             chargeDesc.useMouse      = true;

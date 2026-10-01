@@ -46,7 +46,7 @@ namespace CombatAndroid::ECS {
             {L"W A S D で移動（Shift でダッシュ）", L"WASD", false, false},
             {L"左クリックで攻撃（続けて押すと連撃）", nullptr, true, false},
             {L"Space で回避（転がっている間は無敵）", L"SPACE", false, false},
-            {L"落ちている武器に近づいて F で拾う", L"F", false, false},
+            {L"落ちている武器に近づくと拾える", nullptr, false, false},
             {L"マウスホイールで武器を切り替える", nullptr, true, false},
             {L"バトルアックスは左クリック長押しで溜め攻撃", nullptr, true, true},
             {L"迫りくる群れの中で、10分間生き延びろ！", nullptr, false, false},
