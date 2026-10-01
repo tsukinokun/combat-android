@@ -200,6 +200,13 @@ namespace CombatAndroid::ECS {
         // 流儀でインスタンスごとに値を設定する（warhammerのスポーン箇所のみ設定）
         //-------------------------------------------------------------
         float areaAttackRadius = 0.0f;    //!< AoE判定半径。0ならこの武器はAoE非対応
+        float areaAttackFullDamageRadius = 0.0f;    //!< この距離までは減衰させず全ダメージ（「がっつり入る」中心範囲）。
+                                                      //!< 0ならareaAttackRadius全域を通常の減衰カーブに委ねる（従来通り）
+        float areaAttackFalloffMinMultiplier = 1.0f;    //!< areaAttackFullDamageRadius〜areaAttackRadiusの間でダメージを減衰させる、
+                                                          //!< 外周でのダメージ倍率（1.0なら減衰なし＝全域で全ダメージ）
+        float areaAttackFalloffPower = 1.0f;    //!< 減衰区間内でのかかり方。1.0なら区間内で一定の割合で減っていく（線形）。
+                                                  //!< 1より大きくすると区間の内側はしばらく高いダメージのまま保たれ、
+                                                  //!< 外周に近づくほど急に減衰するカーブになる
         Tsukino::Asset::AssetRef    areaAttackEffectAsset;    //!< AoE発動時に再生するEffekseerエフェクト（未設定なら再生しない）
         Tsukino::Core::Path         areaAttackEffectPath;      //!< 上記エフェクトのファイルパス（EffectSystem::PlayEffectのテクスチャ解決に使う）
         float areaAttackEffectScale = 1.0f;    //!< 上記エフェクトの再生スケール。本作は1ユニット≒1cm規約だがEffekseer側は

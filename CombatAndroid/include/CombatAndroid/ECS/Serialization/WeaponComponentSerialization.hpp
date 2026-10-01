@@ -51,6 +51,9 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("attackSnapAngleDeg", weapon.attackSnapAngleDeg),
                 cereal::make_nvp("attackApproachLerpSpeed", weapon.attackApproachLerpSpeed),
                 cereal::make_nvp("areaAttackRadius", weapon.areaAttackRadius),
+                cereal::make_nvp("areaAttackFullDamageRadius", weapon.areaAttackFullDamageRadius),
+                cereal::make_nvp("areaAttackFalloffMinMultiplier", weapon.areaAttackFalloffMinMultiplier),
+                cereal::make_nvp("areaAttackFalloffPower", weapon.areaAttackFalloffPower),
                 cereal::make_nvp("areaAttackEffect", weapon.areaAttackEffectAsset),
                 cereal::make_nvp("areaAttackEffectScale", weapon.areaAttackEffectScale),
                 cereal::make_nvp("knockbackIgnoresThreshold", weapon.knockbackIgnoresThreshold),
@@ -115,6 +118,9 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "attackSnapAngleDeg", weapon.attackSnapAngleDeg);
         LoadField(archive, "attackApproachLerpSpeed", weapon.attackApproachLerpSpeed);
         LoadField(archive, "areaAttackRadius", weapon.areaAttackRadius);
+        LoadField(archive, "areaAttackFullDamageRadius", weapon.areaAttackFullDamageRadius);
+        LoadField(archive, "areaAttackFalloffMinMultiplier", weapon.areaAttackFalloffMinMultiplier);
+        LoadField(archive, "areaAttackFalloffPower", weapon.areaAttackFalloffPower);
         LoadField(archive, "areaAttackEffect", weapon.areaAttackEffectAsset);
         LoadField(archive, "areaAttackEffectScale", weapon.areaAttackEffectScale);
         LoadField(archive, "knockbackIgnoresThreshold", weapon.knockbackIgnoresThreshold);

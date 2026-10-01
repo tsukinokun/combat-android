@@ -258,13 +258,16 @@ namespace CombatAndroid::ECS {
         //!         ここで行い、ヒットの確定そのものは斬撃弾と共有するApplyCombatHit（CombatHit.hpp）へ委ねる
         //! @param  hitPositionFallback [in] 対象にTransformComponentが無い場合に使う位置
         //! @param  isAreaAttack        [in] AoE(範囲攻撃)由来のヒットか（ノックバックの強さが変わる）
+        //! @param  damageFalloffMultiplier [in] 距離減衰などで追加に掛ける倍率（既定1.0＝掛けない）。
+        //!         AoEの中心からの距離に応じた減衰はここへ渡す
         //-------------------------------------------------------------
         void ApplyWeaponHitToEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, entt::entity weaponEntity,
                                     WeaponComponent& weapon, entt::entity hitEntity, const hlslpp::float3& hitPositionFallback,
-                                    float skillAttackMultiplier, float skillLifeStealRatio, bool isAreaAttack) {
+                                    float skillAttackMultiplier, float skillLifeStealRatio, bool isAreaAttack,
+                                    float damageFalloffMultiplier = 1.0f) {
             // 実ダメージ＝武器の基礎ダメージ×連撃段の倍率（PlayerAnimationSystemが段ごとに書く）
-            //             ×スキル「憤怒」の攻撃力倍率
-            float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier;
+            //             ×スキル「憤怒」の攻撃力倍率×距離減衰等の追加倍率
+            float dealtDamage = weapon.damage * weapon.damageMultiplier * skillAttackMultiplier * damageFalloffMultiplier;
 
             KnockbackParams knockback = MakeKnockbackParams(registry, weapon, hitPositionFallback, isAreaAttack);
 
@@ -704,8 +707,21 @@ namespace CombatAndroid::ECS {
                             if(const auto* hitTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hitEntity))
                                 hitPosition = hitTransform->position;
 
+                            // 中心（武器＝プレイヤー）からの水平距離に応じてダメージを減衰させる。
+                            // areaAttackFullDamageRadiusまでは減衰させず全ダメージ（「がっつり入る」中心範囲）。
+                            // そこからareaAttackRadiusまでの区間でareaAttackFalloffMinMultiplier倍まで線形/カーブ状に下がる
+                            hlslpp::float3 toHit = hitPosition - transform.position;
+                            toHit.y              = 0.0f;
+                            float distanceFromCenter = static_cast<float>(hlslpp::length(toHit));
+                            float falloffZoneStart   = std::min(weapon.areaAttackFullDamageRadius, weapon.areaAttackRadius);
+                            float falloffZoneLength  = std::max(weapon.areaAttackRadius - falloffZoneStart, 1.0f);
+                            float falloffLinearT =
+                                std::clamp((distanceFromCenter - falloffZoneStart) / falloffZoneLength, 0.0f, 1.0f);
+                            float falloffT      = std::pow(falloffLinearT, std::max(weapon.areaAttackFalloffPower, 0.01f));
+                            float damageFalloff = 1.0f + (weapon.areaAttackFalloffMinMultiplier - 1.0f) * falloffT;
+
                             ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, hitPosition, skillAttackMultiplier,
-                                                   skillLifeStealRatio, /* isAreaAttack */ true);
+                                                   skillLifeStealRatio, /* isAreaAttack */ true, damageFalloff);
 
                             if(areaKnockback.speed > 0.0f)
                                 RequestKnockback(registry, hitEntity, areaKnockback);
