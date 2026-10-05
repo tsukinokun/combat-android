@@ -171,8 +171,9 @@ namespace CombatAndroid::ECS {
         //! 湧いた敵へ向かって走ると（接近速度 約400/秒）時間だけでは目の前で半透明のままになるため
         static constexpr float kFadeInOpaqueDistance = 800.0f;
 
-        //! 生成時の浮かせ量。EnemyStressTestSystem::kSpawnHeightと同値
-        static constexpr float kSpawnHeight = 20.0f;
+        //! 生成時の高さ（地面上面）。敵はKinematicのセンサーで重力も床との衝突も無く、
+        //! 生成後にYが下がらないため浮かせない。EnemyStressTestSystem::kSpawnHeightと同値
+        static constexpr float kSpawnHeight = 0.0f;
 
         //! 湧かせる敵に与える索敵距離。湧き半径より十分大きくないとBTのMoveToPlayerが
         //! Failureを返し、その場で足踏みしたまま近づいてこない

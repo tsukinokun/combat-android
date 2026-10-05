@@ -49,8 +49,9 @@ namespace CombatAndroid::ECS {
         constexpr float kSpreadInnerRadius = 400.0f;
         constexpr float kSpreadRingPitch   = 220.0f;
 
-        //! 地面から少し浮かせて出す（生成直後に床へめり込まないように）
-        constexpr float kSpawnHeight = 20.0f;
+        //! 地面上面に出す。敵はKinematicのセンサーで重力も床との衝突も無く、
+        //! 浮かせると生成後もずっと浮いたままになる
+        constexpr float kSpawnHeight = 0.0f;
 
         //! 自動ベンチマークの結果を書き出すファイル名（カレントディレクトリ基準）
         constexpr const char* kBenchmarkCsvPath = "StressTestResult.csv";
