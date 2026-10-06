@@ -4,21 +4,21 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/Scene/TitleScene.hpp>
 
-#include <CombatAndroid/ECS/Component/GrassFieldComponent.hpp>
-#include <CombatAndroid/ECS/Component/GroundFollowComponent.hpp>
-#include <CombatAndroid/ECS/Component/TitleMenuComponent.hpp>
-#include <CombatAndroid/ECS/Component/TitleStageComponent.hpp>
-#include <CombatAndroid/ECS/System/GrassFieldSystem.hpp>
-#include <CombatAndroid/ECS/System/GroundVisualSystem.hpp>
-#include <CombatAndroid/ECS/System/TitleMenuSystem.hpp>
-#include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
-#include <CombatAndroid/ECS/System/TitleStageSystem.hpp>
-#include <CombatAndroid/ECS/System/GameSoundSystem.hpp>
+#include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
+#include <CombatAndroid/ECS/Component/World/GroundFollowComponent.hpp>
+#include <CombatAndroid/ECS/Component/Menu/TitleMenuComponent.hpp>
+#include <CombatAndroid/ECS/Component/Menu/TitleStageComponent.hpp>
+#include <CombatAndroid/ECS/System/World/GrassFieldSystem.hpp>
+#include <CombatAndroid/ECS/System/World/GroundVisualSystem.hpp>
+#include <CombatAndroid/ECS/System/Menu/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/System/Menu/ScreenFadeSystem.hpp>
+#include <CombatAndroid/ECS/System/Menu/TitleStageSystem.hpp>
+#include <CombatAndroid/ECS/System/Audio/GameSoundSystem.hpp>
 #include <CombatAndroid/ECS/SystemPriority.hpp>
-#include <CombatAndroid/ECS/Utility/Bgm.hpp>
-#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
-#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
-#include <CombatAndroid/ECS/Utility/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/Audio/Bgm.hpp>
+#include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
+#include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AmbientParticleComponent.hpp>

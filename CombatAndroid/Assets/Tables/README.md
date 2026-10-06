@@ -1,6 +1,6 @@
 # Tables
 
-ゲームの調整値テーブル。起動後、そのテーブルが初めて参照されたときに1度だけ読む（`ECS/Utility/TableJson.hpp` の `LoadTableJson`）。
+ゲームの調整値テーブル。起動後、そのテーブルが初めて参照されたときに1度だけ読む（`ECS/Utility/Table/TableJson.hpp` の `LoadTableJson`）。
 **数値を変えるだけなら再ビルドは要らない**（ゲームを起動し直せば反映される）。
 
 - 書式は「ルートキー → 種類名 → 値」。種類名は C++ の enum と同じ綴り（`Warhammer` `Greed` `SmallZombie` など）。
@@ -18,7 +18,7 @@
 | `EnemyDifficulty.json` | `EnemyDifficultyTable.cpp` | 危険度ランクごとの倍率と、終端より先の1段ぶんの増分 |
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |
-| `Systems/<名前>.json` | `ECS/System/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
+| `Systems/<名前>.json` | `ECS/System/<領域>/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
 
 敵1体の素の値（HP・移動速度・当たり判定など）はテーブルではなく Prefab（`Assets/Prefabs/Enemy/<名前>/`）が持つ。
 Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.json`。

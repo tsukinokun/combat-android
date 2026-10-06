@@ -5,7 +5,7 @@
 //!         実行時状態なので保存しない（最初のクリップはスポーンした側が入れる）
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 

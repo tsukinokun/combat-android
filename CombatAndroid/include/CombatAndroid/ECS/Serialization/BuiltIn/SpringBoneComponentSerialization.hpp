@@ -5,7 +5,7 @@
 //!         （AnimationSystemがchainDefsから自動生成する）
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/SpringBoneComponent.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>

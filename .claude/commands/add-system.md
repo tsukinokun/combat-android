@@ -11,14 +11,18 @@ description: CombatAndroid に ECS システムを1本追加する（Component /
 ## 触るファイルはこの5つだけ
 
 既存の似たシステムを1本だけ読んで真似る（全部読まない）。
-軽いものは `CombatAndroid/src/ECS/System/HitStopSystem.cpp`、
-イベント購読があるものは `CombatAndroid/src/ECS/System/ExpOrbSystem.cpp` が手本になる。
+軽いものは `CombatAndroid/src/ECS/System/Combat/HitStopSystem.cpp`、
+イベント購読があるものは `CombatAndroid/src/ECS/System/Progression/ExpOrbSystem.cpp` が手本になる。
 
-1. `CombatAndroid/include/CombatAndroid/ECS/Component/<名前>Component.hpp`
+`<領域>` は Component と System で同じものを使う（`Player` `Enemy` `Weapon` `Combat` `Progression` `UI` `Menu`
+`World` `Effect` `Audio` `Debug`。各領域の中身は CLAUDE.md の「コードの地図」）。どれにも当てはまらないときは、
+新しい領域を作る前にユーザーに確認する。直下には置かない。
+
+1. `CombatAndroid/include/CombatAndroid/ECS/Component/<領域>/<名前>Component.hpp`
    データのみ。関数を持たせない。
-2. `CombatAndroid/include/CombatAndroid/ECS/System/<名前>System.hpp`
+2. `CombatAndroid/include/CombatAndroid/ECS/System/<領域>/<名前>System.hpp`
    `Tsukino::ECS::ISystem` を継承する。イベントを購読するなら `Initialize(EventBus&)` を用意する。
-3. `CombatAndroid/src/ECS/System/<名前>System.cpp`
+3. `CombatAndroid/src/ECS/System/<領域>/<名前>System.cpp`
 4. `CombatAndroid/include/CombatAndroid/ECS/SystemPriority.hpp`
    enum に1行。**どの位置に入れるかの理由をコメントで必ず書く**（既存の全項目が理由付きになっている）。
    既存の並びの意味を読まずに末尾へ足さないこと。

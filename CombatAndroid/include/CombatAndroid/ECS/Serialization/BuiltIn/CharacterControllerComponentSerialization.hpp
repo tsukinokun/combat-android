@@ -4,7 +4,7 @@
 //! @note   調整値（形状・重力など）だけを持つ。moveInput・verticalVelocity・isInitializedは実行時状態なので保存しない
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>

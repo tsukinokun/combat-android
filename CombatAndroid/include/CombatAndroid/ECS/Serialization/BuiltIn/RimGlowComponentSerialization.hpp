@@ -4,7 +4,7 @@
 //! @note   save/loadはADLで見つけるためComponentと同じ名前空間に置く。エンジン側に同等の定義が入ったら削除する
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>

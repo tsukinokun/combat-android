@@ -45,17 +45,39 @@
 
 | ディレクトリ | 中身 |
 |---|---|
-| `ECS/Component/` | データのみ（39個） |
-| `ECS/System/` | ロジック（38個。`*System.hpp` / `.cpp` のペア） |
-| `ECS/Utility/` | テーブル・スポナー・判定の共通実装 |
-| `ECS/Event/` `ECS/AI/` | イベント定義 / 敵の行動（ビヘイビアツリー） |
+| `ECS/Component/<領域>/` | データのみ |
+| `ECS/System/<領域>/` | ロジック（`*System.hpp` / `.cpp` のペア） |
+| `ECS/Utility/<分類>/` | テーブル・スポナー・判定などの共通実装 |
+| `ECS/Event/<領域>/` | イベント定義 |
+| `ECS/Serialization/<領域>/` | Prefab の読み書き。エンジン側コンポーネントの分は `BuiltIn/`、共通の補助は `Common/` |
+| `ECS/AI/` | 敵の行動（ビヘイビアツリー） |
 | `Scene/` | `CombatAndroidScene.cpp`（シーン構築）と `CombatAndroidSceneSystems.cpp`（システム登録） |
 | `UI/` | `UiSortOrder.hpp`（描画の重なり順） |
 
+Component・System・Event・Serialization は同じ領域名で分けてある（namespace はどれも `CombatAndroid::ECS`。フォルダは include のパスにだけ効く）:
+
+| 領域 | 入っているもの |
+|---|---|
+| `Player/` | プレイヤーの入力・移動・アニメーション |
+| `Enemy/` | 敵本体・湧き・攻撃予兆・Paladin の武器持ち替え |
+| `Weapon/` | 武器のデータ・落ちている武器の拾得・敵が落とす武器 |
+| `Combat/` | 当たり判定（`CombatSystem`）・HP・ヒットストップ・斬撃弾 |
+| `Progression/` | 走行の時計・EXP 玉・スキル選択・経験値とスキルの所持 |
+| `UI/` | 戦闘中の HUD（HP バー・ダメージ数値・取得ログ・操作案内・画面外の矢印・チュートリアル） |
+| `Menu/` | 画面の流れ（タイトル・ポーズ・リザルト・暗転・カットシーン） |
+| `World/` | カメラ・地面・草・霧 |
+| `Effect/` | モーションブラー・ヒットの火花・被弾の赤フラッシュ |
+| `Audio/` | 効果音の鳴らし分け |
+| `Debug/` | 握り位置の調整・武器レベル表示・負荷試験 |
+
+Utility の分類は `Table/`（調整値テーブル）・`UI/`（メニュー・スプライトの部品）・`Spawn/`・`Asset/`（Prefab・先読み）・
+`Combat/`・`Time/`（スロー・停止）・`AI/`・`Save/`（設定・記録）・`Audio/`（BGM）・`Common/`。
+新しいファイルは一番近い領域へ置き、直下には置かない。
+
 **名前から辿れないもの**（ここを知らないと探索が空振りする）:
 
-- **当たり判定は3か所に分かれている。** 共通実装 `ECS/Utility/CombatHit.cpp`、
-  プレイヤー武器側 `ECS/System/CombatSystem.cpp`、敵側 `ECS/AI/ZombieBehavior.cpp`（Paladin も含む）
+- **当たり判定は3か所に分かれている。** 共通実装 `ECS/Utility/Combat/CombatHit.cpp`、
+  プレイヤー武器側 `ECS/System/Combat/CombatSystem.cpp`、敵側 `ECS/AI/ZombieBehavior.cpp`（Paladin も含む）
 - `EnemyBehaviorSystem.cpp` はディスパッチャだけ。中身は `ZombieBehavior.cpp`
 - `PlayerAnimationSystem.cpp` はアニメだけでなく攻撃コンボの状態遷移も持つ
 - 武器・スキル・敵は**テーブル駆動**。調整値は `CombatAndroid/Assets/Tables/*.json`（再ビルド不要）、
@@ -67,5 +89,5 @@
 ## よくある作業
 
 - **システムを1本足す** → `/add-system` を使う（触るのは常に同じ5ファイル）
-- **武器・スキル・敵を足す** → enum と `ECS/Utility/*Table.cpp` の名前配列に1つ、
+- **武器・スキル・敵を足す** → enum と `ECS/Utility/Table/*Table.cpp` の名前配列に1つ、
   `Assets/Tables/*.json` に1項目（手順は `Assets/Tables/README.md`）

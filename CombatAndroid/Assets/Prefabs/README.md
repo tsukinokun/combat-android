@@ -1,7 +1,7 @@
 # Prefabs
 
 エンティティの調整値（Component のパラメータ）を JSON で持つ。エンジンの `PrefabFactory` が読み込む。
-ゲーム側 Component の登録は `CombatAndroid/src/ECS/Utility/GamePrefab.cpp`（`RegisterGameComponents`）。
+ゲーム側 Component の登録は `CombatAndroid/src/ECS/Utility/Asset/GamePrefab.cpp`（`RegisterGameComponents`）。
 JSON の書式は `Prefab.json`（コンポーネント名 → 個別 JSON のパス）＋コンポーネントごとの JSON。
 
 **ゲームのエンティティは全て `InstantiatePrefab(registry, context, "<名前>")`（`GamePrefab.hpp`）で作る。**
@@ -13,7 +13,7 @@ JSON の書式は `Prefab.json`（コンポーネント名 → 個別 JSON の�
 `PlayerAnimationSystem` が `GetComponent<AnimationControllerComponent>` で落ちる。書き直したら必ず戻すこと。**
 
 **手で書かず、`PrefabFactory::CaptureEntity(registry, entity, outDir)` で生きているエンティティから書き出すと楽。**
-フィールドを足したときは `ECS/Serialization/*ComponentSerialization.hpp` の save と load の両方に足す
+フィールドを足したときは `ECS/Serialization/<領域>/*ComponentSerialization.hpp` の save と load の両方に足す
 （load は `LoadField` で読むので、古い JSON にキーが無くても既定値のまま読める）。
 
 ## Environment/

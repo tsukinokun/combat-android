@@ -4,7 +4,7 @@
 //! @note   貼り付け方（オフセット・固定位置）だけを保存する。target（Entity）と visible は実行時状態
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Serialization/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>

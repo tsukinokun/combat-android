@@ -4,7 +4,7 @@
 //! @author  山﨑愛
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Utility/SlowMotionController.hpp>
+#include <CombatAndroid/ECS/Utility/Time/SlowMotionController.hpp>
 
 #include <Tsukino/EngineIntegration/Scene/GameSceneBase.hpp>
 

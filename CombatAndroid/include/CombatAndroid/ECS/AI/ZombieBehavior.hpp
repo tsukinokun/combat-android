@@ -3,7 +3,7 @@
 //! @brief  ゾンビ系敵（SmallZombie/BigZombie共通）用ビヘイビアツリー構築関数の宣言
 //-------------------------------------------------------------
 #pragma once
-#include <CombatAndroid/ECS/Component/BehaviorTreeComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BehaviorTreeComponent.hpp>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------

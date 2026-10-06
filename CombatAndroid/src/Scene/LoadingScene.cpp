@@ -5,11 +5,11 @@
 #include <CombatAndroid/Scene/LoadingScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
 
-#include <CombatAndroid/ECS/Utility/AssetPreloader.hpp>
-#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
-#include <CombatAndroid/ECS/System/ScreenFadeSystem.hpp>
-#include <CombatAndroid/ECS/Utility/ScreenFade.hpp>
-#include <CombatAndroid/ECS/Utility/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/Asset/AssetPreloader.hpp>
+#include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
+#include <CombatAndroid/ECS/System/Menu/ScreenFadeSystem.hpp>
+#include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>

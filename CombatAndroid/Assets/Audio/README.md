@@ -10,7 +10,7 @@
 python generate_game_sounds.py
 ```
 
-どの場面でどの音を鳴らすかは `CombatAndroid/ECS/Utility/SoundTable.cpp` の表にあります。
+どの場面でどの音を鳴らすかは `CombatAndroid/ECS/Utility/Table/SoundTable.cpp` の表にあります。
 
 ## BGM（ここへ置くと鳴ります）
 
@@ -25,5 +25,5 @@ BGM は長く鳴り続けるため合成音だと耳障りになりやすく、�
 - **形式は `.wav` か `.mp3`** です（初回ロード時に `.xwb` へ変換されます。mp3 はその前に PCM へ展開）。
   ogg などそれ以外は wav か mp3 へ変換してから置いてください。ファイル名は `Bgm.hpp` の定数と合わせること
 - ループ前提で鳴らすので、頭と尻が自然につながる素材が向いています
-- 音量は `CombatAndroid/ECS/Utility/Bgm.hpp` の `kBgmVolume`（既定 0.35）で調整できます
+- 音量は `CombatAndroid/ECS/Utility/Audio/Bgm.hpp` の `kBgmVolume`（既定 0.35）で調整できます
 - ファイルサイズの目安（.xwb は mp3 でも PCM 展開後の大きさになります）：44.1kHz・16bit・モノラルで 1 分あたり約 5MB

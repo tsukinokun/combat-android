@@ -3,14 +3,14 @@
 //! @brief  ゾンビ系敵（SmallZombie/BigZombie共通）用ビヘイビアツリー構築関数の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/AI/ZombieBehavior.hpp>
-#include <CombatAndroid/ECS/Component/EliteEnemyComponent.hpp>
-#include <CombatAndroid/ECS/Component/EnemyComponent.hpp>
-#include <CombatAndroid/ECS/Component/EnemyHeldWeaponComponent.hpp>
-#include <CombatAndroid/ECS/Component/EnemyAnimationSetComponent.hpp>
-#include <CombatAndroid/ECS/Component/HealthComponent.hpp>
-#include <CombatAndroid/ECS/Component/PaladinArsenalComponent.hpp>
-#include <CombatAndroid/ECS/Component/HitStopComponent.hpp>
-#include <CombatAndroid/ECS/Event/EnemyDiedEvent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyHeldWeaponComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/PaladinArsenalComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Event/Enemy/EnemyDiedEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>

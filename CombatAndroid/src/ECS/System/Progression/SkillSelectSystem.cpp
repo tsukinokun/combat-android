@@ -1,0 +1,553 @@
+//-------------------------------------------------------------
+//! @file   SkillSelectSystem.cpp
+//! @brief  SkillSelectSystemクラスの実装
+//-------------------------------------------------------------
+#include <CombatAndroid/ECS/System/Progression/SkillSelectSystem.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
+#include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
+#include <CombatAndroid/ECS/Component/Progression/SkillSelectComponent.hpp>
+#include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
+#include <CombatAndroid/ECS/Event/UI/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
+#include <CombatAndroid/ECS/System/Menu/RunResultSystem.hpp>
+#include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/Table/WeaponEvolutionTable.hpp>
+
+#include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
+
+#include <Tsukino/EngineIntegration/EngineContext.hpp>
+
+#include <Tsukino/Engine/Asset/AssetManager.hpp>
+#include <Tsukino/Engine/Asset/Texture/TextureAsset.hpp>
+
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
+#include <Tsukino/Core/Input/InputSystem.hpp>
+#include <Tsukino/Core/Path.hpp>
+#include <Tsukino/Core/Window.hpp>
+
+#include <hlsl++.h>
+#include <entt/entt.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
+// 名前空間 : CombatAndroid::ECS
+namespace CombatAndroid::ECS {
+    namespace {
+        //-------------------------------------------------------------
+        //! @struct SkillSelectParams
+        //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/SkillSelect.json。ここの初期値はJSONにキーが無いときの既定値）
+        //-------------------------------------------------------------
+        struct SkillSelectParams {
+            //-------------------------------------------------------------
+            // カードの見た目のチューニング値（全て画面ピクセル単位）。
+            // 位置はメニューを開くたびにウィンドウサイズから計算し直す
+            //-------------------------------------------------------------
+            float cardWidth = 760.0f;
+            float cardHeight = 150.0f;
+            float cardGap = 24.0f;                     //!< カード同士の縦の隙間（カード1枚ぶんの送りは cardHeight + cardGap）
+            float highlightInflate = 8.0f;                      //!< 選択中カードの強調枠が四辺へはみ出す量
+            float textInsetX = 32.0f;                     //!< カード左端からテキストまでの余白
+            float nameOffsetY = -26.0f;                    //!< カード中心から見たスキル名のY
+            float descOffsetY = 30.0f;                     //!< カード中心から見た説明文のY
+            float titleOffsetY = -310.0f;                   //!< 画面中心から見た「LEVEL UP!」のY
+
+            float titleFontScale = 2.2f;
+            float nameFontScale = 1.3f;
+            float descFontScale = 0.85f;
+
+            hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.65f);      //!< 画面全体の暗転
+            hlslpp::float4 highlightColor = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.95f);    //!< 選択中カードの枠（黄色）
+            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 0.95f, 0.6f, 1.0f);
+            hlslpp::float4 nameColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 descColor = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
+
+            float unselectedPanelAlpha = 0.78f;    //!< 非選択カードは少し沈ませる
+
+            //-------------------------------------------------------------
+            // レベルアップ後無敵（PlayerComponent::levelUpInvincibleTimer）の間、
+            // プレイヤーモデルへ焼く発光のチューニング値。武器レベルアップの金色発光
+            // （PickupSystem）と似た色味にしつつ、脈動させて「拾得」ではなく
+            // 「無敵中」だと分かるようにしている
+            //-------------------------------------------------------------
+            float levelUpInvincibleFadeOutDuration = 0.5f;    //!< 無敵が切れる直前、この秒数かけて発光を落とす
+            float levelUpInvinciblePulseSpeed = 6.0f;    //!< 脈動速度（rad/sec相当）
+            hlslpp::float3 levelUpInvincibleRimColor = hlslpp::float3(1.0f, 0.95f, 0.75f);    //!< 金〜白系のリムカラー
+            float levelUpInvincibleRimIntensityMax = 5.0f;
+            float levelUpInvincibleRimPower = 2.5f;
+            float levelUpInvincibleGlowMin = 0.15f;    //!< 白発光の脈動の下限
+            float levelUpInvincibleGlowMax = 0.5f;     //!< 白発光の脈動の上限
+        };
+
+        template <class Archive>
+        void load(Archive& archive, SkillSelectParams& params) {
+            LoadField(archive, "cardWidth", params.cardWidth);
+            LoadField(archive, "cardHeight", params.cardHeight);
+            LoadField(archive, "cardGap", params.cardGap);
+            LoadField(archive, "highlightInflate", params.highlightInflate);
+            LoadField(archive, "textInsetX", params.textInsetX);
+            LoadField(archive, "nameOffsetY", params.nameOffsetY);
+            LoadField(archive, "descOffsetY", params.descOffsetY);
+            LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "titleFontScale", params.titleFontScale);
+            LoadField(archive, "nameFontScale", params.nameFontScale);
+            LoadField(archive, "descFontScale", params.descFontScale);
+            LoadField(archive, "backdropColor", params.backdropColor);
+            LoadField(archive, "highlightColor", params.highlightColor);
+            LoadField(archive, "titleColor", params.titleColor);
+            LoadField(archive, "nameColor", params.nameColor);
+            LoadField(archive, "descColor", params.descColor);
+            LoadField(archive, "unselectedPanelAlpha", params.unselectedPanelAlpha);
+            LoadField(archive, "levelUpInvincibleFadeOutDuration", params.levelUpInvincibleFadeOutDuration);
+            LoadField(archive, "levelUpInvinciblePulseSpeed", params.levelUpInvinciblePulseSpeed);
+            LoadField(archive, "levelUpInvincibleRimColor", params.levelUpInvincibleRimColor);
+            LoadField(archive, "levelUpInvincibleRimIntensityMax", params.levelUpInvincibleRimIntensityMax);
+            LoadField(archive, "levelUpInvincibleRimPower", params.levelUpInvincibleRimPower);
+            LoadField(archive, "levelUpInvincibleGlowMin", params.levelUpInvincibleGlowMin);
+            LoadField(archive, "levelUpInvincibleGlowMax", params.levelUpInvincibleGlowMax);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const SkillSelectParams& GetParams() {
+            static const SkillSelectParams s_params = LoadSystemParams<SkillSelectParams>("SkillSelect");
+            return s_params;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief 0から1を滑らかに補間する関数（smoothstepの本体部分）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float SmoothStep01(float t) {
+            t = std::clamp(t, 0.0f, 1.0f);
+            return t * t * (3.0f - 2.0f * t);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief レベルアップ後無敵のタイマーを実時間で減衰させ、プレイヤーの
+        //!        RimGlowComponentへ発光値を書き込む。0を切ったら消灯する
+        //-------------------------------------------------------------
+        void TickLevelUpInvincibility(Tsukino::ECS::Registry& registry, entt::entity entity, PlayerComponent& player, float deltaTime) {
+            const SkillSelectParams& params = GetParams();
+
+            player.levelUpInvincibleTimer     = std::max(player.levelUpInvincibleTimer - deltaTime, 0.0f);
+            player.levelUpInvinciblePulseTime += deltaTime;
+
+            auto* rimGlow = registry.try_get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
+            if(!rimGlow)
+                return;
+
+            if(player.levelUpInvincibleTimer <= 0.0f) {
+                rimGlow->active = false;
+                return;
+            }
+
+            // 無敵終了間際だけイーズアウトさせ、それ以外は1.0（フル発光）のまま
+            float fadeEase = SmoothStep01(player.levelUpInvincibleTimer / params.levelUpInvincibleFadeOutDuration);
+
+            float wave  = std::sin(player.levelUpInvinciblePulseTime * params.levelUpInvinciblePulseSpeed);
+            float pulse = wave * wave;
+
+            rimGlow->active       = true;
+            rimGlow->rimColor     = params.levelUpInvincibleRimColor;
+            rimGlow->rimIntensity = params.levelUpInvincibleRimIntensityMax * fadeEase;
+            rimGlow->rimPower     = params.levelUpInvincibleRimPower;
+            rimGlow->glow         = (params.levelUpInvincibleGlowMin + (params.levelUpInvincibleGlowMax - params.levelUpInvincibleGlowMin) * pulse) * fadeEase;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  エンティティを非表示にする関数
+        //! @param  registry [in] ECSレジストリ
+        //! @param  entity   [in] 対象のエンティティ
+        //! @note   SpriteRenderSystemは極小スケールを、FontRendererSystemは空文字を
+        //!         それぞれ描画対象から外すため、この2つを書けば消える（HPバー等と同じ流儀）
+        //-------------------------------------------------------------
+        void HideEntity(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+            if(entity == entt::null)
+                return;
+
+            if(auto* transform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(entity)) {
+                transform->scale = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                transform->dirty = true;
+            }
+            if(auto* font = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(entity))
+                font->text = L"";
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  index枚目のカードの中心Yを求める関数
+        //! @param  screenCenterY  [in] 画面中央のY
+        //! @param  index          [in] 何枚目か（0始まり）
+        //! @param  candidateCount [in] 今回並べるカードの枚数
+        //! @return カード中心のスクリーンY
+        //! @note   枚数が1〜3のどれでも画面中央に対して対称に並ぶ1本の式にしてある
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float CalculateCardCenterY(float screenCenterY, int index, int candidateCount) {
+            const SkillSelectParams& params = GetParams();
+
+            return screenCenterY + (static_cast<float>(index) - static_cast<float>(candidateCount - 1) * 0.5f) * (params.cardHeight + params.cardGap);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  スキルカードに添える進化の案内を作る関数
+        //! @param  registry [in] ECSレジストリ
+        //! @param  player   [in] 手持ちの武器を持つプレイヤー
+        //! @param  skill    [in] カードのスキル
+        //! @return このスキルを条件に進化する、手持ちで未進化の武器の進化後の名前（「・」区切り）。無ければ空
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        std::wstring FindEvolutionHint(Tsukino::ECS::Registry& registry, const PlayerComponent& player, SkillId skill) {
+            std::wstring hint;
+            for(Tsukino::ECS::Entity weaponEntity : player.weaponInventory) {
+                const auto* weapon = registry.try_get<WeaponComponent>(weaponEntity);
+                if(!weapon || weapon->evolved)
+                    continue;
+
+                const WeaponEvolutionEntry& evolution = GetWeaponEvolution(weapon->weaponId);
+                if(evolution.requiredSkill != skill)
+                    continue;
+
+                if(!hint.empty())
+                    hint += L"・";
+                hint += evolution.displayName;
+            }
+            return hint;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  メニュー全体の見た目を書き直す関数
+        //! @param  registry [in] ECSレジストリ
+        //! @param  context  [in] エンジンコンテキスト
+        //! @param  select   [in] メニューの状態
+        //! @param  skills   [in] 取得済みスキル（「Lv.2 / 5」の表示に使う）
+        //! @note   開いた時とカーソルが動いた時に呼ぶ。毎フレーム呼んでも問題はないが、
+        //!         文字列を組み立てるので変化があった時だけにしている
+        //-------------------------------------------------------------
+        void RefreshUi(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, SkillSelectComponent& select,
+                       const PlayerSkillComponent& skills, const PlayerComponent& player) {
+            const SkillSelectParams& params = GetParams();
+
+            const float screenWidth  = context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f;
+            const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
+            const float screenCenterX = screenWidth * 0.5f;
+            const float screenCenterY = screenHeight * 0.5f;
+
+            //-------------------------------------------------------------
+            // 画面全体の暗転とタイトル
+            //-------------------------------------------------------------
+            StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, params.backdropColor);
+            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"LEVEL UP!", params.titleColor);
+
+            //-------------------------------------------------------------
+            // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
+            // カードより奥（UiSortOrder::kSkillSelectHighlight < kSkillSelectCard）に敷いて縁のように見せている
+            //-------------------------------------------------------------
+            const int cursorIndex = std::clamp(select.cursorIndex, 0, std::max(select.candidateCount - 1, 0));
+            StretchSprite(registry, context, select.highlightEntity, screenCenterX,
+                          CalculateCardCenterY(screenCenterY, cursorIndex, select.candidateCount), params.cardWidth + params.highlightInflate * 2.0f,
+                          params.cardHeight + params.highlightInflate * 2.0f, params.highlightColor);
+
+            //-------------------------------------------------------------
+            // カード本体
+            //-------------------------------------------------------------
+            const float textLeftX = screenCenterX - params.cardWidth * 0.5f + params.textInsetX;
+
+            for(int i = 0; i < kSkillChoiceMax; ++i) {
+                SkillSelectCardEntities& card = select.cards[static_cast<size_t>(i)];
+
+                if(i >= select.candidateCount) {
+                    // カンストで選択肢が3つに満たない回。余ったカードは消しておく
+                    HideEntity(registry, card.panelEntity);
+                    HideEntity(registry, card.nameEntity);
+                    HideEntity(registry, card.descEntity);
+                    HideEntity(registry, card.hitEntity);
+                    continue;
+                }
+
+                const SkillId          id       = select.candidates[static_cast<size_t>(i)];
+                const SkillTableEntry& entry    = GetSkillEntry(id);
+                const int              level    = skills.levels[static_cast<size_t>(id)];
+                const float            centerY  = CalculateCardCenterY(screenCenterY, i, select.candidateCount);
+                const bool             selected = (i == cursorIndex);
+
+                //-------------------------------------------------------------
+                // 背景。テクスチャはテーブルのパスから引く（AssetManagerがパスで
+                // キャッシュするため、開くたびにLoadを呼んでも実際の読み込みは1回きり）
+                //-------------------------------------------------------------
+                if(card.panelEntity != entt::null && context.assetManager) {
+                    if(auto* panelSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(card.panelEntity))
+                        panelSprite->textureHandle = context.assetManager->Load(Tsukino::Core::Path(entry.backgroundTexturePath));
+                }
+
+                // 非選択のカードはアルファだけ下げて沈ませる（PlayerDamageEffectSystemと同じ組み立て方）
+                const float          panelAlpha = selected ? entry.panelColor.w : entry.panelColor.w * params.unselectedPanelAlpha;
+                const hlslpp::float4 panelColor =
+                    hlslpp::float4(entry.panelColor.x, entry.panelColor.y, entry.panelColor.z, panelAlpha);
+
+                StretchSprite(registry, context, card.panelEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight, panelColor);
+
+                // マウスの当たり判定はカードと同じ矩形。透明なので見た目には出ない
+                StretchSprite(registry, context, card.hitEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight,
+                              hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
+
+                //-------------------------------------------------------------
+                // 文言。levelは取得済みの段階数なので、今回取ると level+1 段階目になる
+                //-------------------------------------------------------------
+                std::wstring nameText = entry.displayName;
+                nameText += L"   Lv.";
+                nameText += std::to_wstring(level + 1);
+                nameText += L" / ";
+                nameText += std::to_wstring(kMaxSkillLevel);
+
+                // 持っている武器の進化条件になっているスキルなら、進化先を添えて気付かせる
+                const std::wstring evolutionHint = FindEvolutionHint(registry, player, id);
+                if(!evolutionHint.empty()) {
+                    nameText += L"   [進化: ";
+                    nameText += evolutionHint;
+                    nameText += L"]";
+                }
+
+                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + params.nameOffsetY, params.nameFontScale, nameText, params.nameColor);
+                PlaceUiText(registry, card.descEntity, textLeftX, centerY + params.descOffsetY, params.descFontScale,
+                          entry.levels[static_cast<size_t>(level)].description, params.descColor);
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  メニューを構成するエンティティを全て消す関数
+        //! @param  registry [in] ECSレジストリ
+        //! @param  select   [in] メニューの状態
+        //-------------------------------------------------------------
+        void HideUi(Tsukino::ECS::Registry& registry, SkillSelectComponent& select) {
+            HideEntity(registry, select.backdropEntity);
+            HideEntity(registry, select.highlightEntity);
+            HideEntity(registry, select.titleEntity);
+
+            for(SkillSelectCardEntities& card : select.cards) {
+                HideEntity(registry, card.panelEntity);
+                HideEntity(registry, card.nameEntity);
+                HideEntity(registry, card.descEntity);
+                HideEntity(registry, card.hitEntity);    // 閉じている間はマウスに反応させない
+            }
+        }
+    }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief スキルカードの幅を得る
+    //-------------------------------------------------------------
+    float GetSkillSelectCardWidth() {
+        return GetParams().cardWidth;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 今スキル選択で進行を止めているかを問い合わせる
+    //-------------------------------------------------------------
+    bool IsSkillSelectActive(Tsukino::ECS::Registry& registry) {
+        auto view = registry.View<SkillSelectComponent>();
+        for(entt::entity entity : view) {
+            const SkillSelectComponent& select = view.get<SkillSelectComponent>(entity);
+            return select.isActive || select.pendingLevelUps > 0 || select.closingBlockFrames > 0;
+        }
+        return false;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief システムの更新
+    //-------------------------------------------------------------
+    void SkillSelectSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
+        // メニュー自体はアニメーションを持たないため表示中はdeltaTimeを使わない
+        //（そもそも表示中はシーンがdeltaTime=0を渡してくる）。メニューが閉じた後の
+        // レベルアップ後無敵演出（下記）だけは実時間で進行させるため、ここでは捨てない
+
+        auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        if(!ctx)
+            return;
+
+        auto view = registry.View<PlayerComponent, SkillSelectComponent, PlayerSkillComponent>();
+        for(entt::entity entity : view) {
+            auto& player = view.get<PlayerComponent>(entity);
+            auto& select = view.get<SkillSelectComponent>(entity);
+            auto& skills = view.get<PlayerSkillComponent>(entity);
+
+            if(!select.isActive && select.pendingLevelUps <= 0) {
+                //-------------------------------------------------------------
+                // レベルアップ後無敵の消化とリムグロー。全てのスキル選択が終わり切った
+                // 瞬間（下の決定処理でlevelUpInvincibleTimerを立てる）から実時間で
+                // 減衰させる。既存の溜め攻撃リムライト（PlayerAnimationSystem）と
+                // 同じRimGlowComponentを流用するが、あちらは溜め中しか書き込まないため
+                // 通常時はこちらの書き込みがそのまま残る
+                //-------------------------------------------------------------
+                if(player.levelUpInvincibleTimer > 0.0f)
+                    TickLevelUpInvincibility(registry, entity, player, deltaTime);
+
+                //-------------------------------------------------------------
+                // 決定した次のフレーム。この1フレームだけ停止を延長して、
+                // 決定に使ったFの押し込みが完全に流れきるのを待つ
+                // （IsKeyPressedは立ち上がり検出なので、1フレーム挟めば消える。
+                //   これを怠るとPickupSystemが同じF入力を拾得として拾ってしまう）
+                //-------------------------------------------------------------
+                if(select.closingBlockFrames > 0) {
+                    --select.closingBlockFrames;
+                    SuppressAllMoveInput(registry);
+                }
+                continue;    // 平常時。何もしない
+            }
+
+            select.closingBlockFrames = 0;
+
+            //-------------------------------------------------------------
+            // 走行が終わった（死亡・クリア）後はメニューを出さない。
+            // 終わりと同じフレームにレベルアップが積まれることがあり、リザルトと同じF・W/Sを
+            // 取り合ってしまうため、残っている予約ごと捨てる
+            //-------------------------------------------------------------
+            if(IsRunEnded(registry)) {
+                select.pendingLevelUps = 0;
+                select.isActive        = false;
+                HideUi(registry, select);
+                continue;
+            }
+
+            // 停止中はプレイヤーも敵も移動入力を持たない状態に固定する
+            SuppressAllMoveInput(registry);
+
+            //-------------------------------------------------------------
+            // メニューを開く
+            //-------------------------------------------------------------
+            if(!select.isActive) {
+                const int candidateCount = PickSkillCandidates(m_rng, skills.levels, select.candidates);
+                if(candidateCount <= 0) {
+                    // 全スキルがカンスト済み。出す物が無いので予約ごと捨て、そのままゲームを続ける
+                    select.pendingLevelUps = 0;
+                    continue;
+                }
+
+                select.candidateCount  = candidateCount;
+                select.cursorIndex     = 0;
+                select.isActive        = true;
+                select.openedThisFrame = true;
+
+                //-------------------------------------------------------------
+                // 進行中のヒットストップを打ち切る。CombatAndroidScene::OnUpdateは
+                // メニュー中はdeltaTimeを0で上書きするためHitStopSystemの減算処理を
+                // 通らず、放っておくとメニューを閉じた後にスローモーションが残ってしまう
+                //-------------------------------------------------------------
+                ClearAllHitStop(registry);
+
+                RefreshUi(registry, *ctx, select, skills, player);
+                continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
+            }
+
+            if(select.openedThisFrame) {
+                select.openedThisFrame = false;
+                continue;
+            }
+
+            if(!ctx->inputSystem)
+                continue;
+
+            //-------------------------------------------------------------
+            // カーソルの上下移動。W/Sの押し込みとマウスホイールを同じ「1段ぶん」として扱う
+            //（ホイールは1ノッチ=±1.0。上へ回す＝上のカードへ＝インデックスは減る）
+            //-------------------------------------------------------------
+            int step = 0;
+            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::W))
+                --step;
+            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::S))
+                ++step;
+
+            const float wheelDelta = ctx->inputSystem->GetWheelDelta();
+            if(wheelDelta > 0.0f)
+                --step;
+            else if(wheelDelta < 0.0f)
+                ++step;
+
+            //-------------------------------------------------------------
+            // マウス。カードに乗せたらそのカードへ合わせ、クリックで決定する。
+            // 開いた最初のフレームは上（openedThisFrame）で捨てており、クリックは押した瞬間しか
+            // 立たないので、戦闘中に押していた攻撃のクリックで勝手に選ばれることはない
+            //-------------------------------------------------------------
+            std::array<Tsukino::ECS::Entity, kSkillChoiceMax> cardHits{};
+            for(int i = 0; i < kSkillChoiceMax; ++i)
+                cardHits[static_cast<size_t>(i)] = select.cards[static_cast<size_t>(i)].hitEntity;
+            const GameMenuPointer pointer =
+                ReadPointerOverRows(registry, *ctx->inputSystem, std::span<const Tsukino::ECS::Entity>(cardHits.data(), select.candidateCount));
+
+            if(step != 0 || pointer.hoverIndex >= 0) {
+                const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
+                                                              : std::clamp(select.cursorIndex + step, 0, select.candidateCount - 1);
+                if(nextIndex != select.cursorIndex) {
+                    select.cursorIndex = nextIndex;
+                    PlaySound(registry, SoundId::MenuMove);
+                    RefreshUi(registry, *ctx, select, skills, player);
+                }
+            }
+
+            //-------------------------------------------------------------
+            // 決定。取得段階を1つ進めて実効値を計算し直し、メニューを閉じる。
+            // pendingLevelUpsがまだ残っていれば次のフレームで2回目のメニューが開く
+            //（IsSkillSelectActiveはpendingLevelUpsも見ているので停止は続いたまま）
+            //-------------------------------------------------------------
+            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F) || pointer.clicked) {
+                const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
+
+                int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];
+                acquiredLevel      = std::min(acquiredLevel + 1, kMaxSkillLevel);
+                RecalculateSkillStats(skills);
+
+                //-------------------------------------------------------------
+                // 画面右の取得ログへ流す。メニューを閉じるまではdeltaTimeが0のため
+                // 演出は止まったままだが、ログは暗転板より奥の層に居て見えないので、
+                // 実際にはメニューが閉じた瞬間からスライドインが始まる
+                //-------------------------------------------------------------
+                if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                    eventBus->Publish(GameLogEvent{GameLogCategory::SkillAcquired,
+                                                  std::wstring(GetSkillEntry(acquiredId).displayName) + L" Lv."
+                                                      + std::to_wstring(acquiredLevel)});
+                }
+
+                // スキルが条件に届いた武器を進化させる（ログはスキル取得の次の行に流れる）
+                TryEvolvePlayerWeapons(registry, entity);
+
+                --select.pendingLevelUps;
+                select.isActive = false;
+                HideUi(registry, select);
+
+                //-------------------------------------------------------------
+                // 予約されていたレベルアップを全て消化した（＝メニューがこの後
+                // 続けて開き直らない）タイミングでのみ、レベルアップ後無敵を開始する。
+                // 玉1個で複数レベル上がった場合は最後の1回の決定でだけ発生する
+                //-------------------------------------------------------------
+                if(select.pendingLevelUps <= 0) {
+                    player.levelUpInvincibleTimer = player.levelUpInvincibleDuration;
+                    player.levelUpInvinciblePulseTime = 0.0f;
+                }
+
+                // 次のレベルアップが残っていない場合、このフレームの後半でPlayerSystemが
+                // 走ってしまうため、あと1フレームだけ停止を延長する
+                select.closingBlockFrames = 1;
+
+                //-------------------------------------------------------------
+                // メニューへ入る前に積まれていた先行入力を捨てる。残したままだと
+                // 閉じた次のフレームにPlayerAnimationSystemがそれを消費し、
+                // 攻撃や回避が意図せず暴発する
+                //-------------------------------------------------------------
+                player.attackInputPressed = false;
+                player.dodgeInputPressed  = false;
+            }
+        }
+    }
+}    // namespace CombatAndroid::ECS

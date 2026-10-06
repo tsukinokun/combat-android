@@ -8,10 +8,10 @@
 #include <Tsukino/Core/Log.hpp>
 #include <Tsukino/Core/DebugTools/DebugFeatures.hpp>
 #include <Tsukino/Core/DebugTools/FrameProfiler.hpp>
-#include <CombatAndroid/ECS/Utility/GamePrefab.hpp>
+#include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/Scene/LoadingScene.hpp>
 #ifdef TSUKINO_ENABLE_STRESS_TEST
-#include <CombatAndroid/ECS/System/EnemyStressTestSystem.hpp>
+#include <CombatAndroid/ECS/System/Debug/EnemyStressTestSystem.hpp>
 #endif
 
 #include <Windows.h>
