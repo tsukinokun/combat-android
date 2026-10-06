@@ -19,6 +19,7 @@
             "w": 0.8500000238418579
         },
         "outlineWidth": 1.5,
-        "sortOrder": 0
+        "sortOrder": 0,
+        "fontHandle": "CombatAndroid/Assets/Fonts/Hud.dfont"
     }
 }

@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -37,7 +38,6 @@ namespace CombatAndroid::ECS {
         //! レターボックスの退場アニメーションにかける秒数（実時間）
         constexpr float kLetterboxRetractDuration = 0.35f;
 
-        constexpr float           kSkipHintFontScale = 0.9f;
         const hlslpp::float4      kLetterboxColor(0.0f, 0.0f, 0.0f, 1.0f);
         const hlslpp::float4      kSkipHintColor(0.85f, 0.85f, 0.85f, 1.0f);
 
@@ -321,7 +321,7 @@ namespace CombatAndroid::ECS {
                       kLetterboxColor);
         StretchSprite(registry, *ctx, cutscene->letterboxBottomEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, windowWidth,
                       barHeight, kLetterboxColor);
-        PlaceUiText(registry, cutscene->skipHintTextEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, kSkipHintFontScale,
+        PlaceUiText(registry, cutscene->skipHintTextEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, GetUiTextScale(UiTextSize::Body),
                    L"決定 / Esc でスキップ", kSkipHintColor);
 
         //-------------------------------------------------------------

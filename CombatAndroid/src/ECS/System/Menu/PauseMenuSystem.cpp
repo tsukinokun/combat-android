@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
@@ -61,7 +62,6 @@ namespace CombatAndroid::ECS {
         struct PauseMenuParams {
             float titleOffsetY = -170.0f;    //!< 画面中心から見た「PAUSE」のY
             float menuTopOffsetY = -40.0f;     //!< 画面中心から見た1つ目の項目のY
-            float titleFontScale = 2.4f;
 
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.6f);
             hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -71,7 +71,6 @@ namespace CombatAndroid::ECS {
         void load(Archive& archive, PauseMenuParams& params) {
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
             LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
-            LoadField(archive, "titleFontScale", params.titleFontScale);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "titleColor", params.titleColor);
         }
@@ -107,7 +106,7 @@ namespace CombatAndroid::ECS {
                 return;
             }
 
-            PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"PAUSE", params.titleColor);
+            PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title), L"PAUSE", params.titleColor);
             ShowGameMenu(registry, context, pause.menu, screenCenterX, screenCenterY + params.menuTopOffsetY, kMenuLabels, pause.cursorIndex);
         }
 

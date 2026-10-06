@@ -20,6 +20,7 @@
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
@@ -81,12 +82,6 @@ namespace CombatAndroid::ECS {
             float bestOffsetY = 108.0f;
             float menuTopOffsetY = 200.0f;
 
-            float titleFontScale = 2.6f;
-            float labelFontScale = 1.0f;
-            float valueFontScale = 1.15f;
-            float recordFontScale = 0.8f;
-            float skillsFontScale = 0.85f;
-            float bestFontScale = 0.8f;
 
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.72f);
             hlslpp::float4 deadTitleColor = hlslpp::float4(1.0f, 0.35f, 0.30f, 1.0f);
@@ -112,12 +107,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "skillsOffsetY", params.skillsOffsetY);
             LoadField(archive, "bestOffsetY", params.bestOffsetY);
             LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
-            LoadField(archive, "titleFontScale", params.titleFontScale);
-            LoadField(archive, "labelFontScale", params.labelFontScale);
-            LoadField(archive, "valueFontScale", params.valueFontScale);
-            LoadField(archive, "recordFontScale", params.recordFontScale);
-            LoadField(archive, "skillsFontScale", params.skillsFontScale);
-            LoadField(archive, "bestFontScale", params.bestFontScale);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "deadTitleColor", params.deadTitleColor);
             LoadField(archive, "clearTitleColor", params.clearTitleColor);
@@ -193,11 +182,11 @@ namespace CombatAndroid::ECS {
                           const std::wstring& value, bool newRecord) {
             const RunResultParams& params = GetParams();
 
-            PlaceUiText(registry, row.labelEntity, centerX + params.labelOffsetX, y, params.labelFontScale, label, params.labelColor);
-            PlaceUiText(registry, row.valueEntity, centerX + params.valueOffsetX, y, params.valueFontScale, value, params.valueColor);
+            PlaceUiText(registry, row.labelEntity, centerX + params.labelOffsetX, y, GetUiTextScale(UiTextSize::Body), label, params.labelColor);
+            PlaceUiText(registry, row.valueEntity, centerX + params.valueOffsetX, y, GetUiTextScale(UiTextSize::Large), value, params.valueColor);
 
             if(newRecord)
-                PlaceUiText(registry, row.recordEntity, centerX + params.recordOffsetX, y, params.recordFontScale, L"NEW RECORD", params.recordColor);
+                PlaceUiText(registry, row.recordEntity, centerX + params.recordOffsetX, y, GetUiTextScale(UiTextSize::Small), L"NEW RECORD", params.recordColor);
             else
                 HideUiText(registry, row.recordEntity);
         }
@@ -232,7 +221,7 @@ namespace CombatAndroid::ECS {
             if(!result.revealed)
                 return;
 
-            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale,
+            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title),
                         result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? params.clearTitleColor : params.deadTitleColor);
 
             const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
@@ -242,10 +231,10 @@ namespace CombatAndroid::ECS {
             }
 
             if(!result.skillsText.empty())
-                PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + params.skillsOffsetY, params.skillsFontScale, result.skillsText,
+                PlaceUiText(registry, result.skillsEntity, screenCenterX, screenCenterY + params.skillsOffsetY, GetUiTextScale(UiTextSize::Body), result.skillsText,
                             params.skillsColor);
 
-            PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + params.bestOffsetY, params.bestFontScale, result.bestText, params.bestColor);
+            PlaceUiText(registry, result.bestEntity, screenCenterX, screenCenterY + params.bestOffsetY, GetUiTextScale(UiTextSize::Small), result.bestText, params.bestColor);
 
             ShowGameMenu(registry, ctx, result.menu, screenCenterX, screenCenterY + params.menuTopOffsetY, kMenuLabels, result.cursorIndex);
         }

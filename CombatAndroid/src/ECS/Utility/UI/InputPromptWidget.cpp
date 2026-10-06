@@ -95,7 +95,7 @@ namespace CombatAndroid::ECS {
         //!         矩形と同じくscale=0で作る。キーの文字（glyph）は生成時に中身を入れたきり
         //!         消さない（幅の計算に使う）ので、既定の1.0のままにすると、
         //!         一度も表示されていないプロンプトの文字が原寸で画面左上（0,0）に描かれてしまう。
-        //!         fontHandle未設定 → builtinAssetsのdefaultFontが使われるので日本語をそのまま渡してよい
+        //!         書体はPrefabのfontHandle（HUD書体。Assets/Fonts/README.md）
         //-------------------------------------------------------------
         [[nodiscard]]
         Tsukino::ECS::Entity CreateTextEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,

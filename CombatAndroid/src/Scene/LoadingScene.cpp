@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -43,8 +44,6 @@ namespace CombatAndroid {
         constexpr float kPercentOffsetY  = 70.0f;      //!< 「42%」のY
         constexpr float kBarWidth        = 520.0f;
         constexpr float kBarHeight       = 10.0f;
-        constexpr float kLabelFontScale  = 1.4f;
-        constexpr float kPercentFontScale = 0.8f;
 
         //! 回る印：画面右下に、3枚の細い板を60度ずつずらして重ねた「✳」を回す。
         //! 1件の重い読み込み（初回のFBX変換など）で進捗バーがしばらく止まっても、
@@ -112,7 +111,8 @@ namespace CombatAndroid {
         m_barFillEntity  = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kLoadingParts + 1);
         for(Tsukino::ECS::Entity& spinner : m_spinnerEntities)
             spinner = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kLoadingParts);
-        m_labelEntity   = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
+        m_labelEntity   = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center,
+                                                              CombatAndroid::ECS::UiTextFont::Heading);
         m_percentEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kLoadingText, CombatAndroid::ECS::UiTextAlign::Center);
 
         // 場面の切り替わりを繋ぐ黒。起動直後もここから明ける
@@ -206,7 +206,7 @@ namespace CombatAndroid {
         std::wstring label    = L"NOW LOADING";
         label.append(static_cast<size_t>(dotCount), L'.');
         label.append(static_cast<size_t>(3 - dotCount), L' ');    // 点の数で文字列の幅が変わって中央がぶれないよう空白で埋める
-        CombatAndroid::ECS::PlaceUiText(registry, m_labelEntity, centerX, centerY + kLabelOffsetY, kLabelFontScale, label, kTextColor);
+        CombatAndroid::ECS::PlaceUiText(registry, m_labelEntity, centerX, centerY + kLabelOffsetY, CombatAndroid::ECS::GetUiTextScale(CombatAndroid::ECS::UiTextSize::Heading), label, kTextColor);
 
         // 進捗バー（溝の左端から伸ばす）
         const float progress  = std::clamp(m_displayedProgress, 0.0f, 1.0f);
@@ -216,7 +216,7 @@ namespace CombatAndroid {
         CombatAndroid::ECS::StretchSprite(registry, *context, m_barFillEntity, barLeft + fillWidth * 0.5f, centerY + kBarOffsetY, fillWidth,
                                           kBarHeight, kFillColor);
 
-        CombatAndroid::ECS::PlaceUiText(registry, m_percentEntity, centerX, centerY + kPercentOffsetY, kPercentFontScale,
+        CombatAndroid::ECS::PlaceUiText(registry, m_percentEntity, centerX, centerY + kPercentOffsetY, CombatAndroid::ECS::GetUiTextScale(CombatAndroid::ECS::UiTextSize::Body),
                                         std::to_wstring(static_cast<int>(progress * 100.0f + 0.5f)) + L"%", kSubTextColor);
 
         // 回る印

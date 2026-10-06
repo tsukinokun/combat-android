@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/UI/GameLogComponent.hpp>
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
@@ -98,8 +99,6 @@ namespace CombatAndroid::ECS {
 
             // FontRendererSystemはworldMatrixのX軸長（＝scale.x）を拡大率として読む。
             // 基底のラスタライズサイズは32px（Default.dfont）なので、0.55で約18px、0.95で約30px
-            float labelFontScale = 0.55f;
-            float textFontScale  = 0.95f;
 
             float outlineWidth = 2.0f;    //!< 縁取りの太さ（ピクセル）
 
@@ -143,8 +142,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "textInsetX", params.textInsetX);
             LoadField(archive, "labelOffsetY", params.labelOffsetY);
             LoadField(archive, "textOffsetY", params.textOffsetY);
-            LoadField(archive, "labelFontScale", params.labelFontScale);
-            LoadField(archive, "textFontScale", params.textFontScale);
             LoadField(archive, "outlineWidth", params.outlineWidth);
             LoadField(archive, "panelColor", params.panelColor);
             LoadField(archive, "textColor", params.textColor);
@@ -481,10 +478,10 @@ namespace CombatAndroid::ECS {
             StretchSprite(registry, *ctx, log.accentEntity, panelLeft + params.accentInsetX + params.accentWidth * 0.5f, centerY, params.accentWidth,
                           params.panelHeight - params.accentInsetY * 2.0f, WithAlpha(log.accentColor, alpha));
 
-            PlaceLogText(registry, log.labelEntity, panelLeft + params.textInsetX, centerY + params.labelOffsetY, params.labelFontScale, log.accentColor,
+            PlaceLogText(registry, log.labelEntity, panelLeft + params.textInsetX, centerY + params.labelOffsetY, GetUiTextScale(UiTextSize::Small), log.accentColor,
                          alpha);
 
-            PlaceLogText(registry, log.textEntity, panelLeft + params.textInsetX, centerY + params.textOffsetY, params.textFontScale, params.textColor, alpha);
+            PlaceLogText(registry, log.textEntity, panelLeft + params.textInsetX, centerY + params.textOffsetY, GetUiTextScale(UiTextSize::Body), params.textColor, alpha);
         }
     }
 }    // namespace CombatAndroid::ECS

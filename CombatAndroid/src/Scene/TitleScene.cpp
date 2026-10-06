@@ -136,13 +136,14 @@ namespace CombatAndroid {
         title.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleBackdrop);
         for(Tsukino::ECS::Entity& fadeEntity : title.backdropFadeEntities)
             fadeEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleBackdrop);
-        title.titleEntity    = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleText, CombatAndroid::ECS::UiTextAlign::Center);
+        title.titleEntity    = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleText, CombatAndroid::ECS::UiTextAlign::Center,
+                                                                 CombatAndroid::ECS::UiTextFont::Heading);
         title.bestEntity     = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleText, CombatAndroid::ECS::UiTextAlign::Center);
         title.menu           = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kTitleMenuBase);
 
         title.controlsPanelEntity  = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleControlsPanel);
-        title.controlsHeaderEntity =
-            CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleControlsText, CombatAndroid::ECS::UiTextAlign::Center);
+        title.controlsHeaderEntity = CombatAndroid::ECS::CreateUiTextEntity(
+            registry, CombatAndroid::UI::kTitleControlsText, CombatAndroid::ECS::UiTextAlign::Center, CombatAndroid::ECS::UiTextFont::Heading);
         for(int i = 0; i < CombatAndroid::ECS::kTitleControlsLineCount; ++i) {
             title.controlsActionEntities[i] =
                 CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleControlsText, CombatAndroid::ECS::UiTextAlign::Left);

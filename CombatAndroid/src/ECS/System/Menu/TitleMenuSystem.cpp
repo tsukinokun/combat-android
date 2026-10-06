@@ -13,7 +13,9 @@
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Component/Menu/TitleStageComponent.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
+#include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
 
@@ -92,22 +94,22 @@ namespace CombatAndroid::ECS {
             float backdropFadeRatio = 0.30f;
 
             float titleOffsetY = -250.0f;
+
+            //! タイトルの幅の上限（画面幅に対する割合）。超えるときは文字全体を縮める。
+            //! 列の中心（leftColumnRatio）から左右に半分ずつ取っても、暗い板（backdropWidthRatio）の内側に収まる値にする
+            float titleMaxWidthRatio = 0.30f;
             float menuTopOffsetY = -20.0f;
             float bestOffsetY = 280.0f;
 
-            float titleFontScale = 3.2f;
-            float bestFontScale = 0.85f;
 
             float controlsPanelWidth = 980.0f;
             float controlsPanelHeight = 720.0f;
             float controlsHeaderOffsetY = -300.0f;
             float controlsFirstLineY = -220.0f;
             float controlsLinePitch = 48.0f;
-            float controlsActionOffsetX = -400.0f;    //!< 操作の名前の左端
-            float controlsKeyOffsetX = -130.0f;    //!< キーの左端
+            float controlsActionOffsetX = -360.0f;    //!< 操作の名前の左端
+            float controlsKeyOffsetX = -90.0f;    //!< キーの左端
             float controlsMenuOffsetY = 280.0f;
-            float controlsHeaderScale = 1.6f;
-            float controlsLineScale = 0.95f;
 
             //! 文字の下を暗くする色。背景の草原を透かすため不透明にはしない
             hlslpp::float4 backdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.72f);
@@ -128,10 +130,9 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "backdropWidthRatio", params.backdropWidthRatio);
             LoadField(archive, "backdropFadeRatio", params.backdropFadeRatio);
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "titleMaxWidthRatio", params.titleMaxWidthRatio);
             LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
             LoadField(archive, "bestOffsetY", params.bestOffsetY);
-            LoadField(archive, "titleFontScale", params.titleFontScale);
-            LoadField(archive, "bestFontScale", params.bestFontScale);
             LoadField(archive, "controlsPanelWidth", params.controlsPanelWidth);
             LoadField(archive, "controlsPanelHeight", params.controlsPanelHeight);
             LoadField(archive, "controlsHeaderOffsetY", params.controlsHeaderOffsetY);
@@ -140,8 +141,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "controlsActionOffsetX", params.controlsActionOffsetX);
             LoadField(archive, "controlsKeyOffsetX", params.controlsKeyOffsetX);
             LoadField(archive, "controlsMenuOffsetY", params.controlsMenuOffsetY);
-            LoadField(archive, "controlsHeaderScale", params.controlsHeaderScale);
-            LoadField(archive, "controlsLineScale", params.controlsLineScale);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "fullBackdropColor", params.fullBackdropColor);
             LoadField(archive, "titleColor", params.titleColor);
@@ -263,8 +262,10 @@ namespace CombatAndroid::ECS {
             }
 
             if(!title.showingControls) {
-                PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"人造人間0号機", params.titleColor);
-                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + params.bestOffsetY, params.bestFontScale, FormatBestRecord(), params.bestColor);
+                PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display), L"人造人間0号機", params.titleColor);
+                if(auto* titleFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(title.titleEntity))
+                    titleFont->maxWidth = screenWidth * params.titleMaxWidthRatio;
+                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + params.bestOffsetY, GetUiTextScale(UiTextSize::Small), FormatBestRecord(), params.bestColor);
 
                 // 強調帯を既定（440）より細くして、その右に並ぶキーの案内を武器へ被せない
                 ShowGameMenu(registry, context, title.menu, columnX, screenCenterY + params.menuTopOffsetY, kMenuLabels, title.cursorIndex,
@@ -287,14 +288,14 @@ namespace CombatAndroid::ECS {
 
             StretchSprite(registry, context, title.controlsPanelEntity, screenCenterX, screenCenterY, params.controlsPanelWidth, params.controlsPanelHeight,
                           params.controlsPanelColor);
-            PlaceUiText(registry, title.controlsHeaderEntity, screenCenterX, screenCenterY + params.controlsHeaderOffsetY, params.controlsHeaderScale,
+            PlaceUiText(registry, title.controlsHeaderEntity, screenCenterX, screenCenterY + params.controlsHeaderOffsetY, GetUiTextScale(UiTextSize::Heading),
                         L"操作説明", params.titleColor);
 
             for(int i = 0; i < kTitleControlsLineCount; ++i) {
                 const float lineY = screenCenterY + params.controlsFirstLineY + params.controlsLinePitch * static_cast<float>(i);
-                PlaceUiText(registry, title.controlsActionEntities[i], screenCenterX + params.controlsActionOffsetX, lineY, params.controlsLineScale,
+                PlaceUiText(registry, title.controlsActionEntities[i], screenCenterX + params.controlsActionOffsetX, lineY, GetUiTextScale(UiTextSize::Body),
                             kControlActions[i], params.controlsActionColor);
-                PlaceUiText(registry, title.controlsKeyEntities[i], screenCenterX + params.controlsKeyOffsetX, lineY, params.controlsLineScale,
+                PlaceUiText(registry, title.controlsKeyEntities[i], screenCenterX + params.controlsKeyOffsetX, lineY, GetUiTextScale(UiTextSize::Body),
                             kControlKeys[i], params.controlsKeyColor);
             }
 

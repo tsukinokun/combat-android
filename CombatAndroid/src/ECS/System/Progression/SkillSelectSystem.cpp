@@ -18,6 +18,7 @@
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/Table/WeaponEvolutionTable.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -64,9 +65,6 @@ namespace CombatAndroid::ECS {
             float descOffsetY = 30.0f;                     //!< カード中心から見た説明文のY
             float titleOffsetY = -310.0f;                   //!< 画面中心から見た「LEVEL UP!」のY
 
-            float titleFontScale = 2.2f;
-            float nameFontScale = 1.3f;
-            float descFontScale = 0.85f;
 
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.65f);      //!< 画面全体の暗転
             hlslpp::float4 highlightColor = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.95f);    //!< 選択中カードの枠（黄色）
@@ -101,9 +99,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "nameOffsetY", params.nameOffsetY);
             LoadField(archive, "descOffsetY", params.descOffsetY);
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
-            LoadField(archive, "titleFontScale", params.titleFontScale);
-            LoadField(archive, "nameFontScale", params.nameFontScale);
-            LoadField(archive, "descFontScale", params.descFontScale);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "highlightColor", params.highlightColor);
             LoadField(archive, "titleColor", params.titleColor);
@@ -250,7 +245,7 @@ namespace CombatAndroid::ECS {
             // 画面全体の暗転とタイトル
             //-------------------------------------------------------------
             StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, params.backdropColor);
-            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, params.titleFontScale, L"LEVEL UP!", params.titleColor);
+            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title), L"LEVEL UP!", params.titleColor);
 
             //-------------------------------------------------------------
             // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
@@ -321,8 +316,8 @@ namespace CombatAndroid::ECS {
                     nameText += L"]";
                 }
 
-                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + params.nameOffsetY, params.nameFontScale, nameText, params.nameColor);
-                PlaceUiText(registry, card.descEntity, textLeftX, centerY + params.descOffsetY, params.descFontScale,
+                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + params.nameOffsetY, GetUiTextScale(UiTextSize::Large), nameText, params.nameColor);
+                PlaceUiText(registry, card.descEntity, textLeftX, centerY + params.descOffsetY, GetUiTextScale(UiTextSize::Body),
                           entry.levels[static_cast<size_t>(level)].description, params.descColor);
             }
         }

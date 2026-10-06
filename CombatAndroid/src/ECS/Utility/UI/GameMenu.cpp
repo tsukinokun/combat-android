@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -21,7 +22,6 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         constexpr float kItemPitch      = 72.0f;     //!< 選択肢1つぶんの縦の送り
         constexpr float kHighlightHeight = 56.0f;    //!< 強調帯の高さ
-        constexpr float kItemFontScale  = 1.25f;     //!< 選択肢の文字の大きさ
 
         constexpr float kPromptGapX        = 80.0f;     //!< 強調帯の右端からプロンプトの列までの距離
         constexpr float kPromptUpOffsetY   = -40.0f;    //!< 選択中の選択肢から見た[W]のY
@@ -72,7 +72,7 @@ namespace CombatAndroid::ECS {
         widget.highlightEntity = CreateUiRectEntity(registry, context, sortOrderBase + kHighlightLayer);
 
         for(Tsukino::ECS::Entity& item : widget.itemEntities)
-            item = CreateUiTextEntity(registry, sortOrderBase + kItemLayer, UiTextAlign::Center);
+            item = CreateUiTextEntity(registry, sortOrderBase + kItemLayer, UiTextAlign::Center, UiTextFont::Heading);
 
         for(Tsukino::ECS::Entity& hit : widget.hitEntities)
             hit = CreatePointerHitRect(registry, context, sortOrderBase + kHitLayer);
@@ -106,7 +106,7 @@ namespace CombatAndroid::ECS {
             }
 
             const float itemY = topY + kItemPitch * static_cast<float>(i);
-            PlaceUiText(registry, widget.itemEntities[i], centerX, itemY, kItemFontScale, labels[i],
+            PlaceUiText(registry, widget.itemEntities[i], centerX, itemY, GetUiTextScale(UiTextSize::Large), labels[i],
                         (i == cursor) ? kSelectedTextColor : kItemTextColor);
 
             // マウスの当たり判定は強調帯の幅×1段の送り。上下の行と隙間なく接するので、行の間で途切れない

@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/UI/PlayerSkillHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Table/SkillTable.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -46,7 +47,6 @@ namespace CombatAndroid::ECS {
             float iconTextGapX = 8.0f;                   //!< アイコン枠の右端から文字までの余白
 
             //! 文字の拡大率（TransformComponent::scale.xがそのままフォントサイズになる）
-            float skillFontScale = 0.8f;
 
             hlslpp::float4 skillTextColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
         };
@@ -58,7 +58,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "iconSize", params.iconSize);
             LoadField(archive, "rowGapY", params.rowGapY);
             LoadField(archive, "iconTextGapX", params.iconTextGapX);
-            LoadField(archive, "skillFontScale", params.skillFontScale);
             LoadField(archive, "skillTextColor", params.skillTextColor);
         }
 
@@ -186,7 +185,7 @@ namespace CombatAndroid::ECS {
                 if(row.textEntity != entt::null) {
                     if(auto* textTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(row.textEntity)) {
                         textTransform->position = hlslpp::float3(params.skillListLeftX + params.iconSize + params.iconTextGapX, rowCenterY, 0.0f);
-                        textTransform->scale    = hlslpp::float3(params.skillFontScale, params.skillFontScale, 1.0f);
+                        textTransform->scale    = hlslpp::float3(GetUiTextScale(UiTextSize::Body), GetUiTextScale(UiTextSize::Body), 1.0f);
                         textTransform->dirty    = true;
                     }
                     if(auto* textFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(row.textEntity)) {

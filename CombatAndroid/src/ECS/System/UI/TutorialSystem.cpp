@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -79,8 +80,6 @@ namespace CombatAndroid::ECS {
             float promptInsetX = 70.0f;     //!< 板の左端からキー表示の中心まで
             float textInsetX = 150.0f;    //!< 板の左端から文の左端まで
             float counterOffsetY = -60.0f;    //!< 板の中心から見た「操作 n / 6」のY
-            float textFontScale = 1.0f;
-            float counterFontScale = 0.65f;
 
             hlslpp::float4 panelColor = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);    //!< 取得ログと同じ黒い半透明
             hlslpp::float4 textColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -102,8 +101,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "promptInsetX", params.promptInsetX);
             LoadField(archive, "textInsetX", params.textInsetX);
             LoadField(archive, "counterOffsetY", params.counterOffsetY);
-            LoadField(archive, "textFontScale", params.textFontScale);
-            LoadField(archive, "counterFontScale", params.counterFontScale);
             LoadField(archive, "panelColor", params.panelColor);
             LoadField(archive, "textColor", params.textColor);
             LoadField(archive, "doneColor", params.doneColor);
@@ -308,10 +305,10 @@ namespace CombatAndroid::ECS {
             if(isGoal) {
                 // 目標はキー表示が無いので、板の中央に置く
                 HideUiText(registry, tutorial.textEntity);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, params.textFontScale, text, textColor);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
             } else {
-                PlaceUiText(registry, tutorial.textEntity, panelLeft + params.textInsetX, panelCenterY, params.textFontScale, text, textColor);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + params.counterOffsetY, params.counterFontScale,
+                PlaceUiText(registry, tutorial.textEntity, panelLeft + params.textInsetX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + params.counterOffsetY, GetUiTextScale(UiTextSize::Small),
                             L"操作 " + std::to_wstring(stepIndex + 1) + L" / " + std::to_wstring(kOperationStepCount), params.counterColor);
             }
 

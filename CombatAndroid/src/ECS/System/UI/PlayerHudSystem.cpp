@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -39,20 +40,18 @@ namespace CombatAndroid::ECS {
             float hpBarHeight = 18.0f;
 
             // EXPバーはHPバーのすぐ下に、同じ左端・同じ幅で並べる
-            float expBarGapY = 6.0f;    //!< HPバーの下端からEXPバーの上端までの隙間
+            float expBarGapY = 9.0f;    //!< HPバーの下端からEXPバーの上端までの隙間
             float expBarHeight = 10.0f;
 
             float textGapX = 12.0f;    //!< バー右端からテキストまでの余白
 
             //! HP・EXPの数値テキストの拡大率。2本のバーの間隔（24px）に収まる大きさにしないと、
             //! 上下の行が重なって読めなくなる（既定の1.0は危険度テキストと同じ大きさ）
-            float hudTextFontScale = 0.5f;
 
             hlslpp::float4 barBackgroundColor = hlslpp::float4(0.12f, 0.12f, 0.12f, 0.85f);    //!< 背景（暗いグレー半透明）
             hlslpp::float4 expBarFillColor = hlslpp::float4(0.35f, 0.65f, 1.0f, 1.0f);       //!< EXPバーの残量色（水色）
 
             //! 危険度テキストの基準拡大率。昇格演出はこの値を一時的に上回る
-            float dangerRankFontScale = 1.0f;
 
             //! 危険度テキストの色が赤へ振り切るランク。ランク数に上限が無いため、
             //! これ以上は色が変わらない（色で段を数えさせる意図は無く、危険さの気配だけ伝える）
@@ -75,10 +74,8 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "expBarGapY", params.expBarGapY);
             LoadField(archive, "expBarHeight", params.expBarHeight);
             LoadField(archive, "textGapX", params.textGapX);
-            LoadField(archive, "hudTextFontScale", params.hudTextFontScale);
             LoadField(archive, "barBackgroundColor", params.barBackgroundColor);
             LoadField(archive, "expBarFillColor", params.expBarFillColor);
-            LoadField(archive, "dangerRankFontScale", params.dangerRankFontScale);
             LoadField(archive, "dangerRankColorFull", params.dangerRankColorFull);
             LoadField(archive, "dangerRankGreenFade", params.dangerRankGreenFade);
             LoadField(archive, "dangerRankBlueFade", params.dangerRankBlueFade);
@@ -180,7 +177,7 @@ namespace CombatAndroid::ECS {
                 if(auto* hpTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.hpTextEntity)) {
                     hpTextTransform->position =
                         hlslpp::float3(params.hpBarLeftX + params.hpBarWidth + params.textGapX, params.hpBarTopY + params.hpBarHeight * 0.5f, 0.0f);
-                    hpTextTransform->scale = hlslpp::float3(params.hudTextFontScale, params.hudTextFontScale, 1.0f);
+                    hpTextTransform->scale = hlslpp::float3(GetUiTextScale(UiTextSize::Small), GetUiTextScale(UiTextSize::Small), 1.0f);
                     hpTextTransform->dirty = true;
                 }
             }
@@ -193,7 +190,7 @@ namespace CombatAndroid::ECS {
                 if(auto* expTextTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.expTextEntity)) {
                     expTextTransform->position =
                         hlslpp::float3(params.hpBarLeftX + params.hpBarWidth + params.textGapX, (params.hpBarTopY + params.hpBarHeight + params.expBarGapY) + params.expBarHeight * 0.5f, 0.0f);
-                    expTextTransform->scale = hlslpp::float3(params.hudTextFontScale, params.hudTextFontScale, 1.0f);
+                    expTextTransform->scale = hlslpp::float3(GetUiTextScale(UiTextSize::Small), GetUiTextScale(UiTextSize::Small), 1.0f);
                     expTextTransform->dirty = true;
                 }
             }
@@ -242,7 +239,7 @@ namespace CombatAndroid::ECS {
                 //-----------------------------------------------------
                 if(auto* rankTransform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(hud.dangerRankTextEntity)) {
                     float flash = std::clamp(clock.rankUpFlashTimer / kRankUpFlashDuration, 0.0f, 1.0f);
-                    float scale = params.dangerRankFontScale * (1.0f + params.rankUpFlashScaleGain * flash * flash);
+                    float scale = GetUiTextScale(UiTextSize::Large) * (1.0f + params.rankUpFlashScaleGain * flash * flash);
 
                     rankTransform->scale = hlslpp::float3(scale, scale, 1.0f);
                     rankTransform->dirty = true;

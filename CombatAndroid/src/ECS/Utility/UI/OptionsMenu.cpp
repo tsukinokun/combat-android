@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Utility/Audio/Bgm.hpp>
 #include <CombatAndroid/ECS/Utility/Save/GameSettings.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -45,8 +46,6 @@ namespace CombatAndroid::ECS {
         constexpr float kMenuTopOffsetY  = -140.0f;
         constexpr float kHintOffsetY     = 250.0f;
         constexpr float kHighlightWidth  = 620.0f;    //!< 「項目名　< 値 >」が収まる幅
-        constexpr float kHeaderFontScale = 1.6f;
-        constexpr float kHintFontScale   = 0.8f;
 
         //! [A][D] を強調帯の左に並べる位置（帯の左端からの距離）
         constexpr float kDecreasePromptGapX = 150.0f;
@@ -142,8 +141,8 @@ namespace CombatAndroid::ECS {
             const float screenCenterY = screenHeight * 0.5f;
 
             StretchSprite(registry, context, options.panelEntity, screenCenterX, screenCenterY, kPanelWidth, kPanelHeight, kPanelColor);
-            PlaceUiText(registry, options.headerEntity, screenCenterX, screenCenterY + kHeaderOffsetY, kHeaderFontScale, L"オプション", kHeaderColor);
-            PlaceUiText(registry, options.hintEntity, screenCenterX, screenCenterY + kHintOffsetY, kHintFontScale,
+            PlaceUiText(registry, options.headerEntity, screenCenterX, screenCenterY + kHeaderOffsetY, GetUiTextScale(UiTextSize::Heading), L"オプション", kHeaderColor);
+            PlaceUiText(registry, options.hintEntity, screenCenterX, screenCenterY + kHintOffsetY, GetUiTextScale(UiTextSize::Small),
                         L"W / S・マウス：項目を選ぶ　　A / D：値を変える　　Esc：もどる", kHintColor);
 
             std::array<std::wstring, static_cast<size_t>(OptionsItem::Count)> labels;
@@ -199,7 +198,7 @@ namespace CombatAndroid::ECS {
                                        int sortOrderBase) {
         OptionsMenuState options;
         options.panelEntity    = CreateUiRectEntity(registry, context, sortOrderBase + kPanelLayer);
-        options.headerEntity   = CreateUiTextEntity(registry, sortOrderBase + kTextLayer, UiTextAlign::Center);
+        options.headerEntity   = CreateUiTextEntity(registry, sortOrderBase + kTextLayer, UiTextAlign::Center, UiTextFont::Heading);
         options.hintEntity     = CreateUiTextEntity(registry, sortOrderBase + kTextLayer, UiTextAlign::Center);
         options.menu           = CreateGameMenuWidget(registry, context, sortOrderBase + kMenuLayer);
         options.decreasePrompt = CreateKeyPrompt(registry, context, L"A", PromptChevron::Left, sortOrderBase + kPromptLayer);

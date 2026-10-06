@@ -34,6 +34,15 @@ namespace CombatAndroid::ECS {
     };
 
     //-------------------------------------------------------------
+    //! @enum   UiTextFont
+    //! @brief  文字の書体（Assets/Fonts/README.md）
+    //-------------------------------------------------------------
+    enum class UiTextFont {
+        Hud,        //!< HUD・ログ・数値・説明文（Zen Kaku Gothic New）。人造人間が見ている画面の文字
+        Heading,    //!< タイトル・画面の見出し・メニューの選択肢（Noto Serif JP）。世界側の文字
+    };
+
+    //-------------------------------------------------------------
     //! @brief  画面固定の単色矩形（WhitePixel.pngを着色する）エンティティを非表示で作る
     //! @param  registry  [in] ECSレジストリ
     //! @param  context   [in] エンジンコンテキスト（テクスチャのロードに使う）
@@ -49,11 +58,13 @@ namespace CombatAndroid::ECS {
     //! @param  registry  [in] ECSレジストリ
     //! @param  sortOrder [in] 描画層（CombatAndroid/UI/UiSortOrder.hpp）
     //! @param  align     [in] 横方向の基準
+    //! @param  typeface  [in] 書体。見出しだけHeadingを渡す
     //! @return 作ったエンティティ。表示はPlaceUiTextで行う
     //! @note   縦は中央揃え。暗転板の上でも明るい景色の上でも読めるよう、黒い縁取りを付ける
     //-------------------------------------------------------------
     [[nodiscard]]
-    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align);
+    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align,
+                                            UiTextFont typeface = UiTextFont::Hud);
 
     //-------------------------------------------------------------
     //! @brief  スプライトを中心座標・ピクセル寸法・色で配置する

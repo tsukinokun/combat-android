@@ -20,8 +20,6 @@
         "textInsetX": 22.0,
         "labelOffsetY": -16.0,
         "textOffsetY": 15.0,
-        "labelFontScale": 0.55,
-        "textFontScale": 0.95,
         "outlineWidth": 2.0,
         "panelColor": { "x": 0.02, "y": 0.02, "z": 0.03, "w": 0.72 },
         "textColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },

@@ -1,0 +1,4 @@
+# HUD・ログ・数値・説明文用（見出し以外の文字はすべてこれ）
+FaceName = Zen Kaku Gothic New Bold
+SourceFile = ZenKakuGothicNew-Bold.ttf
+Size = 32

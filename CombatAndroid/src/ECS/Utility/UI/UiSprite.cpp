@@ -121,11 +121,11 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief 画面固定の文字エンティティを非表示で作る
     //-------------------------------------------------------------
-    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align) {
-        // Prefab（UI/Text）：黒い縁取りの文字。描画順と揃え位置だけ個体ごとに変える。
-        // fontHandle未設定 → builtinAssetsの既定フォントが使われるので日本語をそのまま渡してよい
+    Tsukino::ECS::Entity CreateUiTextEntity(Tsukino::ECS::Registry& registry, int sortOrder, UiTextAlign align, UiTextFont typeface) {
+        // Prefab（UI/Text・UI/HeadingText）：黒い縁取りの文字。書体はPrefabが持ち（Assets/Fonts）、
+        // 描画順と揃え位置だけ個体ごとに変える
         auto*                context = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
-        Tsukino::ECS::Entity entity  = InstantiatePrefab(registry, *context, "UI/Text");
+        Tsukino::ECS::Entity entity  = InstantiatePrefab(registry, *context, typeface == UiTextFont::Heading ? "UI/HeadingText" : "UI/Text");
 
         Tsukino::BuiltIn::ECS::FontComponent& font = registry.GetComponent<Tsukino::BuiltIn::ECS::FontComponent>(entity);
         font.sortOrder                              = sortOrder;

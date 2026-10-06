@@ -43,6 +43,7 @@
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
@@ -377,6 +378,8 @@ namespace CombatAndroid {
             Tsukino::BuiltIn::ECS::TransformComponent& survivalTimeTransform =
                 registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(survivalTimeEntity);
             survivalTimeTransform.position = hlslpp::float3(survivalTimeScreenCenterX, 24.0f, 0.0f);
+            survivalTimeTransform.scale    = hlslpp::float3(CombatAndroid::ECS::GetUiTextScale(CombatAndroid::ECS::UiTextSize::Large),
+                                                            CombatAndroid::ECS::GetUiTextScale(CombatAndroid::ECS::UiTextSize::Large), 1.0f);
             survivalTimeTransform.dirty    = true;
 
             hud.survivalTimeTextEntity = survivalTimeEntity;
@@ -386,8 +389,8 @@ namespace CombatAndroid {
             // 見せておかないと、難易度上昇が原因不明の理不尽になる。
             // 横並びにしないのは、"12:34" の描画幅を知らないと重なるため
             //-------------------------------------------------------------
-            //! 生存時間テキストの上端からの縦オフセット（ピクセル）。フォントの行高ぶん下げる
-            constexpr float kDangerRankTextOffsetY = 34.0f;
+            //! 生存時間テキストの上端からの縦オフセット（ピクセル）。生存時間の行高（フォントの基準32px×文字の大きさ）ぶん下げる
+            const float kDangerRankTextOffsetY = 34.0f * CombatAndroid::ECS::GetUiTextScale(CombatAndroid::ECS::UiTextSize::Large);
 
             Tsukino::ECS::Entity dangerRankEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/HudTopText");
 
@@ -462,8 +465,8 @@ namespace CombatAndroid {
             //-------------------------------------------------------------
             CombatAndroid::ECS::RunResultComponent& runResult = registry.AddComponent<CombatAndroid::ECS::RunResultComponent>(playerEntity);
             runResult.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kRunResultBackdrop);
-            runResult.titleEntity =
-                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center);
+            runResult.titleEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center,
+                                                                           CombatAndroid::ECS::UiTextFont::Heading);
             for(CombatAndroid::ECS::RunResultStatRow& row : runResult.statRows) {
                 row.labelEntity =
                     CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Left);
@@ -480,8 +483,8 @@ namespace CombatAndroid {
 
             CombatAndroid::ECS::PauseMenuComponent& pauseMenu = registry.AddComponent<CombatAndroid::ECS::PauseMenuComponent>(playerEntity);
             pauseMenu.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kPauseBackdrop);
-            pauseMenu.titleEntity =
-                CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center);
+            pauseMenu.titleEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center,
+                                                                           CombatAndroid::ECS::UiTextFont::Heading);
             pauseMenu.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kPauseMenuBase);
             pauseMenu.options = CombatAndroid::ECS::CreateOptionsMenu(registry, *context, CombatAndroid::UI::kPauseOptionsBase);
 
@@ -513,9 +516,10 @@ namespace CombatAndroid {
                 return panelEntity;
             };
 
-            // Prefab: UI/SkillText（空文字＝非表示。位置・フォントサイズはSkillSelectSystemが書く）。揃えと縁取りだけ上書きする
-            auto makeSkillText = [&](Tsukino::BuiltIn::ECS::HorizontalAlign horizontalAlign, float outlineWidth) {
-                Tsukino::ECS::Entity textEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/SkillText");
+            // Prefab: UI/SkillText・UI/SkillHeadingText（空文字＝非表示。位置・フォントサイズはSkillSelectSystemが書く）。
+            // 書体はPrefabが持つ（見出しの「LEVEL UP!」だけ見出し書体）。揃えと縁取りだけ上書きする
+            auto makeSkillText = [&](Tsukino::BuiltIn::ECS::HorizontalAlign horizontalAlign, float outlineWidth, const char* prefabName = "UI/SkillText") {
+                Tsukino::ECS::Entity textEntity = CombatAndroid::ECS::InstantiatePrefab(registry, *context, prefabName);
 
                 Tsukino::BuiltIn::ECS::FontComponent& font = registry.GetComponent<Tsukino::BuiltIn::ECS::FontComponent>(textEntity);
                 font.outlineWidth    = outlineWidth;
@@ -528,7 +532,7 @@ namespace CombatAndroid {
                 registry.AddComponent<CombatAndroid::ECS::SkillSelectComponent>(playerEntity);
             skillSelect.backdropEntity  = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectBackdrop);     // 画面全体の暗転
             skillSelect.highlightEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectHighlight);    // 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
-            skillSelect.titleEntity     = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f);
+            skillSelect.titleEntity     = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f, "UI/SkillHeadingText");
 
             for(CombatAndroid::ECS::SkillSelectCardEntities& card : skillSelect.cards) {
                 card.panelEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectCard);

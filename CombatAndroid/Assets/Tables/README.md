@@ -18,6 +18,7 @@
 | `EnemyDifficulty.json` | `EnemyDifficultyTable.cpp` | 危険度ランクごとの倍率と、終端より先の1段ぶんの増分 |
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |
+| `UiTextSize.json` | `UiTextSize.cpp` | 画面の文字の大きさの6段階（Display / Title / Heading / Large / Body / Small）。文字はどれもこのどれかを使うので、1つ変えればその段階の文字が全画面でそろって変わる。各 System の調整値には文字の大きさを置かない |
 | `Systems/<名前>.json` | `ECS/System/<領域>/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
 
 敵1体の素の値（HP・移動速度・当たり判定など）はテーブルではなく Prefab（`Assets/Prefabs/Enemy/<名前>/`）が持つ。

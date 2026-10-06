@@ -11,8 +11,6 @@
         "promptInsetX": 70.0,
         "textInsetX": 150.0,
         "counterOffsetY": -60.0,
-        "textFontScale": 1.0,
-        "counterFontScale": 0.65,
         "panelColor": { "x": 0.02, "y": 0.02, "z": 0.03, "w": 0.72 },
         "textColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
         "doneColor": { "x": 0.55, "y": 1.0, "z": 0.55, "w": 1.0 },
