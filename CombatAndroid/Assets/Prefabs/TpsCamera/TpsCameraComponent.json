@@ -14,6 +14,7 @@
         "shakeMaxScale": 2.5,
         "zoomDistanceScale": 0.699999988079071,
         "zoomFovScale": 0.8700000047683716,
+        "zoomLookHeight": 110.0,
         "zoomHoldAfterImpact": 0.5,
         "zoomInFrequency": 5.0,
         "zoomOutFrequency": 1.5,

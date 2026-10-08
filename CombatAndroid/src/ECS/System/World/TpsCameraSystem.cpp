@@ -344,6 +344,9 @@ namespace CombatAndroid::ECS {
             const float zoomFrequency = (zoomTarget > 0.0f) ? tpsCamera.zoomInFrequency : tpsCamera.zoomOutFrequency;
             StepSpring(tpsCamera.zoomAmount, tpsCamera.zoomVelocity, zoomTarget, zoomFrequency, 1.0f, realDeltaTime);
 
+            // 寄るほど注視点を腰のあたりへ下げる。頭の上を見たまま寄ると足元と叩きつけた地面が切れるため
+            lookAtTarget.y -= (lookHeight - tpsCamera.zoomLookHeight) * tpsCamera.zoomAmount;
+
             // 注視点へ向かって、距離を縮めるぶんだけ前進する
             hlslpp::float3 cameraPosition = tpsCamera.followSpringPosition;
             hlslpp::float3 toLookAt       = lookAtTarget - cameraPosition;
@@ -353,7 +356,7 @@ namespace CombatAndroid::ECS {
                 cameraPosition       = cameraPosition + (toLookAt / toLookAtLength) * std::min(approach, toLookAtLength * 0.9f);
             }
 
-            // 寄りは注視点（頭上）へ向かうので下がることは無いが、念のため最終位置にも下限を効かせる
+            // 寄りは下げた注視点（腰）へ向かうので少し下がる。地面へ潜らないよう最終位置にも下限を効かせる
             cameraPosition.y = std::max(static_cast<float>(cameraPosition.y), minCameraHeight);
 
             transform.position = cameraPosition;

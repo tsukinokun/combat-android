@@ -28,6 +28,7 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("shakeMaxScale", camera.shakeMaxScale),
                 cereal::make_nvp("zoomDistanceScale", camera.zoomDistanceScale),
                 cereal::make_nvp("zoomFovScale", camera.zoomFovScale),
+                cereal::make_nvp("zoomLookHeight", camera.zoomLookHeight),
                 cereal::make_nvp("zoomHoldAfterImpact", camera.zoomHoldAfterImpact),
                 cereal::make_nvp("zoomInFrequency", camera.zoomInFrequency),
                 cereal::make_nvp("zoomOutFrequency", camera.zoomOutFrequency),
@@ -62,6 +63,7 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "shakeMaxScale", camera.shakeMaxScale);
         LoadField(archive, "zoomDistanceScale", camera.zoomDistanceScale);
         LoadField(archive, "zoomFovScale", camera.zoomFovScale);
+        LoadField(archive, "zoomLookHeight", camera.zoomLookHeight);
         LoadField(archive, "zoomHoldAfterImpact", camera.zoomHoldAfterImpact);
         LoadField(archive, "zoomInFrequency", camera.zoomInFrequency);
         LoadField(archive, "zoomOutFrequency", camera.zoomOutFrequency);

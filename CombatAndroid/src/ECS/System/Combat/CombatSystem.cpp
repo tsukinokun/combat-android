@@ -617,9 +617,17 @@ namespace CombatAndroid::ECS {
                 if(weapon.cooldownTimer < 0.0f)
                     weapon.cooldownTimer = 0.0f;
             } else if(weapon.attackRequested) {
-                weapon.isActive        = true;
-                weapon.activeTimer     = (weapon.nextActiveDurationOverride >= 0.0f) ? weapon.nextActiveDurationOverride : weapon.activeDuration;
+                //-------------------------------------------------------------
+                // 当たり判定を開く。インパクトの瞬間が決まっている段（nextActiveStartDelay>0）は
+                // その時まで開かずに待つ。振りかぶり中の武器に触れた敵へ当たらないようにするため
+                //-------------------------------------------------------------
+                const float activeDuration = (weapon.nextActiveDurationOverride >= 0.0f) ? weapon.nextActiveDurationOverride : weapon.activeDuration;
                 weapon.nextActiveDurationOverride = -1.0f;
+                weapon.activeStartTimer      = std::max(weapon.nextActiveStartDelay, 0.0f);
+                weapon.nextActiveStartDelay  = 0.0f;
+                weapon.pendingActiveDuration = activeDuration;
+                weapon.isActive              = weapon.activeStartTimer <= 0.0f;
+                weapon.activeTimer           = weapon.isActive ? activeDuration : 0.0f;
                 weapon.cooldownTimer   = weapon.cooldown;
                 weapon.attackRequested = false;
 
@@ -666,6 +674,29 @@ namespace CombatAndroid::ECS {
                 if(auto* ownerSkills = registry.try_get<PlayerSkillComponent>(weapon.owner)) {
                     skillAttackMultiplier = ownerSkills->attackMultiplier;
                     skillLifeStealRatio   = ownerSkills->lifeStealRatio;
+                }
+            }
+
+            //-------------------------------------------------------------
+            // インパクト待ち。明けたフレームで判定を開く。前フレームの姿勢は「直前の1フレーム」に
+            // しておき、叩きつける直前の振り下ろしの弧だけを補間に含める（振りかぶりからは補間しない）
+            //
+            // インパクトの前に攻撃を抜けた（回避・被弾・死亡など）ときは、待っている判定もAoEも捨てる。
+            // 転がった後に誰もいない所で叩きつけが出ないようにするため
+            //-------------------------------------------------------------
+            if(!weapon.isAttacking && weapon.activeStartTimer > 0.0f) {
+                weapon.activeStartTimer = 0.0f;
+                weapon.areaAttackArmed  = false;
+            }
+            if(weapon.activeStartTimer > 0.0f) {
+                weapon.activeStartTimer -= deltaTime;
+                if(weapon.activeStartTimer <= 0.0f) {
+                    weapon.activeStartTimer   = 0.0f;
+                    weapon.isActive           = true;
+                    weapon.activeTimer        = weapon.pendingActiveDuration;
+                    weapon.prevAttackPosition = preFollowPosition;
+                    weapon.prevAttackRotation = preFollowRotation;
+                    weapon.hasPrevAttackPose  = true;
                 }
             }
 
@@ -736,6 +767,7 @@ namespace CombatAndroid::ECS {
 
             //-------------------------------------------------------------
             // AoE（範囲攻撃）。振り下ろし開始（attackRequestedの消費）から一定時間後に1回だけ発動する。
+            // インパクトの瞬間が決まっている段は、その瞬間（直線の判定が開くのと同じフレーム）になる。
             // isActive/hitWindowDurationとは独立したタイマーで管理し、直線カプセル判定の
             // ヒット窓が先に閉じても予定通り発動できるようにする
             //-------------------------------------------------------------

@@ -128,10 +128,14 @@ namespace CombatAndroid::ECS {
 
         float nextActiveDurationOverride = -1.0f;    //!< 次にattackRequestedが消費される際、activeDurationの代わりに使う値（-1なら無効）。
                                                        //!< PlayerAnimationSystemが連撃の段ごとに設定する（AttackStep::hitWindowDuration）
+        float nextActiveStartDelay = 0.0f;    //!< 次にattackRequestedが消費される際、当たり判定を開くまで待つ秒数（一度きりの要求）。
+                                                //!< PlayerAnimationSystemがattackStepImpactTimeから設定する
 
         bool  attackRequested = false;    //!< 攻撃入力を受け取ったか（PlayerSystemがセットする）
         bool  isActive        = false;    //!< 現在当たり判定が有効か
         float activeTimer     = 0.0f;     //!< 当たり判定有効時間の残り
+        float activeStartTimer = 0.0f;    //!< 当たり判定を開くまでの残り（0より大きい間は待っている）。nextActiveStartDelayから仕込む
+        float pendingActiveDuration = 0.0f;    //!< 待ちが明けたときに開いておく時間
         float cooldownTimer   = 0.0f;     //!< クールダウンの残り
 
         std::vector<Tsukino::ECS::Entity> hitEnemiesThisAttack;    //!< このアタックで既にヒットした敵の記録（多重ヒット防止）。isActiveがtrueになった瞬間のみクリアする
@@ -249,6 +253,12 @@ namespace CombatAndroid::ECS {
         Tsukino::u32   attackAnimationIndex = 1;             //!< Mixamo製FBX共通でindex 1が実モーション
         float attackStepStartTime[PlayerAnimationSetComponent::kAttackComboCount] = {};    //!< 各段の再生開始時刻（秒）
         float attackStepEndTime[PlayerAnimationSetComponent::kAttackComboCount]   = {};    //!< 各段の再生終了時刻（秒）
+
+        //! 各段のインパクトの瞬間（クリップ上の秒。startTime/endTimeと同じ物差し）。0以上を入れた段は、
+        //! 直線の当たり判定・AoE・大技の通知（カメラの寄りとスロー）をすべてこの瞬間にそろえ、
+        //! 当たり判定はそこからactiveDurationだけ開く。-1なら従来どおり段の頭で判定を開き、
+        //! AoEはAttackStep::areaAttackDelayで出す。クリップごとに違うのでattackClipを持つ武器だけが使う
+        float attackStepImpactTime[PlayerAnimationSetComponent::kAttackComboCount] = {-1.0f, -1.0f, -1.0f};
 
         //-------------------------------------------------------------
         // 溜め攻撃(チャージアタック)。有効な武器は左クリック長押しで溜め、離す（または一定時間経過）と

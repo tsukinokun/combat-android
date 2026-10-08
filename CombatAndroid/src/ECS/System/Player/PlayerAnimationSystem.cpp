@@ -113,6 +113,7 @@ namespace CombatAndroid::ECS {
                 Tsukino::u32                          animationIndex = step.animationIndex;
                 float                        startTime      = step.startTime;
                 float                        endTime        = step.endTime;
+                float                        impactTime     = -1.0f;    // 武器のクリップを使うときだけ設定される（下）
 
                 auto& player = registry.GetComponent<PlayerComponent>(entity);
                 WeaponComponent* weapon = nullptr;
@@ -124,6 +125,7 @@ namespace CombatAndroid::ECS {
                     animationIndex = weapon->attackAnimationIndex;
                     startTime      = weapon->attackStepStartTime[stepIndex];
                     endTime        = weapon->attackStepEndTime[stepIndex];
+                    impactTime     = weapon->attackStepImpactTime[stepIndex];
                 }
 
                 if(!clip.IsValid())
@@ -165,20 +167,30 @@ namespace CombatAndroid::ECS {
                 // 明示的に0へ落として次段のヒット判定をブロックしないようにする
                 //-------------------------------------------------------------
                 if(armAttack && weapon != nullptr) {
+                    //-------------------------------------------------------------
+                    // インパクトの瞬間（武器を地面に叩きつける等）が決まっている段は、
+                    // 当たり判定・AoE・大技の通知をすべてそこまで遅らせる。クリップ上の秒なので、
+                    // 再生速度で割って実時間に直す。決まっていない段は従来どおり段の頭で判定を開く
+                    //-------------------------------------------------------------
+                    const bool  hasImpact      = impactTime >= 0.0f;
+                    const float impactDelay    = hasImpact ? std::max(impactTime - startTime, 0.0f) / std::max(step.playbackSpeed, 0.01f) : 0.0f;
+                    const float areaAttackDelay = hasImpact ? impactDelay : step.areaAttackDelay;
+
                     weapon->attackRequested = true;
                     weapon->cooldownTimer   = 0.0f;
-                    weapon->nextActiveDurationOverride = step.hitWindowDuration;
+                    weapon->nextActiveDurationOverride = hasImpact ? weapon->activeDuration : step.hitWindowDuration;
+                    weapon->nextActiveStartDelay       = impactDelay;
                     weapon->damageMultiplier            = step.damageMultiplier;
                     // AoE(範囲攻撃)要求。実際に発動するかはCombatSystem側でweapon.areaAttackRadius>0を見て判定する
                     weapon->pendingAreaAttack      = step.areaAttack;
-                    weapon->pendingAreaAttackDelay = step.areaAttackDelay;
+                    weapon->pendingAreaAttackDelay = areaAttackDelay;
 
                     // 範囲攻撃が実際に出る段は大技として通知する（カメラのズームと世界のスロー）。
                     // 判定はCombatSystemと同じ条件にしておき、範囲攻撃を持たない武器
                     // （バトルアックス）が連撃で同じ段へ入っても寄らないようにする
                     if(step.areaAttack && weapon->areaAttackRadius > 0.0f) {
                         if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
-                            eventBus->Publish(PlayerFinisherEvent{entity, step.areaAttackDelay});
+                            eventBus->Publish(PlayerFinisherEvent{entity, areaAttackDelay});
                     }
                     // 斬撃弾は溜め攻撃の解放でしか撃たない。通常の段へ入るときは必ず下ろしておき、
                     // 前回の解放で立てた要求が持ち越されないようにする（この直後に走る

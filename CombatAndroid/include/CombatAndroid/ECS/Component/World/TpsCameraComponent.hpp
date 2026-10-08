@@ -58,6 +58,9 @@ namespace CombatAndroid::ECS {
         // 寄るぶんは位置追従のばねとは別に足すので、追従ばねの遅れで寄りが鈍ることはない
         float zoomDistanceScale   = 0.7f;     //!< 寄りきったときの距離の倍率（400→280）
         float zoomFovScale        = 0.87f;    //!< 寄りきったときの画角の倍率（60°→約52°）
+        //! 寄りきったときの注視の高さ（足元から）。通常の注視点（lookHeight＝頭の上）のまま寄ると
+        //! 足元と叩きつけた地面が画面の下へ切れるので、寄るほど腰のあたりへ下げて全身を収める
+        float zoomLookHeight      = 110.0f;
         float zoomHoldAfterImpact = 0.5f;     //!< インパクトで寄り始めてから、寄ったまま保つ秒数（実時間）。
                                               //!< 世界のスロー（実時間で約0.6秒）が戻りきる頃にズームも戻り始める長さ
         float zoomInFrequency     = 5.0f;     //!< 寄るときのばねの速さ（Hz・実時間）。5Hzなら0.1秒で約8割寄る

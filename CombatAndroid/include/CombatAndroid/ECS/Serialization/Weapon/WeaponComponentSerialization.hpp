@@ -69,6 +69,9 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("attackStepEndTime1", weapon.attackStepEndTime[1]),
                 cereal::make_nvp("attackStepStartTime2", weapon.attackStepStartTime[2]),
                 cereal::make_nvp("attackStepEndTime2", weapon.attackStepEndTime[2]),
+                cereal::make_nvp("attackStepImpactTime0", weapon.attackStepImpactTime[0]),
+                cereal::make_nvp("attackStepImpactTime1", weapon.attackStepImpactTime[1]),
+                cereal::make_nvp("attackStepImpactTime2", weapon.attackStepImpactTime[2]),
                 cereal::make_nvp("chargeAttackEnabled", weapon.chargeAttackEnabled),
                 cereal::make_nvp("projectileEffect", weapon.projectileEffectAsset),
                 cereal::make_nvp("projectileEffectScale", weapon.projectileEffectScale),
@@ -136,6 +139,9 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "attackStepEndTime1", weapon.attackStepEndTime[1]);
         LoadField(archive, "attackStepStartTime2", weapon.attackStepStartTime[2]);
         LoadField(archive, "attackStepEndTime2", weapon.attackStepEndTime[2]);
+        LoadField(archive, "attackStepImpactTime0", weapon.attackStepImpactTime[0]);
+        LoadField(archive, "attackStepImpactTime1", weapon.attackStepImpactTime[1]);
+        LoadField(archive, "attackStepImpactTime2", weapon.attackStepImpactTime[2]);
         LoadField(archive, "chargeAttackEnabled", weapon.chargeAttackEnabled);
         LoadField(archive, "projectileEffect", weapon.projectileEffectAsset);
         LoadField(archive, "projectileEffectScale", weapon.projectileEffectScale);
