@@ -1,18 +1,18 @@
 {
     "GrassFieldComponent": {
         "enabled": true,
-        "bladeCount": 65000,
-        "fieldSize": 6000.0,
+        "bladeCount": 80000,
+        "fieldSize": 3200.0,
         "seed": 20260908,
         "farFieldSize": 9000.0,
         "farBladeCount": 65000,
-        "lodBlendStart": 2200.0,
-        "lodBlendEnd": 2800.0,
-        "horizonFillStart": 1500.0,
-        "horizonFillEnd": 2800.0,
+        "lodBlendStart": 1250.0,
+        "lodBlendEnd": 1550.0,
+        "horizonFillStart": 1000.0,
+        "horizonFillEnd": 1550.0,
         "species": {
             "value0": {
-                "height": 34.0,
+                "height": 80.0,
                 "widthScale": 1.0,
                 "rootColor": {
                     "x": 0.07000000029802323,
@@ -26,7 +26,7 @@
                 }
             },
             "value1": {
-                "height": 22.0,
+                "height": 55.0,
                 "widthScale": 0.8500000238418579,
                 "rootColor": {
                     "x": 0.14000000059604646,
@@ -40,7 +40,7 @@
                 }
             },
             "value2": {
-                "height": 46.0,
+                "height": 110.0,
                 "widthScale": 1.149999976158142,
                 "rootColor": {
                     "x": 0.029999999329447748,
@@ -54,34 +54,34 @@
                 }
             }
         },
-        "bladeWidth": 5.5,
-        "heightVariance": 0.3499999940395355,
+        "bladeWidth": 8.5,
+        "heightVariance": 0.2,
         "groundHeight": 0.0,
         "distantWidthBoost": 2.5,
         "clumpRadiusMin": 60.0,
         "clumpRadiusMax": 250.0,
-        "clumpSpawnChance": 0.800000011920929,
+        "clumpSpawnChance": 0.85,
         "clumpShapeNoise": 0.25,
         "clumpEdgeSoftness": 0.3499999940395355,
-        "fillerDensity": 0.11999999731779099,
+        "fillerDensity": 0.25,
         "fillerHeightScale": 0.44999998807907107,
         "windDirection": {
             "x": 1.0,
             "y": 0.0,
             "z": 0.30000001192092898
         },
-        "windStrength": 0.4000000059604645,
+        "windStrength": 0.2,
         "gustWavelength": 650.0,
         "gustSpeed": 320.0,
-        "gustStrength": 0.550000011920929,
+        "gustStrength": 0.3,
         "swaySpeed": 3.0,
         "swayStrength": 0.15000000596046449,
-        "playerPushRadius": 90.0,
-        "playerPushStrength": 1.2000000476837159,
-        "enemyPushRadius": 70.0,
-        "enemyPushStrength": 1.0,
-        "waveSpeed": 1500.0,
-        "waveStrength": 2.4,
+        "playerPushRadius": 130.0,
+        "playerPushStrength": 1.4,
+        "enemyPushRadius": 110.0,
+        "enemyPushStrength": 1.2,
+        "waveSpeed": 1100.0,
+        "waveStrength": 4.0,
         "waveFrequency": 14.0,
         "waveDamping": 2.4,
         "waveDuration": 2.2,

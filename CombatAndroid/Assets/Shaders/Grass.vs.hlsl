@@ -57,6 +57,19 @@ static const uint kMaxGrassWaves = 2;
 static const uint kMaxGrassPushers = 32;
 
 //--------------------------------------------------------------
+// 草の動きの形を決める定数（値の調整はGrassFieldComponentの方で行い、ここは形だけ）
+//--------------------------------------------------------------
+static const float kBendToAngle          = 1.3f;     // 倒れる量1あたりの先端の角度（ラジアン）
+static const float kMaxBendAngle         = 1.4f;     // 先端の角度の上限（約80度。90度で地面に着く）
+static const float kSwaySpeedJitter      = 0.3f;     // 震えの角速度を草ごとに±この割合でばらす
+static const float kSwayReferenceHeight  = 40.0f;    // この背の草がswaySpeedどおりに震える。背が高いほど遅い
+static const float kCrossSwayScale       = 0.6f;     // 風と直交する向きの揺れ（震えの強さに対する割合）
+static const float kGustSecondWavelength = 0.43f;    // 2本目の突風の波長（1本目に対する倍率）
+static const float kGustSecondSpeed      = 1.35f;    // 2本目の突風の速さ（同上）
+static const float kGustSecondTurn       = 0.45f;    // 2本目の突風の向きを、風と直交する向きへどれだけ振るか
+static const float kGustSecondWeight     = 0.4f;     // 2本目の突風の混ぜる割合
+
+//--------------------------------------------------------------
 //! @brief 中心から半径内の草を外向きに倒す（プレイヤー・敵のかき分け）
 //! @param rootXZ     [in]     草の根元のXZ
 //! @param center     [in]     かき分ける者のXZ
@@ -70,12 +83,12 @@ void PushBladeAway(float2 rootXZ, float2 center, float radius, float strength, i
 {
     const float2 toBlade = rootXZ - center;
     const float  dist    = length(toBlade);
-    const float  push    = saturate(1.0f - dist / radius);
+    const float  push    = 1.0f - smoothstep(0.0f, radius, dist);    // 中心で1、縁で傾き0のまま0へ
 
     if(push <= 0.0f)
         return;
 
-    const float  pushAmount = push * push * strength;
+    const float  pushAmount = push * strength;
     const float2 pushDir    = (dist > 0.001f) ? (toBlade / dist) : float2(1.0f, 0.0f);
 
     bendDir    = normalize(bendDir * bendAmount + pushDir * pushAmount);
@@ -423,16 +436,34 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     //----------------------------------------------------------
     const float2 windDirXZ = normalize(windParams.xz);
 
+    // 風と直交する向き（横揺れ用）
+    const float2 crossDirXZ = float2(-windDirXZ.y, windDirXZ.x);
+
     // 突風の波。位相をワールド座標から決めるので、風の波が草原を
-    // 走っていくように見える（全体が一斉に揺れない）
-    const float gustPhase = dot(rootXZ, windDirXZ) / max(gustParams.x, 1.0f) - time * (gustParams.y / max(gustParams.x, 1.0f));
-    const float gust      = sin(gustPhase) * 0.5f + 0.5f;
+    // 走っていくように見える（全体が一斉に揺れない）。
+    // 1本のサイン波だと同じ幅の帯が等間隔に流れて機械的に見えるので、
+    // 波長・速さ・向きの違う2本を重ねて、帯の間隔と濃さを不揃いにする
+    const float  gustWavelength = max(gustParams.x, 1.0f);
+    const float2 gustDir2       = normalize(windDirXZ + crossDirXZ * kGustSecondTurn);
+    const float  gustPhase1 = dot(rootXZ, windDirXZ) / gustWavelength - time * (gustParams.y / gustWavelength);
+    const float  gustPhase2 = dot(rootXZ, gustDir2) / (gustWavelength * kGustSecondWavelength)
+                            - time * (gustParams.y * kGustSecondSpeed / (gustWavelength * kGustSecondWavelength));
+    const float  gust       = saturate((sin(gustPhase1) * 0.5f + 0.5f) * (1.0f - kGustSecondWeight)
+                                     + (sin(gustPhase2) * 0.5f + 0.5f) * kGustSecondWeight);
 
-    // 草ごとの細かい震え
-    const float sway = sin(time * gustParams.w + phase) * swayParams.x;
+    //----------------------------------------------------------
+    // 草ごとの細かい震え。全部が同じテンポで震えると機械的に見えるので、
+    // 角速度を草ごとにばらし、背の高い草ほどゆっくりにする（長い茎ほど固有振動が遅い）。
+    // 風下へ倒れるだけでなく、風と直交する向きにも小さく揺らして平面的に見せない
+    //----------------------------------------------------------
+    const float swayRate  = gustParams.w * lerp(1.0f - kSwaySpeedJitter, 1.0f + kSwaySpeedJitter, Rand01(seed + 9u))
+                          * sqrt(kSwayReferenceHeight / max(baseHeight, 1.0f));
+    const float sway      = sin(time * swayRate + phase) * swayParams.x;
+    const float crossSway = sin(time * swayRate * 0.73f + phase * 1.7f) * swayParams.x * kCrossSwayScale;
 
-    float  bendAmount = windParams.w + gust * gustParams.z + sway;
-    float2 bendDir    = windDirXZ;
+    const float2 windBend   = windDirXZ * (windParams.w + gust * gustParams.z + sway) + crossDirXZ * crossSway;
+    float        bendAmount = length(windBend);
+    float2       bendDir    = (bendAmount > 0.0001f) ? (windBend / bendAmount) : windDirXZ;
 
     //----------------------------------------------------------
     // プレイヤーのかき分け。近いほど強く、外向きに倒す
@@ -485,7 +516,11 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
         bendAmount = bendLen;
     }
 
-    bendAmount = min(bendAmount, 1.4f);    // 倒れすぎて地面へめり込むのを防ぐ
+    //----------------------------------------------------------
+    // 倒れる量を、刃の先端の角度（ラジアン）に直す。90度を少し手前で止めて、
+    // 先端が地面に着いたり潜ったりしないようにする
+    //----------------------------------------------------------
+    const float bendAngle = min(bendAmount * kBendToAngle, kMaxBendAngle);
 
     //----------------------------------------------------------
     // 刃のローカル座標をワールドへ組み立てる
@@ -499,8 +534,25 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     const float2 sideDir   = float2(cosYaw, sinYaw);
     const float2 facingDir = float2(-sinYaw, cosYaw);
 
-    // 先端ほど大きく曲げる。根元は動かないので地面から浮かない
-    const float bendCurve = bendAmount * t * t;
+    //----------------------------------------------------------
+    // 刃を円弧に沿って曲げる（根元から先端へ向かって一様に曲がる）。
+    // 横へずらして縦を縮めるだけだと刃の長さが保てず、倒れるほど草が伸びて見える。
+    // 円弧なら弧の長さ＝背の高さのままで、どれだけ倒れても長さは変わらない。
+    // 角度が0に近いと 1/角度 が発散するので、そこは直立の式へ切り替える
+    //----------------------------------------------------------
+    const float arcAngle = bendAngle * t;
+    float       bendSide;    // 根元から見た横のずれ（背の高さに対する割合）
+    float       bendRise;    // 根元から見た高さ（同上）
+    if(bendAngle > 1.0e-3f)
+    {
+        bendSide = (1.0f - cos(arcAngle)) / bendAngle;
+        bendRise = sin(arcAngle) / bendAngle;
+    }
+    else
+    {
+        bendSide = 0.5f * bendAngle * t * t;
+        bendRise = t;
+    }
 
     float3 worldPos;
     //----------------------------------------------------------
@@ -523,10 +575,9 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     // 面1(幅はinput.position.z、facingDir方向)の両方を足す。1頂点につき
     // どちらか片方は必ず0なので、実質的にどちらか一方だけが効く
     worldPos.xz = rootXZ + sideDir * (input.position.x * widthScale) + facingDir * (input.position.z * widthScale)
-                + bendDir * (bendCurve * height);
+                + bendDir * (bendSide * height);
 
-    // 曲がったぶんだけ背が縮む（弧長を保つ近似）
-    worldPos.y = bladeParams.z + t * height * (1.0f - bendCurve * bendCurve * 0.35f);
+    worldPos.y = bladeParams.z + bendRise * height;
 
     //----------------------------------------------------------
     // 法線。刃の面向きではなく、株全体を地面の一部とみなした「ほぼ真上」を基準にする。
@@ -560,10 +611,10 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
 
     // 曲がった葉の上面法線は風下と逆へ倒れるのでbendDirを引く。
     // 旧実装は+Y方向へ持ち上げていたが、向きが物理的に違ううえ、
-    // bendCurveが風で時間変化するぶん仰角が動いて明るさがちらついていた
+    // 曲がりが風で時間変化するぶん仰角が動いて明るさがちらついていた
     float2 shadeXZ = faceNormalXZ
                    + widthAxisXZ * ((input.uv.x * 2.0f - 1.0f) * kRoundOut)
-                   - bendDir * (bendCurve * kBendTilt);
+                   - bendDir * (bendSide * 2.0f * kBendTilt);    // 旧式の曲がり（bend×t²）と同じ大きさに揃える
 
     // 重みを掛ける前に長さを1へ揃える。ここを省くと上の3成分の合計長が
     // 葉ごと・フレームごとに変わり、仰角がばらついてちらつきの原因になる
