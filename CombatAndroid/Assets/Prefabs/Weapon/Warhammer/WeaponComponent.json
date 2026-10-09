@@ -57,6 +57,7 @@
         "areaAttackFalloffPower": 1.0,
         "areaAttackEffect": "CombatAndroid/Assets/Effect/warhammerAttackCombo3.efkefc",
         "areaAttackEffectScale": 100.0,
+        "grassWaveRadius": 0.0,
         "knockbackIgnoresThreshold": false,
         "knockbackSpeed": 0.0,
         "knockbackStun": 0.0,

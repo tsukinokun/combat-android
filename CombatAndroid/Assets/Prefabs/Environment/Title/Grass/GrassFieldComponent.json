@@ -78,6 +78,11 @@
         "swayStrength": 0.15000000596046449,
         "playerPushRadius": 90.0,
         "playerPushStrength": 1.2000000476837159,
+        "waveSpeed": 1500.0,
+        "waveStrength": 2.4,
+        "waveFrequency": 14.0,
+        "waveDamping": 2.4,
+        "waveDuration": 2.2,
         "fadeStartRatio": 0.9300000071525574
     }
 }

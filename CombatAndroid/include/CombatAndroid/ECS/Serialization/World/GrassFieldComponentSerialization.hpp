@@ -62,6 +62,11 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("swayStrength", grass.swayStrength),
                 cereal::make_nvp("playerPushRadius", grass.playerPushRadius),
                 cereal::make_nvp("playerPushStrength", grass.playerPushStrength),
+                cereal::make_nvp("waveSpeed", grass.waveSpeed),
+                cereal::make_nvp("waveStrength", grass.waveStrength),
+                cereal::make_nvp("waveFrequency", grass.waveFrequency),
+                cereal::make_nvp("waveDamping", grass.waveDamping),
+                cereal::make_nvp("waveDuration", grass.waveDuration),
                 cereal::make_nvp("fadeStartRatio", grass.fadeStartRatio));
     }
 
@@ -98,6 +103,11 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "swayStrength", grass.swayStrength);
         LoadField(archive, "playerPushRadius", grass.playerPushRadius);
         LoadField(archive, "playerPushStrength", grass.playerPushStrength);
+        LoadField(archive, "waveSpeed", grass.waveSpeed);
+        LoadField(archive, "waveStrength", grass.waveStrength);
+        LoadField(archive, "waveFrequency", grass.waveFrequency);
+        LoadField(archive, "waveDamping", grass.waveDamping);
+        LoadField(archive, "waveDuration", grass.waveDuration);
         LoadField(archive, "fadeStartRatio", grass.fadeStartRatio);
     }
 }    // namespace CombatAndroid::ECS

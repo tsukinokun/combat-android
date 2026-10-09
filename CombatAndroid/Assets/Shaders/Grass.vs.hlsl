@@ -43,7 +43,13 @@ cbuffer CBufferGrass : register(b12)
     float4 clumpShapeParams;   // x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
     float4 lodParams;          // x: 近景→遠景の切替開始距離, y: 切替終了距離, z: 層（0: 近景, 1: 遠景）, w: 外周で背を縮め始める距離
     float4 coverageParams;     // x: 塊の隙間が埋まり始める距離, y: 埋まりきる距離, z: 幅の増し分が最大になる距離, w: 本数の少なさを補う幅の倍率
+    float4 waves[2];           // 衝撃波ごとに xy: 中心のXZ, z: 半径（0で無効）, w: 起きた時刻（fieldParams.wと同じ時計）
+    float4 waveParams;         // x: 輪の広がる速さ, y: 倒す強さ, z: 揺れの角速度, w: 減衰の速さ
+    float4 waveTiming;         // x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
 };
+
+// 同時に揺らせる衝撃波の数。GrassFieldSystem.hpp の kMaxGrassWaves と一致させること
+static const uint kMaxGrassWaves = 2;
 
 //--------------------------------------------------------------
 // 草の種類数。CombatAndroid/ECS/System/GrassFieldSystem.cpp の
@@ -415,6 +421,38 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
             bendDir    = normalize(bendDir * bendAmount + pushDir * pushAmount);
             bendAmount = bendAmount + pushAmount;
         }
+    }
+
+    //----------------------------------------------------------
+    // 衝撃波（連撃3段目の範囲）。中心から輪が広がり、輪が通った草を外へ倒してから
+    // 減衰しながら揺り戻す。揺り戻しは内向き（負の量）にもなるので、向きと量を
+    // ベクトルで足し合わせてから向きと長さに分け直す。
+    // 範囲外・輪がまだ届いていない草は、距離の比較だけで抜ける
+    //----------------------------------------------------------
+    [unroll]
+    for(uint w = 0; w < kMaxGrassWaves; ++w)
+    {
+        const float4 wave = waves[w];
+        if(wave.z <= 0.0f)
+            continue;
+
+        const float2 toBlade = rootXZ - wave.xy;
+        const float  dist    = length(toBlade);
+        const float  tau     = (time - wave.w) - dist / waveParams.x;    // 輪が通ってからの秒数
+
+        if(dist >= wave.z || tau <= 0.0f || tau >= waveTiming.x)
+            continue;
+
+        const float falloff = 1.0f - dist / wave.z;
+        const float settle  = saturate((waveTiming.x - tau) / (waveTiming.x * 0.25f));    // 最後の4分の1で滑らかに0へ
+        const float amount  = waveParams.y * falloff * falloff * cos(waveParams.z * tau) * exp(-waveParams.w * tau) * settle;
+
+        const float2 waveDir = (dist > 0.001f) ? (toBlade / dist) : float2(1.0f, 0.0f);
+        const float2 bend    = bendDir * bendAmount + waveDir * amount;
+        const float  bendLen = length(bend);
+
+        bendDir    = (bendLen > 0.0001f) ? (bend / bendLen) : bendDir;
+        bendAmount = bendLen;
     }
 
     bendAmount = min(bendAmount, 1.4f);    // 倒れすぎて地面へめり込むのを防ぐ

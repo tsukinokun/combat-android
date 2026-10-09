@@ -225,6 +225,10 @@ namespace CombatAndroid::ECS {
         float areaAttackEffectScale = 1.0f;    //!< 上記エフェクトの再生スケール。本作は1ユニット≒1cm規約だがEffekseer側は
                                                  //!< メートル単位で作られるため、単位合わせに100前後の値が要る（実機で見ながら調整する）
 
+        //! AoEの瞬間に草を揺らす波の半径（ダメージは無い。GrassWaveEvent）。0ならareaAttackRadiusと同じ半径を使う。
+        //! AoEを持たない武器（battleaxe）でも、ここに値を入れればAoEの段（連撃3段目）で草だけ揺れる
+        float grassWaveRadius = 0.0f;
+
         bool  pendingAreaAttack      = false;    //!< 次にattackRequestedが消費される際、AoEを要求するか。PlayerAnimationSystemがAttackStep::areaAttackから設定する
         float pendingAreaAttackDelay = 0.35f;    //!< 上と同様。AoE発動までの遅延（秒）。AttackStep::areaAttackDelayから設定される
 

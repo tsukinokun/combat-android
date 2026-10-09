@@ -7,6 +7,8 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
+#include <CombatAndroid/ECS/Event/World/GrassWaveEvent.hpp>
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/BuiltInAssets.hpp>
@@ -426,6 +428,38 @@ namespace CombatAndroid::ECS {
         m_time += deltaTime;
 
         //--------------------------------------------------------------
+        // 衝撃波（GrassWaveEvent）。最初のUpdateで購読を張り、受けたら
+        // 空きか一番古い枠へ入れる。起きた時刻は草の時計（m_time）で持つので、
+        // ヒットストップやスローの間は草と一緒に波も止まる・遅くなる
+        //--------------------------------------------------------------
+        if(!m_waveSubscribed) {
+            if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>()) {
+                m_waveConnection = eventBus->Subscribe<GrassWaveEvent>([this](const GrassWaveEvent& event) {
+                    size_t slot = 0;
+                    for(size_t i = 0; i < m_waves.size(); ++i) {
+                        if(static_cast<float>(m_waves[i].z) <= 0.0f) {
+                            slot = i;
+                            break;
+                        }
+                        if(static_cast<float>(m_waves[i].w) < static_cast<float>(m_waves[slot].w))
+                            slot = i;
+                    }
+                    m_waves[slot] = hlslpp::float4(event.center.x, event.center.z, std::max(event.radius, 0.0f), m_time);
+                });
+                m_waveSubscribed = true;
+            }
+        }
+
+        // 輪が半径の端まで届き、そこから揺れが収まりきった波は空きに戻す
+        for(hlslpp::float4& wave : m_waves) {
+            if(static_cast<float>(wave.z) <= 0.0f)
+                continue;
+            const float lifetime = static_cast<float>(wave.z) / std::max(activeField->waveSpeed, 1.0f) + activeField->waveDuration;
+            if(m_time - static_cast<float>(wave.w) > lifetime)
+                wave = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+
+        //--------------------------------------------------------------
         // 本数の上限チェック（超過分は切り捨て、初回のみ警告する）。
         // 上限は1回の描画あたりなので、近景と遠景で別々に丸める
         //--------------------------------------------------------------
@@ -549,6 +583,11 @@ namespace CombatAndroid::ECS {
                                                   activeField->species[2].widthScale, 0.0f);
         params.playerParams      = hlslpp::float4(playerPos.x, playerPos.y, playerPos.z, pushRadius);
         params.fadeParams        = hlslpp::float4(0.0f, activeField->playerPushStrength, 0.0f, 0.0f);
+        for(size_t i = 0; i < m_waves.size(); ++i)
+            params.waves[i] = m_waves[i];
+        params.waveParams = hlslpp::float4(std::max(activeField->waveSpeed, 1.0f), activeField->waveStrength, activeField->waveFrequency,
+                                           std::max(activeField->waveDamping, 0.0f));
+        params.waveTiming = hlslpp::float4(std::max(activeField->waveDuration, 0.01f), 0.0f, 0.0f, 0.0f);
 
         //--------------------------------------------------------------
         // 草むら（塊）。

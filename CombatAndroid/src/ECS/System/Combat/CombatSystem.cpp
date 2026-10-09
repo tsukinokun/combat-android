@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Component/Combat/ProjectileComponent.hpp>
 #include <CombatAndroid/ECS/Event/Combat/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
+#include <CombatAndroid/ECS/Event/World/GrassWaveEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/CombatHit.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 
@@ -644,8 +645,9 @@ namespace CombatAndroid::ECS {
                 weapon.hasPrevAttackPose  = true;
 
                 // AoE(範囲攻撃)の武装。この段がAoEを要求していて、かつ装備武器がAoE対応
-                // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む
-                if(weapon.pendingAreaAttack && weapon.areaAttackRadius > 0.0f) {
+                // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む。
+                // AoEを持たなくても草を揺らす波（grassWaveRadius>0、battleaxe）があれば、波のためだけに仕込む
+                if(weapon.pendingAreaAttack && (weapon.areaAttackRadius > 0.0f || weapon.grassWaveRadius > 0.0f)) {
                     weapon.areaAttackArmed = true;
                     weapon.areaAttackTimer = std::max(weapon.pendingAreaAttackDelay, 0.0f);
                 } else {
@@ -776,7 +778,12 @@ namespace CombatAndroid::ECS {
                 if(weapon.areaAttackTimer <= 0.0f) {
                     weapon.areaAttackArmed = false;
 
-                    if(ctx && ctx->physicsSystem) {
+                    // 範囲の草を衝撃波で揺らす（GrassFieldSystem）。半径は指定が無ければAoEと同じ
+                    const float grassWaveRadius = (weapon.grassWaveRadius > 0.0f) ? weapon.grassWaveRadius : weapon.areaAttackRadius;
+                    if(eventBus && grassWaveRadius > 0.0f)
+                        eventBus->Publish(GrassWaveEvent{transform.position, grassWaveRadius});
+
+                    if(ctx && ctx->physicsSystem && weapon.areaAttackRadius > 0.0f) {
                         // JPH::CapsuleShapeはhalfHeight>0を要求する（0は不可、JPH_ASSERT落ちする）ため、
                         // 半径に対して無視できるほど薄いカプセルにして疑似球判定として使う
                         constexpr float kAreaAttackCapsuleHalfHeight = 2.0f;

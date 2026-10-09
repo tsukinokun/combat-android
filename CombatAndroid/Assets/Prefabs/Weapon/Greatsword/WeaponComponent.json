@@ -54,6 +54,7 @@
         "areaAttackRadius": 180.0,
         "areaAttackEffect": "CombatAndroid/Assets/Effect/greatswordAttackCombo3.efkefc",
         "areaAttackEffectScale": 100.0,
+        "grassWaveRadius": 0.0,
         "knockbackIgnoresThreshold": true,
         "knockbackSpeed": 260.0,
         "knockbackStun": 0.15000000596046449,

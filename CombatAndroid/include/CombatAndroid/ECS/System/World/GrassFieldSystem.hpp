@@ -7,6 +7,7 @@
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
 #include <Tsukino/Renderer/DX11/MeshBuffer.hpp>
 #include <Tsukino/Renderer/DX11/UserConstantBuffer.hpp>
+#include <Tsukino/Core/ECS/Event/ScopedConnection.hpp>
 
 #include <array>
 #include <hlsl++.h>
@@ -26,10 +27,17 @@ namespace CombatAndroid::ECS {
     inline constexpr Tsukino::u32 kGrassLayerCount = 2;
 
     //--------------------------------------------------------------
+    //! 同時に揺らせる衝撃波の数
+    //! @note Grass.vs.hlsl の kMaxGrassWaves と一致させること。
+    //!       超えたら一番古い波を上書きする
+    //--------------------------------------------------------------
+    inline constexpr Tsukino::u32 kMaxGrassWaves = 2;
+
+    //--------------------------------------------------------------
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で208バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で272バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -56,6 +64,9 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 clumpShapeParams;    //!< x: 形の揺らぎ, y: 縁の柔らかさ, z: 塊の外の草の割合, w: 塊の外の草の丈の倍率
         hlslpp::float4 lodParams;           //!< x: 近景→遠景の切替開始距離, y: 切替終了距離, z: 層（0: 近景, 1: 遠景）, w: 外周で背を縮め始める距離
         hlslpp::float4 coverageParams;      //!< x: 塊の隙間が埋まり始める距離, y: 埋まりきる距離, z: 幅の増し分が最大になる距離, w: 本数の少なさを補う幅の倍率
+        hlslpp::float4 waves[kMaxGrassWaves];    //!< 衝撃波ごとに xy: 中心のXZ, z: 半径（0で無効）, w: 起きた時刻（fieldParams.wと同じ時計）
+        hlslpp::float4 waveParams;          //!< x: 輪の広がる速さ, y: 倒す強さ, z: 揺れの角速度, w: 減衰の速さ
+        hlslpp::float4 waveTiming;          //!< x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
     };
 
     //--------------------------------------------------------------
@@ -106,5 +117,13 @@ namespace CombatAndroid::ECS {
 
         //! 草の本数の上限超過を1回だけ警告するためのフラグ
         bool m_countOverflowWarned = false;
+
+        //! 揺れている最中の衝撃波（CBufferGrass::wavesへそのまま渡す）
+        //! @note z（半径）が0の要素は空き。GrassWaveEventを受けるたびに空きか一番古い要素へ入れる
+        std::array<hlslpp::float4, kMaxGrassWaves> m_waves{};
+
+        //! GrassWaveEventの購読（初回のUpdateで張る。タイトル画面には出す者がいないが張っても害は無い）
+        Tsukino::ECS::ScopedConnection m_waveConnection;
+        bool                           m_waveSubscribed = false;
     };
 }    // namespace CombatAndroid::ECS

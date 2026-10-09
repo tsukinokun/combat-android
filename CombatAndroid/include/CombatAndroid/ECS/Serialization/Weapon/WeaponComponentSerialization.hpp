@@ -56,6 +56,7 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("areaAttackFalloffPower", weapon.areaAttackFalloffPower),
                 cereal::make_nvp("areaAttackEffect", weapon.areaAttackEffectAsset),
                 cereal::make_nvp("areaAttackEffectScale", weapon.areaAttackEffectScale),
+                cereal::make_nvp("grassWaveRadius", weapon.grassWaveRadius),
                 cereal::make_nvp("knockbackIgnoresThreshold", weapon.knockbackIgnoresThreshold),
                 cereal::make_nvp("knockbackSpeed", weapon.knockbackSpeed),
                 cereal::make_nvp("knockbackStun", weapon.knockbackStun),
@@ -126,6 +127,7 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "areaAttackFalloffPower", weapon.areaAttackFalloffPower);
         LoadField(archive, "areaAttackEffect", weapon.areaAttackEffectAsset);
         LoadField(archive, "areaAttackEffectScale", weapon.areaAttackEffectScale);
+        LoadField(archive, "grassWaveRadius", weapon.grassWaveRadius);
         LoadField(archive, "knockbackIgnoresThreshold", weapon.knockbackIgnoresThreshold);
         LoadField(archive, "knockbackSpeed", weapon.knockbackSpeed);
         LoadField(archive, "knockbackStun", weapon.knockbackStun);

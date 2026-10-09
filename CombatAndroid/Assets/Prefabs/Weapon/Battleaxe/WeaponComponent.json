@@ -54,6 +54,7 @@
         "areaAttackRadius": 0.0,
         "areaAttackEffect": "",
         "areaAttackEffectScale": 1.0,
+        "grassWaveRadius": 250.0,
         "knockbackIgnoresThreshold": false,
         "knockbackSpeed": 0.0,
         "knockbackStun": 0.0,
