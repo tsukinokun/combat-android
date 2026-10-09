@@ -46,10 +46,41 @@ cbuffer CBufferGrass : register(b12)
     float4 waves[2];           // 衝撃波ごとに xy: 中心のXZ, z: 半径（0で無効）, w: 起きた時刻（fieldParams.wと同じ時計）
     float4 waveParams;         // x: 輪の広がる速さ, y: 倒す強さ, z: 揺れの角速度, w: 減衰の速さ
     float4 waveTiming;         // x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
+    float4 pushers[32];        // かき分ける敵ごとに xy: XZ座標, zw: 予約
+    float4 pusherParams;       // x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
 };
 
 // 同時に揺らせる衝撃波の数。GrassFieldSystem.hpp の kMaxGrassWaves と一致させること
 static const uint kMaxGrassWaves = 2;
+
+// 草をかき分ける敵の上限。GrassFieldSystem.hpp の kMaxGrassPushers と一致させること
+static const uint kMaxGrassPushers = 32;
+
+//--------------------------------------------------------------
+//! @brief 中心から半径内の草を外向きに倒す（プレイヤー・敵のかき分け）
+//! @param rootXZ     [in]     草の根元のXZ
+//! @param center     [in]     かき分ける者のXZ
+//! @param radius     [in]     この距離まで倒す
+//! @param strength   [in]     倒す強さ
+//! @param bendDir    [in,out] 倒す向き（XZ、正規化済み）
+//! @param bendAmount [in,out] 倒す量
+//! @note  近いほど強く倒す。二乗で落とすので、半径の外側では滑らかに0へ収束する
+//--------------------------------------------------------------
+void PushBladeAway(float2 rootXZ, float2 center, float radius, float strength, inout float2 bendDir, inout float bendAmount)
+{
+    const float2 toBlade = rootXZ - center;
+    const float  dist    = length(toBlade);
+    const float  push    = saturate(1.0f - dist / radius);
+
+    if(push <= 0.0f)
+        return;
+
+    const float  pushAmount = push * push * strength;
+    const float2 pushDir    = (dist > 0.001f) ? (toBlade / dist) : float2(1.0f, 0.0f);
+
+    bendDir    = normalize(bendDir * bendAmount + pushDir * pushAmount);
+    bendAmount = bendAmount + pushAmount;
+}
 
 //--------------------------------------------------------------
 // 草の種類数。CombatAndroid/ECS/System/GrassFieldSystem.cpp の
@@ -407,20 +438,19 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     // プレイヤーのかき分け。近いほど強く、外向きに倒す
     //----------------------------------------------------------
     if(playerParams.w > 0.0f)
+        PushBladeAway(rootXZ, playerParams.xz, playerParams.w, fadeParams.y, bendDir, bendAmount);
+
+    //----------------------------------------------------------
+    // 敵のかき分け（プレイヤーに近い順に最大 kMaxGrassPushers 体）。
+    // 遠景の草は画面上で数ピクセルなので倒しても見えない。負荷を抑えるため近景の層だけで行う
+    //----------------------------------------------------------
+    if(lodParams.z < 0.5f && pusherParams.y > 0.0f)
     {
-        const float2 toBlade = rootXZ - playerParams.xz;
-        const float  dist    = length(toBlade);
-        const float  push    = saturate(1.0f - dist / playerParams.w);
+        const uint pusherCount = min((uint)pusherParams.x, kMaxGrassPushers);
 
-        if(push > 0.0f)
-        {
-            // 二乗で落とすと、半径の外側では滑らかにゼロへ収束する
-            const float pushAmount = push * push * fadeParams.y;
-            const float2 pushDir   = (dist > 0.001f) ? (toBlade / dist) : float2(1.0f, 0.0f);
-
-            bendDir    = normalize(bendDir * bendAmount + pushDir * pushAmount);
-            bendAmount = bendAmount + pushAmount;
-        }
+        [loop]
+        for(uint p = 0; p < pusherCount; ++p)
+            PushBladeAway(rootXZ, pushers[p].xy, pusherParams.y, pusherParams.z, bendDir, bendAmount);
     }
 
     //----------------------------------------------------------

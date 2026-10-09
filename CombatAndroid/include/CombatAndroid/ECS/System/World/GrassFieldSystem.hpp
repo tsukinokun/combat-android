@@ -10,6 +10,7 @@
 #include <Tsukino/Core/ECS/Event/ScopedConnection.hpp>
 
 #include <array>
+#include <vector>
 #include <hlsl++.h>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -34,10 +35,18 @@ namespace CombatAndroid::ECS {
     inline constexpr Tsukino::u32 kMaxGrassWaves = 2;
 
     //--------------------------------------------------------------
+    //! 草をかき分ける敵の上限
+    //! @note Grass.vs.hlsl の kMaxGrassPushers と一致させること。
+    //!       草の頂点ごとにこの数だけ距離を比べるので、増やすほど重くなる。
+    //!       超えた分はプレイヤーから遠い敵から切り捨てる
+    //--------------------------------------------------------------
+    inline constexpr Tsukino::u32 kMaxGrassPushers = 32;
+
+    //--------------------------------------------------------------
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で272バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で800バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -67,6 +76,8 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 waves[kMaxGrassWaves];    //!< 衝撃波ごとに xy: 中心のXZ, z: 半径（0で無効）, w: 起きた時刻（fieldParams.wと同じ時計）
         hlslpp::float4 waveParams;          //!< x: 輪の広がる速さ, y: 倒す強さ, z: 揺れの角速度, w: 減衰の速さ
         hlslpp::float4 waveTiming;          //!< x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
+        hlslpp::float4 pushers[kMaxGrassPushers];    //!< かき分ける敵ごとに xy: XZ座標, zw: 予約
+        hlslpp::float4 pusherParams;        //!< x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
     };
 
     //--------------------------------------------------------------
@@ -121,6 +132,14 @@ namespace CombatAndroid::ECS {
         //! 揺れている最中の衝撃波（CBufferGrass::wavesへそのまま渡す）
         //! @note z（半径）が0の要素は空き。GrassWaveEventを受けるたびに空きか一番古い要素へ入れる
         std::array<hlslpp::float4, kMaxGrassWaves> m_waves{};
+
+        //! 草をかき分ける敵の候補（毎フレーム作り直す。確保し直さないよう使い回す）
+        struct PusherCandidate {
+            float distanceSq;    //!< プレイヤーからの水平距離の2乗（近い順に並べる）
+            float x;             //!< 敵のX
+            float z;             //!< 敵のZ
+        };
+        std::vector<PusherCandidate> m_pusherCandidates;
 
         //! GrassWaveEventの購読（初回のUpdateで張る。タイトル画面には出す者がいないが張っても害は無い）
         Tsukino::ECS::ScopedConnection m_waveConnection;

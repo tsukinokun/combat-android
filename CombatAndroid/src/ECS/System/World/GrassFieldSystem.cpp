@@ -7,6 +7,7 @@
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Event/World/GrassWaveEvent.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
@@ -588,6 +589,29 @@ namespace CombatAndroid::ECS {
         params.waveParams = hlslpp::float4(std::max(activeField->waveSpeed, 1.0f), activeField->waveStrength, activeField->waveFrequency,
                                            std::max(activeField->waveDamping, 0.0f));
         params.waveTiming = hlslpp::float4(std::max(activeField->waveDuration, 0.01f), 0.0f, 0.0f, 0.0f);
+
+        //--------------------------------------------------------------
+        // 敵のかき分け。プレイヤーに近い順に kMaxGrassPushers 体まで渡す
+        // （近いほど画面に大きく映り、草の揺れが目に付くため）
+        //--------------------------------------------------------------
+        Tsukino::u32 pusherCount = 0;
+        if(activeField->enemyPushRadius > 0.0f) {
+            m_pusherCandidates.clear();
+            auto enemyView = registry.View<EnemyComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+            enemyView.each([&](entt::entity, const EnemyComponent&, const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+                const float dx = static_cast<float>(transform.position.x) - static_cast<float>(playerPos.x);
+                const float dz = static_cast<float>(transform.position.z) - static_cast<float>(playerPos.z);
+                m_pusherCandidates.push_back({dx * dx + dz * dz, static_cast<float>(transform.position.x), static_cast<float>(transform.position.z)});
+            });
+
+            pusherCount = static_cast<Tsukino::u32>(std::min<size_t>(m_pusherCandidates.size(), kMaxGrassPushers));
+            std::partial_sort(m_pusherCandidates.begin(), m_pusherCandidates.begin() + pusherCount, m_pusherCandidates.end(),
+                              [](const PusherCandidate& a, const PusherCandidate& b) { return a.distanceSq < b.distanceSq; });
+
+            for(Tsukino::u32 i = 0; i < pusherCount; ++i)
+                params.pushers[i] = hlslpp::float4(m_pusherCandidates[i].x, m_pusherCandidates[i].z, 0.0f, 0.0f);
+        }
+        params.pusherParams = hlslpp::float4(static_cast<float>(pusherCount), activeField->enemyPushRadius, activeField->enemyPushStrength, 0.0f);
 
         //--------------------------------------------------------------
         // 草むら（塊）。

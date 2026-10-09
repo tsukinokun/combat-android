@@ -168,6 +168,11 @@ namespace CombatAndroid::ECS {
         float playerPushRadius   = 90.0f;    // この距離まで草を押しのける
         float playerPushStrength = 1.2f;     // 押しのける強さ
 
+        //! @note 敵（EnemyComponent）の周りも同じ式でかき分ける。負荷を抑えるため、
+        //!       プレイヤーに近い順に kMaxGrassPushers 体まで、近景の草だけに効かせる
+        float enemyPushRadius   = 70.0f;    // 敵の周りで草を押しのける距離（0で無効）
+        float enemyPushStrength = 1.0f;     // 押しのける強さ
+
         //----------------------------------------------------------
         // 衝撃波（連撃3段目の範囲で草を揺らす。GrassWaveEvent）
         //----------------------------------------------------------
