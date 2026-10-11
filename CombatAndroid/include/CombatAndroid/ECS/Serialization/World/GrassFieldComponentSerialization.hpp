@@ -66,7 +66,9 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("enemyPushStrength", grass.enemyPushStrength),
                 cereal::make_nvp("slashPushRadius", grass.slashPushRadius),
                 cereal::make_nvp("slashPushStrength", grass.slashPushStrength),
-                cereal::make_nvp("slashTrailLength", grass.slashTrailLength),
+                cereal::make_nvp("slashRecoverFrequency", grass.slashRecoverFrequency),
+                cereal::make_nvp("slashRecoverDamping", grass.slashRecoverDamping),
+                cereal::make_nvp("slashRecoverDuration", grass.slashRecoverDuration),
                 cereal::make_nvp("waveSpeed", grass.waveSpeed),
                 cereal::make_nvp("waveStrength", grass.waveStrength),
                 cereal::make_nvp("waveFrequency", grass.waveFrequency),
@@ -112,7 +114,9 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "enemyPushStrength", grass.enemyPushStrength);
         LoadField(archive, "slashPushRadius", grass.slashPushRadius);
         LoadField(archive, "slashPushStrength", grass.slashPushStrength);
-        LoadField(archive, "slashTrailLength", grass.slashTrailLength);
+        LoadField(archive, "slashRecoverFrequency", grass.slashRecoverFrequency);
+        LoadField(archive, "slashRecoverDamping", grass.slashRecoverDamping);
+        LoadField(archive, "slashRecoverDuration", grass.slashRecoverDuration);
         LoadField(archive, "waveSpeed", grass.waveSpeed);
         LoadField(archive, "waveStrength", grass.waveStrength);
         LoadField(archive, "waveFrequency", grass.waveFrequency);

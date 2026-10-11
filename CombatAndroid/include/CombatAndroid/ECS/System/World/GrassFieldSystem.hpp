@@ -9,6 +9,8 @@
 #include <Tsukino/Renderer/DX11/UserConstantBuffer.hpp>
 #include <Tsukino/Core/ECS/Event/ScopedConnection.hpp>
 
+#include <entt/entt.hpp>
+
 #include <array>
 #include <vector>
 #include <hlsl++.h>
@@ -53,7 +55,7 @@ namespace CombatAndroid::ECS {
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で880バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で960バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -85,8 +87,10 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 waveTiming;          //!< x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
         hlslpp::float4 pushers[kMaxGrassPushers];    //!< かき分ける敵ごとに xy: XZ座標, zw: 予約
         hlslpp::float4 pusherParams;        //!< x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
-        hlslpp::float4 slashes[kMaxGrassSlashes];    //!< 斬撃弾ごとに xy: 頭（今の位置）のXZ, zw: 尾のXZ
-        hlslpp::float4 slashParams;         //!< x: 斬撃弾の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+        hlslpp::float4 slashPaths[kMaxGrassSlashes];    //!< 斬撃弾の通り道ごとに xy: 起点のXZ, zw: 進む向きのXZ（正規化済み）
+        hlslpp::float4 slashTimes[kMaxGrassSlashes];    //!< 上と同じ添字で x: 頭までの距離, y: 速さ, z: 撃った時刻（fieldParams.wと同じ時計）, w: 頭の周りを押す重み（飛んでいる間1、消えたら0へ）
+        hlslpp::float4 slashParams;         //!< x: 通り道の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+        hlslpp::float4 slashRecover;        //!< x: 揺り戻しの角速度, y: 減衰の速さ, z: 頭が通ってから揺れを止めるまでの秒数, w: 予約
     };
 
     //--------------------------------------------------------------
@@ -149,6 +153,21 @@ namespace CombatAndroid::ECS {
             float z;             //!< 敵のZ
         };
         std::vector<PusherCandidate> m_pusherCandidates;
+
+        //! 斬撃弾の通り道。弾が消えた後も、跡の揺れが収まるまで残す
+        //! @note speedが0以下の要素は空き
+        struct SlashTrack {
+            entt::entity entity       = entt::null;
+            float        originX      = 0.0f;     //!< 撃った地点のX
+            float        originZ      = 0.0f;     //!< 撃った地点のZ
+            float        dirX         = 0.0f;     //!< 進む向きのX（水平・正規化済み）
+            float        dirZ         = 1.0f;     //!< 進む向きのZ
+            float        speed        = 0.0f;     //!< 速さ（ワールド単位/秒）
+            float        startTime    = 0.0f;     //!< 撃った時刻（m_time）
+            float        headDistance = 0.0f;     //!< 起点から頭までの距離（消えた後はそこで止まる）
+            float        endTime      = -1.0f;    //!< 弾が消えた時刻（m_time）。負ならまだ飛んでいる
+        };
+        std::array<SlashTrack, kMaxGrassSlashes> m_slashTracks{};
 
         //! GrassWaveEventの購読（初回のUpdateで張る。タイトル画面には出す者がいないが張っても害は無い）
         Tsukino::ECS::ScopedConnection m_waveConnection;

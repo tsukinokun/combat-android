@@ -48,8 +48,10 @@ cbuffer CBufferGrass : register(b12)
     float4 waveTiming;         // x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
     float4 pushers[32];        // かき分ける敵ごとに xy: XZ座標, zw: 予約
     float4 pusherParams;       // x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
-    float4 slashes[4];         // 斬撃弾ごとに xy: 頭（今の位置）のXZ, zw: 尾のXZ
-    float4 slashParams;        // x: 斬撃弾の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+    float4 slashPaths[4];      // 斬撃弾の通り道ごとに xy: 起点のXZ, zw: 進む向きのXZ（正規化済み）
+    float4 slashTimes[4];      // 上と同じ添字で x: 頭までの距離, y: 速さ, z: 撃った時刻（fieldParams.wと同じ時計）, w: 頭の周りを押す重み（飛んでいる間1、消えたら0へ）
+    float4 slashParams;        // x: 通り道の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+    float4 slashRecover;       // x: 揺り戻しの角速度, y: 減衰の速さ, z: 頭が通ってから揺れを止めるまでの秒数, w: 予約
 };
 
 // 同時に揺らせる衝撃波の数。GrassFieldSystem.hpp の kMaxGrassWaves と一致させること
@@ -60,9 +62,6 @@ static const uint kMaxGrassPushers = 32;
 
 // 草をかき分ける斬撃弾の上限。GrassFieldSystem.hpp の kMaxGrassSlashes と一致させること
 static const uint kMaxGrassSlashes = 4;
-
-// 斬撃弾の跡の尾での強さ（頭を1として）。尾へ向かって弱めて、割れた草が閉じていくように見せる
-static const float kSlashTailStrength = 0.25f;
 
 //--------------------------------------------------------------
 // 草の動きの形を決める定数（値の調整はGrassFieldComponentの方で行い、ここは形だけ）
@@ -104,18 +103,56 @@ void PushBladeAway(float2 rootXZ, float2 center, float radius, float strength, i
 }
 
 //--------------------------------------------------------------
-// 線分（斬撃弾の頭→尾）から草を横へ押しのける。
-// 線分上の一番近い点を中心として PushBladeAway と同じ形で倒し、
-// 強さは頭で1、尾で kSlashTailStrength まで弱める
+// 斬撃弾の通り道で草を揺らす。
+// 頭より前の草は、頭を中心に PushBladeAway と同じ形で押しのける（割れる瞬間）。
+// 頭が横を通り過ぎた草は、通ってからの秒数 tau で外へ倒した所から揺り戻し、
+// 内側へ行き過ぎながら減衰して収まる（衝撃波と同じ cos・exp の形）。
+// 揺り戻しは内向き（負の量）にもなるので、向きと量をベクトルで足してから分け直す
 //--------------------------------------------------------------
-void PushBladeAwayFromSegment(float2 rootXZ, float2 head, float2 tail, float radius, float strength, inout float2 bendDir, inout float bendAmount)
+void ApplySlashWake(float2 rootXZ, float4 path, float4 times, float time, inout float2 bendDir, inout float bendAmount)
 {
-    const float2 segment   = tail - head;
-    const float  lengthSq  = dot(segment, segment);
-    const float  t         = (lengthSq > 0.001f) ? saturate(dot(rootXZ - head, segment) / lengthSq) : 0.0f;
-    const float2 closest   = head + segment * t;
+    const float  radius   = slashParams.y;
+    const float  strength = slashParams.z;
+    const float2 origin   = path.xy;
+    const float2 dir      = path.zw;
+    const float  headDist = times.x;
 
-    PushBladeAway(rootXZ, closest, radius, strength * lerp(1.0f, kSlashTailStrength, t), bendDir, bendAmount);
+    const float2 rel   = rootXZ - origin;
+    const float  along = dot(rel, dir);
+
+    // 頭より前（まだ通っていない）。頭の周りだけ押しのける。
+    // 弾が消えた後は times.w が短い時間で0へ落ち、頭の周りの草も滑らかに起き上がる
+    if(along > headDist)
+    {
+        if(times.w > 0.0f)
+            PushBladeAway(rootXZ, origin + dir * headDist, radius, strength * times.w, bendDir, bendAmount);
+        return;
+    }
+
+    if(along < 0.0f)
+        return;
+
+    const float2 lateral = rel - dir * along;
+    const float  dist    = length(lateral);
+    if(dist >= radius)
+        return;
+
+    const float duration = slashRecover.z;
+    const float tau      = time - (times.z + along / max(times.y, 1.0f));    // 頭が横を通ってからの秒数
+    if(tau <= 0.0f || tau >= duration)
+        return;
+
+    const float falloff = 1.0f - smoothstep(0.0f, radius, dist);
+    const float settle  = saturate((duration - tau) / (duration * 0.25f));    // 最後の4分の1で滑らかに0へ
+    const float amount  = strength * falloff * cos(slashRecover.x * tau) * exp(-slashRecover.y * tau) * settle;
+
+    // 通り道の真上の草は左右が決まらないので、進む向きに直交する側へ倒す
+    const float2 side    = (dist > 0.001f) ? (lateral / dist) : float2(-dir.y, dir.x);
+    const float2 bend    = bendDir * bendAmount + side * amount;
+    const float  bendLen = length(bend);
+
+    bendDir    = (bendLen > 0.0001f) ? (bend / bendLen) : bendDir;
+    bendAmount = bendLen;
 }
 
 //--------------------------------------------------------------
@@ -508,7 +545,8 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
     }
 
     //----------------------------------------------------------
-    // 斬撃弾のかき分け。弾が通った跡（頭→尾の線分）の草を左右へ割る。敵と同じく近景の層だけ
+    // 斬撃弾のかき分け。通り道の草を左右へ割り、頭が通り過ぎたら揺り戻しながら収める。
+    // 敵と同じく近景の層だけ
     //----------------------------------------------------------
     if(lodParams.z < 0.5f && slashParams.y > 0.0f)
     {
@@ -516,7 +554,7 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
 
         [loop]
         for(uint s = 0; s < slashCount; ++s)
-            PushBladeAwayFromSegment(rootXZ, slashes[s].xy, slashes[s].zw, slashParams.y, slashParams.z, bendDir, bendAmount);
+            ApplySlashWake(rootXZ, slashPaths[s], slashTimes[s], time, bendDir, bendAmount);
     }
 
     //----------------------------------------------------------

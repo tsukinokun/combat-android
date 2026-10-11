@@ -173,11 +173,14 @@ namespace CombatAndroid::ECS {
         float enemyPushRadius   = 70.0f;    // 敵の周りで草を押しのける距離（0で無効）
         float enemyPushStrength = 1.0f;     // 押しのける強さ
 
-        //! @note 斬撃弾（ProjectileComponent）は、今の位置から進んできた向きへ slashTrailLength 戻った所までの
-        //!       線分で草を左右へ割る。尾へ向かって弱まるので、通った跡が閉じていくように見える
-        float slashPushRadius   = 110.0f;   // 斬撃弾の跡から草を押しのける距離（0で無効）
-        float slashPushStrength = 1.4f;     // 押しのける強さ（頭での値）
-        float slashTrailLength  = 350.0f;   // 跡の長さ（ワールド単位）
+        //! @note 斬撃弾（ProjectileComponent）は通り道の草を左右へ割る。頭が横を通り過ぎた草は
+        //!       外へ倒れた所から揺り戻し、内側へ行き過ぎながら減衰して収まる（衝撃波と同じ形）。
+        //!       弾が消えた後も、揺れが収まるまで通り道を覚えておく
+        float slashPushRadius       = 110.0f;   // 斬撃弾の通り道から草を押しのける距離（0で無効）
+        float slashPushStrength     = 1.4f;     // 押しのける強さ（頭が通った瞬間の値）
+        float slashRecoverFrequency = 11.0f;    // 揺り戻しの角速度（rad/秒）
+        float slashRecoverDamping   = 2.6f;     // 揺り戻しが減衰する速さ（大きいほど早く収まる）
+        float slashRecoverDuration  = 1.8f;     // 頭が通ってから揺れを止めるまでの秒数（最後は滑らかに0へ）
 
         //----------------------------------------------------------
         // 衝撃波（連撃3段目の範囲で草を揺らす。GrassWaveEvent）

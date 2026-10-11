@@ -615,21 +615,83 @@ namespace CombatAndroid::ECS {
         params.pusherParams = hlslpp::float4(static_cast<float>(pusherCount), activeField->enemyPushRadius, activeField->enemyPushStrength, 0.0f);
 
         //--------------------------------------------------------------
-        // 斬撃弾のかき分け。頭は今の位置、尾は進んできた向きへ slashTrailLength 戻った所
-        // （撃った地点より後ろへは伸ばさない）。弾ごとの状態は増やさずに跡を作れる
+        // 斬撃弾のかき分け。弾の通り道（起点・向き・速さ・撃った時刻）を覚えておき、
+        // シェーダーが草ごとに「頭が横を通ってから何秒か」を出して、倒してから揺り戻す。
+        // 草の時計（m_time）で数えるので、ヒットストップやスローの間は余韻も止まる・遅くなる
         //--------------------------------------------------------------
+        const float slashRecoverDuration = std::max(activeField->slashRecoverDuration, 0.01f);
+        std::array<bool, kMaxGrassSlashes> slashSeen{};
+
+        auto projectileView = registry.View<ProjectileComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+        projectileView.each([&](entt::entity entity, const ProjectileComponent& projectile, const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+            if(projectile.speed <= 0.0f)
+                return;
+
+            size_t slot = kMaxGrassSlashes;
+            for(size_t i = 0; i < m_slashTracks.size(); ++i) {
+                if(m_slashTracks[i].speed > 0.0f && m_slashTracks[i].entity == entity) {
+                    slot = i;
+                    break;
+                }
+            }
+
+            // 初めて見る弾は、空き（無ければ一番古い通り道）へ登録する。
+            // 起点と撃った時刻は今の飛距離から逆算する（生成フレームに間に合わなくてもずれない）
+            if(slot == kMaxGrassSlashes) {
+                slot = 0;
+                for(size_t i = 0; i < m_slashTracks.size(); ++i) {
+                    if(m_slashTracks[i].speed <= 0.0f) {
+                        slot = i;
+                        break;
+                    }
+                    if(m_slashTracks[i].startTime < m_slashTracks[slot].startTime)
+                        slot = i;
+                }
+
+                SlashTrack& track = m_slashTracks[slot];
+                track.entity      = entity;
+                track.dirX        = static_cast<float>(projectile.direction.x);
+                track.dirZ        = static_cast<float>(projectile.direction.z);
+                track.originX     = static_cast<float>(transform.position.x) - track.dirX * projectile.traveledDistance;
+                track.originZ     = static_cast<float>(transform.position.z) - track.dirZ * projectile.traveledDistance;
+                track.speed       = projectile.speed;
+                track.startTime   = m_time - projectile.traveledDistance / projectile.speed;
+                track.endTime     = -1.0f;
+            }
+
+            m_slashTracks[slot].headDistance = projectile.traveledDistance;
+            slashSeen[slot]                  = true;
+        });
+
         Tsukino::u32 slashCount = 0;
-        if(activeField->slashPushRadius > 0.0f) {
-            auto projectileView = registry.View<ProjectileComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
-            projectileView.each([&](entt::entity, const ProjectileComponent& projectile, const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
-                if(slashCount >= kMaxGrassSlashes)
-                    return;
-                const float          trail = std::min(projectile.traveledDistance, std::max(activeField->slashTrailLength, 0.0f));
-                const hlslpp::float3 tail  = transform.position - projectile.direction * trail;
-                params.slashes[slashCount++] = hlslpp::float4(transform.position.x, transform.position.z, tail.x, tail.z);
-            });
+        for(size_t i = 0; i < m_slashTracks.size(); ++i) {
+            SlashTrack& track = m_slashTracks[i];
+            if(track.speed <= 0.0f)
+                continue;
+
+            // 見つからなかった弾は消えた（寿命・命中で止まった）。頭はそこで止め、余韻だけ残す
+            if(!slashSeen[i] && track.endTime < 0.0f)
+                track.endTime = m_time;
+
+            if(track.endTime >= 0.0f && m_time - track.endTime > slashRecoverDuration) {
+                track = SlashTrack{};
+                continue;
+            }
+
+            if(activeField->slashPushRadius <= 0.0f)
+                continue;
+
+            params.slashPaths[slashCount] = hlslpp::float4(track.originX, track.originZ, track.dirX, track.dirZ);
+            // 頭の周り（まだ通っていない草）を押すのは飛んでいる間だけ。消えたら短い時間で抜いて、パッと起きないようにする
+            constexpr float kSlashHeadFadeTime = 0.2f;
+            const float     headWeight =
+                (track.endTime < 0.0f) ? 1.0f : std::clamp(1.0f - (m_time - track.endTime) / kSlashHeadFadeTime, 0.0f, 1.0f);
+
+            params.slashTimes[slashCount] = hlslpp::float4(track.headDistance, track.speed, track.startTime, headWeight);
+            ++slashCount;
         }
-        params.slashParams = hlslpp::float4(static_cast<float>(slashCount), activeField->slashPushRadius, activeField->slashPushStrength, 0.0f);
+        params.slashParams  = hlslpp::float4(static_cast<float>(slashCount), activeField->slashPushRadius, activeField->slashPushStrength, 0.0f);
+        params.slashRecover = hlslpp::float4(activeField->slashRecoverFrequency, std::max(activeField->slashRecoverDamping, 0.0f), slashRecoverDuration, 0.0f);
 
         //--------------------------------------------------------------
         // 草むら（塊）。
