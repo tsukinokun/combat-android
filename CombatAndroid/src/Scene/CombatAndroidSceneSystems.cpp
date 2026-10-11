@@ -65,6 +65,7 @@
 
 // 必要なシステムとコンポーネントのインクルード
 #include <Tsukino/EngineIntegration/ECS/System/TransformSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/UITweenSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/CameraSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SpriteRendererSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FontRendererSystem.hpp>
@@ -223,6 +224,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EliteIndicatorSystem>(), (int)ECS::SystemPriority::EliteIndicator);
         // 画面外の拾得アイテム（落ちている武器）へ向く矢印
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PickupIndicatorSystem>(), (int)ECS::SystemPriority::PickupIndicator);
+        // UIの動き（UiMotion.hppの出現・消える・弾む・呼吸）。メニュー中もUnscaledTimeContextの実時間で動く
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::UITweenSystem>(), (int)ECS::SystemPriority::UITween);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformUI);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FontRendererSystem>(), (int)ECS::SystemPriority::Font);
         // 攻撃演出→ブラー強度→Rendererの順に流す

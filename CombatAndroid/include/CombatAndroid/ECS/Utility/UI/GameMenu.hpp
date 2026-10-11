@@ -43,6 +43,15 @@ namespace CombatAndroid::ECS {
         InputPromptWidget                                     downPrompt;                      //!< [S] カーソル下
         InputPromptWidget                                     confirmPrompt;                   //!< [F] 決定
         std::array<Tsukino::ECS::Entity, kGameMenuMaxItems>   hitEntities{};                   //!< 行ごとのマウス当たり判定（透明な矩形＋PointerTargetComponent）
+
+        //-------------------------------------------------------------
+        // 動き（UiMotion）のための前回の表示状態。ShowGameMenuは開いたときとカーソル・値が変わったときに
+        // 呼ばれるので、「開いた瞬間」と「カーソルが動いた」を見分けるのに使う。
+        // 表示の記録にすぎないので、constのウィジェットからでも書き換えられるようにしてある
+        //-------------------------------------------------------------
+        mutable bool  shown       = false;    //!< 前回の呼び出しで表示していたか（HideGameMenuで倒す）
+        mutable int   lastCursor  = -1;       //!< 前回選んでいた選択肢
+        mutable float lastCursorY = 0.0f;     //!< 前回の強調帯のY
     };
 
     //-------------------------------------------------------------
@@ -77,10 +86,19 @@ namespace CombatAndroid::ECS {
     //! @param  highlightWidth   [in] 強調帯の幅（選択肢の文字が長いメニューで広げる）
     //! @param  showConfirmPrompt [in] [F]の決定案内を出すか。falseなら隠す
     //!         （A/Dだけで値を変える項目のように、選択中の行でFが何もしない場合に使う）
+    //! @note   隠れていた状態から出すと、選択肢が上から順に横から滑り込む。
+    //!         カーソルが変わると、強調帯（と[W][S][F]）が前の行から滑って移る。動きはメニュー中も実時間で進む
     //-------------------------------------------------------------
     void ShowGameMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const GameMenuWidget& widget,
                       float centerX, float topY, std::span<const std::wstring> labels, int cursor,
                       float highlightWidth = kGameMenuDefaultHighlightWidth, bool showConfirmPrompt = true);
+
+    //-------------------------------------------------------------
+    //! @brief  選択中の選択肢を弾ませる（決定の手ごたえ）
+    //! @param  registry [in] ECSレジストリ
+    //! @param  widget   [in] 対象のメニュー
+    //-------------------------------------------------------------
+    void PunchGameMenuSelection(Tsukino::ECS::Registry& registry, const GameMenuWidget& widget);
 
     //-------------------------------------------------------------
     //! @brief  メニューを丸ごと非表示にする

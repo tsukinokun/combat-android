@@ -12,6 +12,13 @@
         "dangerRankColorFull": 10.0,
         "dangerRankGreenFade": 0.65,
         "dangerRankBlueFade": 0.75,
-        "rankUpFlashScaleGain": 0.45
+        "rankUpFlashScaleGain": 0.45,
+        "trailHoldSeconds": 0.35,
+        "trailShrinkSpeed": 7.0,
+        "trailColor": { "x": 1.0, "y": 0.95, "z": 0.85, "w": 0.9 },
+        "expFillSpeed": 9.0,
+        "hpPunchStrength": 1.6,
+        "levelPunchStrength": 2.0,
+        "lastMinuteSeconds": 60.0
     }
 }

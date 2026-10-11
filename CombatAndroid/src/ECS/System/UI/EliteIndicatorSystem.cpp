@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/Spawn/EliteEnemy.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
@@ -195,6 +196,7 @@ namespace CombatAndroid::ECS {
 
             StretchSpriteRotated(registry, *ctx, m_indicatorEntities[slot], screenX, screenY, params.indicatorWidth,
                                  params.indicatorLength, roll, tint);
+            UiPulse(registry, m_indicatorEntities[slot], 2.0f);    // ゆっくり呼吸させて目に留まりやすくする（既に呼吸していれば何もしない）
             ++slot;
         }
 

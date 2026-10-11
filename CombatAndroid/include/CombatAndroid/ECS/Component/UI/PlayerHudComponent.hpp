@@ -29,5 +29,17 @@ namespace CombatAndroid::ECS {
         //! 表示する値はRunClockComponentが持つ（生存時間もそちらへ1本化したため、
         //! ここには時間を数えるメンバは無い）
         Tsukino::ECS::Entity dangerRankTextEntity = entt::null;
+
+        //! HPバーの「減った分」。残量の後ろに敷く白い帯で、被弾すると少し待ってから残量まで縮む
+        Tsukino::ECS::Entity hpBarTrailEntity = entt::null;
+
+        //-------------------------------------------------------------
+        // バーと数値の動きのための状態（PlayerHudSystemだけが読み書きする）
+        //-------------------------------------------------------------
+        float trailRatio       = -1.0f;    //!< 「減った分」の帯の今の長さ（HPの割合。負なら未初期化）
+        float trailHoldTimer   = 0.0f;     //!< 被弾してから帯が縮み始めるまでの残り秒数
+        float shownExpRatio    = -1.0f;    //!< EXPバーの今の見た目の長さ（実際の割合へなめらかに追う。負なら未初期化）
+        float lastHealth       = -1.0f;    //!< 前フレームのHP（被弾・回復の検出）
+        int   lastLevel        = -1;       //!< 前フレームのレベル（レベルアップの検出）
     };
 }    // namespace CombatAndroid::ECS

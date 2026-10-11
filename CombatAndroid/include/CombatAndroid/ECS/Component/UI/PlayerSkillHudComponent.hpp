@@ -36,5 +36,9 @@ namespace CombatAndroid::ECS {
         //! スキルの種類数ぶん用意しておく行。取得済みのものだけを上から詰めて使い、
         //! 余った行は非表示（スケール0／空文字）にする
         std::array<PlayerSkillHudRow, static_cast<size_t>(SkillId::Count)> rows{};
+
+        //! 前フレームまでに一覧へ映したスキルごとの取得段階。増えた行を見つけて、
+        //! 新しく得たならポップ、段階が上がったなら弾ませる（PlayerSkillHudSystemだけが読み書きする）
+        std::array<int, static_cast<size_t>(SkillId::Count)> shownLevels{};
     };
 }    // namespace CombatAndroid::ECS

@@ -69,5 +69,14 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::Entity chargeHintPanel     = entt::null;    //!< 案内の板（Sprite）
         Tsukino::ECS::Entity chargeHintText      = entt::null;    //!< 案内の文（Font）
         InputPromptWidget    chargeHintPrompt{};                  //!< マウス＋長押しゲージ
+
+        //-------------------------------------------------------------
+        // 動き（UiMotion）のための表示状態。隠したら倒し、次に出すときにまた滑り込ませる
+        //-------------------------------------------------------------
+        int   shownStep        = -1;       //!< 板を出してある手順（変わったら板を下から滑り込ませる。-1なら隠れている）
+        bool  stepsFadingOut   = false;    //!< 目標を出し終えて、手順の板が消えていく途中か
+        bool  chargeHintShown  = false;    //!< 溜め攻撃の案内を出してあるか
+        bool  chargeHintFading = false;    //!< 溜め攻撃の案内が消えていく途中か
+        float chargeHintLastY  = 0.0f;     //!< 溜め攻撃の案内を前回置いたY（積む位置が変わったら滑らせて移す）
     };
 }    // namespace CombatAndroid::ECS

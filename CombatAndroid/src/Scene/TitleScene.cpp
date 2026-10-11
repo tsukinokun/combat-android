@@ -39,6 +39,8 @@
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SpriteRendererSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/TransformSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/UITweenSystem.hpp>
+#include <Tsukino/BuiltIn/ECS/UI/UnscaledTimeContext.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -85,6 +87,9 @@ namespace CombatAndroid {
         // 武器とカメラが書いた位置をworldMatrixへ反映してから、カメラ行列を作る
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::CameraSystem>(), (int)SystemPriority::Camera);
+
+        // メニューのUIの動き（UiMotion.hpp）。メニューが書いた位置へ見た目のずれを重ねるので、焼き込みより前
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::UITweenSystem>(), (int)SystemPriority::UITween);
 
         // メニューが書いたUIの位置をworldMatrixへ反映する（FontRendererSystemがそこから読む）
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformUI);
@@ -195,6 +200,8 @@ namespace CombatAndroid {
     //! @brief  シーンの更新
     //-------------------------------------------------------------
     void TitleScene::OnUpdate(Tsukino::EngineIntegration::EngineAPI& /*api*/, float deltaTime) {
+        // タイトルは時間を止めないので、UIの実時間は素のdeltaTimeと同じ
+        m_scene.GetRegistry().SetContext<Tsukino::BuiltIn::ECS::UnscaledTimeContext>(deltaTime);
         m_scene.Update(deltaTime);
     }
 

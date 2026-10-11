@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
+#include <Tsukino/BuiltIn/ECS/UI/UnscaledTimeContext.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Weapon/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/UI/InputPromptHudComponent.hpp>
@@ -359,6 +360,7 @@ namespace CombatAndroid {
 
             CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);
             hud.hpBarBackgroundEntity                    = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
+            hud.hpBarTrailEntity                         = makeBarSprite(CombatAndroid::UI::kHudBarTrail);
             hud.hpBarFillEntity                          = makeBarSprite(CombatAndroid::UI::kHudBarFill);
             hud.hpTextEntity                             = makeHudText();
             hud.expBarBackgroundEntity                   = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
@@ -624,6 +626,8 @@ namespace CombatAndroid {
         // スローに引きずられたくない演出（カメラの寄り）が実時間を読めるよう、Sceneを更新する前に置く
         m_scene.GetRegistry().SetContext<CombatAndroid::ECS::WorldTimeContext>(CombatAndroid::ECS::WorldTimeContext{
             deltaTime, (deltaTime > 0.0f) ? scaledDeltaTime / deltaTime : 1.0f});
+        // メニューのUIの動き（UITween::unscaledTime）は、止まり・スローに関係なく実時間で進める
+        m_scene.GetRegistry().SetContext<Tsukino::BuiltIn::ECS::UnscaledTimeContext>(deltaTime);
 
         m_scene.Update(scaledDeltaTime);
     }

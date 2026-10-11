@@ -227,6 +227,7 @@ namespace CombatAndroid::ECS {
 
             const PauseMenuItem selected = resumeByEscape ? PauseMenuItem::Resume : static_cast<PauseMenuItem>(pause.cursorIndex);
             PlaySound(registry, SoundId::MenuConfirm);
+            PunchGameMenuSelection(registry, pause.menu);
 
             switch(selected) {
             case PauseMenuItem::Retry:

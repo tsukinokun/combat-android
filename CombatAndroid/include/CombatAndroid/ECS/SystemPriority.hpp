@@ -90,6 +90,10 @@ namespace CombatAndroid::ECS {
         EliteIndicator,   // 画面外のエリートへ向く矢印。WorldAnchorと同じくカメラ行列が要るのでCameraの後、
                           // 書いた位置・回転がworldMatrixへ焼き込まれる前という同じ制約でTransformUIの前に置く
         PickupIndicator,  // 画面外の拾得アイテムへ向く矢印。EliteIndicatorと同じ制約・同じ並びでよい
+        UITween,          // UIの動き（エンジンのUITweenSystem。出現・消える・弾む・呼吸）を見た目のずれと透明度へ反映する。
+                          // トゥイーンを始めるUIのシステム（メニュー・HUD・チュートリアル等）はどれもこれより前にあるので、
+                          // 始めたフレームから動く。見た目のずれはTransformSystemがworldMatrixを作るときに重ねるため、
+                          // TransformUIより前に置く（後ろだと1フレーム古い動きで描かれる）
         TransformUI,      // WorldAnchorSystemが書いたUI要素のposition（画面ピクセル座標）をworldMatrixへ反映する。
                           // FontRendererSystemはworldMatrix[3]を読むため、これが無いと1フレーム遅れて表示がスウィムする
         AttackMotionBlur,    // 攻撃の進行度（CombatSystemが更新するattackBlend）をブラー強度へ反映する。

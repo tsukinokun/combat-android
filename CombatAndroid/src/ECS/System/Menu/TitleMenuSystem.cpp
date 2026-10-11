@@ -12,6 +12,7 @@
 #include <CombatAndroid/ECS/Utility/Save/RunRecord.hpp>
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Component/Menu/TitleStageComponent.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
@@ -262,6 +263,17 @@ namespace CombatAndroid::ECS {
             }
 
             if(!title.showingControls) {
+                //-------------------------------------------------------------
+                // 隠れていた状態から戻ってきた（最初の表示・操作説明やオプションから戻った）ときだけ、
+                // ゲーム名を大きく横から滑り込ませ、記録を少し遅れて出す。選択肢の動きはShowGameMenuが付ける
+                //-------------------------------------------------------------
+                if(!title.menu.shown) {
+                    const UiMotionParams& motion = GetUiMotionParams();
+                    UiAppear(registry, title.titleEntity,
+                             UiAppearDesc{.slideX = -motion.appearSlide * 2.0f, .duration = motion.appearDuration * 1.8f, .unscaledTime = true});
+                    UiAppearFromSide(registry, title.bestEntity, static_cast<int>(std::size(kMenuLabels)) + 1, true);
+                }
+
                 PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display), L"人造人間0号機", params.titleColor);
                 if(auto* titleFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(title.titleEntity))
                     titleFont->maxWidth = screenWidth * params.titleMaxWidthRatio;
@@ -285,6 +297,14 @@ namespace CombatAndroid::ECS {
             HideUiText(registry, title.titleEntity);
             HideUiText(registry, title.bestEntity);
             HideGameMenu(registry, title.menu);
+
+            // 開いた瞬間だけ、板をポップさせる（見出しと各行は板に追従させて一緒に出す）
+            if(!title.controlsMenu.shown) {
+                UiFollow(registry, title.controlsHeaderEntity, title.controlsPanelEntity);
+                UiFollowAll(registry, title.controlsActionEntities, title.controlsPanelEntity);
+                UiFollowAll(registry, title.controlsKeyEntities, title.controlsPanelEntity);
+                UiPopIn(registry, title.controlsPanelEntity, 0.0f, true);
+            }
 
             StretchSprite(registry, context, title.controlsPanelEntity, screenCenterX, screenCenterY, params.controlsPanelWidth, params.controlsPanelHeight,
                           params.controlsPanelColor);
@@ -370,6 +390,7 @@ namespace CombatAndroid::ECS {
                 continue;
 
             PlaySound(registry, SoundId::MenuConfirm);
+            PunchGameMenuSelection(registry, title.menu);
 
             switch(static_cast<TitleMenuItem>(title.cursorIndex)) {
             case TitleMenuItem::Start:

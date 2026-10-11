@@ -17,6 +17,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
+#include <Tsukino/Core/Math/Spring.hpp>
 
 #include <Tsukino/Core/Input/InputSystem.hpp>
 #include <Tsukino/Core/Log.hpp>
@@ -30,7 +31,7 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
-        constexpr float kTwoPi = 6.28318531f;
+        namespace Spring = Tsukino::Core::Math::Spring;    // 減衰ばね（エンジンの Spring.hpp）
 
         //! レターボックス（上下の黒帯）の高さ。画面の高さに対する比率
         constexpr float kLetterboxHeightRatio = 0.09f;
@@ -40,58 +41,6 @@ namespace CombatAndroid::ECS {
 
         const hlslpp::float4      kLetterboxColor(0.0f, 0.0f, 0.0f, 1.0f);
         const hlslpp::float4      kSkipHintColor(0.85f, 0.85f, 0.85f, 1.0f);
-
-        //-------------------------------------------------------------
-        //! @brief  減衰調和振動子（ばね・ダンパー）を1ステップ進める
-        //! @tparam T        float または hlslpp::float3
-        //! @note   TpsCameraSystem.cpp の同名ヘルパーと同一実装。共有ヘッダへ切り出すほどの
-        //!         重複ではないため、そちらへは触れずここへ複製してある（3箇所目が要る時に検討する）
-        //-------------------------------------------------------------
-        template <typename T>
-        void StepSpring(T& position, T& velocity, const T& target, float frequency, float damping, float deltaTime) {
-            if(deltaTime <= 0.0f)
-                return;
-
-            const float omega = kTwoPi * std::max(frequency, 1.0e-3f);
-            const float zeta  = std::max(damping, 0.0f);
-
-            const T x0 = position - target;
-            const T v0 = velocity;
-
-            T x;
-            T v;
-
-            if(zeta < 0.9999f) {
-                const float decay    = zeta * omega;
-                const float omegaD   = omega * std::sqrt(1.0f - zeta * zeta);
-                const float envelope = std::exp(-decay * deltaTime);
-                const float cosTerm  = std::cos(omegaD * deltaTime);
-                const float sinTerm  = std::sin(omegaD * deltaTime);
-
-                x = (x0 * cosTerm + (v0 + x0 * decay) * (sinTerm / omegaD)) * envelope;
-                v = (v0 * cosTerm - (x0 * (omega * omega) + v0 * decay) * (sinTerm / omegaD)) * envelope;
-            } else if(zeta <= 1.0001f) {
-                const float envelope = std::exp(-omega * deltaTime);
-                const T     k        = v0 + x0 * omega;
-
-                x = (x0 + k * deltaTime) * envelope;
-                v = (v0 - k * (omega * deltaTime)) * envelope;
-            } else {
-                const float root = std::sqrt(zeta * zeta - 1.0f);
-                const float r1   = -omega * (zeta - root);
-                const float r2   = -omega * (zeta + root);
-                const T     c1   = (v0 - x0 * r2) / (r1 - r2);
-                const T     c2   = x0 - c1;
-                const float e1   = std::exp(r1 * deltaTime);
-                const float e2   = std::exp(r2 * deltaTime);
-
-                x = c1 * e1 + c2 * e2;
-                v = c1 * (r1 * e1) + c2 * (r2 * e2);
-            }
-
-            position = target + x;
-            velocity = v;
-        }
 
         //-------------------------------------------------------------
         //! @brief  唯一のCutsceneComponent（プレイヤーエンティティに付いている）を探す
@@ -282,10 +231,10 @@ namespace CombatAndroid::ECS {
             cutscene->springFovVelocity    = 0.0f;
             cutscene->hasSpringState       = true;
         } else {
-            StepSpring(cutscene->springPosition, cutscene->springVelocity, desiredPosition, shot.blendFrequency, 1.0f, realDeltaTime);
-            StepSpring(cutscene->lookAtSpringPosition, cutscene->lookAtSpringVelocity, desiredLookAt, shot.blendFrequency, 1.0f,
+            Spring::Step(cutscene->springPosition, cutscene->springVelocity, desiredPosition, shot.blendFrequency, 1.0f, realDeltaTime);
+            Spring::Step(cutscene->lookAtSpringPosition, cutscene->lookAtSpringVelocity, desiredLookAt, shot.blendFrequency, 1.0f,
                        realDeltaTime);
-            StepSpring(cutscene->springFov, cutscene->springFovVelocity, desiredFov, shot.blendFrequency, 1.0f, realDeltaTime);
+            Spring::Step(cutscene->springFov, cutscene->springFovVelocity, desiredFov, shot.blendFrequency, 1.0f, realDeltaTime);
         }
 
         //-------------------------------------------------------------

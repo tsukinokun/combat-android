@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Utility/Save/RunRecord.hpp>
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
@@ -220,6 +221,27 @@ namespace CombatAndroid::ECS {
             // 文字とメニューはフェードが終わってから出す
             if(!result.revealed)
                 return;
+
+            //-------------------------------------------------------------
+            // フェードが終わった最初の配置でだけ動きを付ける（以後は画面サイズが変わったときの組み直しなので動かさない）。
+            // 見出しを大きくポップさせ、成績を1行ずつ横から滑り込ませ、スキル・記録・メニューの順に続ける。
+            // リザルト中は時間が止まっているので実時間で進める
+            //-------------------------------------------------------------
+            if(!result.menu.shown) {
+                UiAppear(registry, result.titleEntity,
+                         UiAppearDesc{.scaleFrom = 1.8f, .duration = GetUiMotionParams().popDuration * 1.4f, .unscaledTime = true});
+
+                for(int i = 0; i < kRunResultStatRowCount; ++i) {
+                    const RunResultStatRow& row = result.statRows[i];
+                    UiFollow(registry, row.valueEntity, row.labelEntity);
+                    UiFollow(registry, row.recordEntity, row.labelEntity);
+                    UiAppearFromSide(registry, row.labelEntity, i + 2, true);    // 見出しが落ち着いてから
+                    if(result.statNewRecords[i])
+                        UiPulse(registry, row.recordEntity, 1.5f, true);    // 新記録は目を引くよう呼吸させる
+                }
+                UiAppearFromBelow(registry, result.skillsEntity, GetUiMotionParams().appearStagger * (kRunResultStatRowCount + 2), true);
+                UiAppearFromBelow(registry, result.bestEntity, GetUiMotionParams().appearStagger * (kRunResultStatRowCount + 3), true);
+            }
 
             PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title),
                         result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? params.clearTitleColor : params.deadTitleColor);
@@ -438,6 +460,7 @@ namespace CombatAndroid::ECS {
                 continue;
 
             PlaySound(registry, SoundId::MenuConfirm);
+            PunchGameMenuSelection(registry, result.menu);
 
             // 黒く覆ってから切り替える。実際のChangeSceneは暗転しきった時点で
             // ScreenFadeSystemが呼ぶ（リトライでは操作の案内を出さない）

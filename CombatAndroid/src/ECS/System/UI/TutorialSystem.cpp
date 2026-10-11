@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
@@ -157,27 +158,34 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         //! @brief  手順の案内を隠す
         //-------------------------------------------------------------
-        void HideSteps(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+        void HideSteps(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
             HideUiSprite(registry, tutorial.panelEntity);
             HideUiText(registry, tutorial.textEntity);
             HideUiText(registry, tutorial.counterEntity);
             for(const InputPromptWidget& prompt : tutorial.prompts)
                 HideInputPrompt(registry, prompt);
+
+            // 次に出すときは、また滑り込ませる（フェードの途中で隠したなら、出し直してからフェードし直す）
+            tutorial.shownStep      = -1;
+            tutorial.stepsFadingOut = false;
         }
 
         //-------------------------------------------------------------
         //! @brief  溜め攻撃の案内を隠す
         //-------------------------------------------------------------
-        void HideChargeHint(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+        void HideChargeHint(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
             HideUiSprite(registry, tutorial.chargeHintPanel);
             HideUiText(registry, tutorial.chargeHintText);
             HideInputPrompt(registry, tutorial.chargeHintPrompt);
+
+            tutorial.chargeHintShown  = false;
+            tutorial.chargeHintFading = false;
         }
 
         //-------------------------------------------------------------
         //! @brief  案内を全部隠す
         //-------------------------------------------------------------
-        void HideAll(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+        void HideAll(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
             HideSteps(registry, tutorial);
             HideChargeHint(registry, tutorial);
         }
@@ -263,9 +271,16 @@ namespace CombatAndroid::ECS {
 
             if(tutorial.step == TutorialStep::Goal) {
                 if(tutorial.stepTimer >= params.goalDuration) {
-                    tutorial.finished = true;
-                    HideSteps(registry, tutorial);
-                    return;
+                    // 目標を出し終えたら、板ごとフェードで消し、消えきってから隠す
+                    if(!tutorial.stepsFadingOut) {
+                        tutorial.stepsFadingOut = true;
+                        UiDisappear(registry, tutorial.panelEntity, true);
+                    } else if(!UiIsVisibilityAnimating(registry, tutorial.panelEntity)) {
+                        tutorial.finished = true;
+                        HideSteps(registry, tutorial);
+                        UiResetVisibility(registry, tutorial.panelEntity);
+                        return;
+                    }
                 }
             } else if(tutorial.doneTimer >= 0.0f) {
                 tutorial.doneTimer += deltaTime;
@@ -273,6 +288,7 @@ namespace CombatAndroid::ECS {
                     AdvanceStep(registry, tutorial, player);
             } else if(IsStepDone(tutorial, player, anim, deltaTime)) {
                 tutorial.doneTimer = 0.0f;
+                UiPunch(registry, tutorial.panelEntity, 0.6f, true);    // できた手ごたえ
             } else if(tutorial.stepTimer >= params.stepTimeout) {
                 AdvanceStep(registry, tutorial, player);
             }
@@ -288,6 +304,12 @@ namespace CombatAndroid::ECS {
             const float panelWidth = FitPanelWidth(def.text);
             const float panelLeft  = panelCenterX - panelWidth * 0.5f;
             StretchSprite(registry, ctx, tutorial.panelEntity, panelCenterX, panelCenterY, panelWidth, params.panelHeight, params.panelColor);
+
+            // 手順が変わった（または隠れていた状態から戻った）ら、板を下から滑り込ませる。文字とキー表示は板に追従する
+            if(tutorial.shownStep != stepIndex) {
+                tutorial.shownStep = stepIndex;
+                UiAppearFromBelow(registry, tutorial.panelEntity, 0.0f, true);
+            }
 
             std::wstring text = def.text;
             if(isDone)
@@ -348,6 +370,14 @@ namespace CombatAndroid::ECS {
             desc.sortOrderBase           = UI::kTutorialPromptBase;
             tutorial.chargeHintPrompt    = CreateInputPromptWidget(registry, context, desc);
         }
+
+        // 文字とキー表示は板の動き（滑り込み・弾み・フェード）に追従させる
+        UiFollow(registry, tutorial.textEntity, tutorial.panelEntity);
+        UiFollow(registry, tutorial.counterEntity, tutorial.panelEntity);
+        for(const InputPromptWidget& prompt : tutorial.prompts)
+            UiFollowPrompt(registry, prompt, tutorial.panelEntity);
+        UiFollow(registry, tutorial.chargeHintText, tutorial.chargeHintPanel);
+        UiFollowPrompt(registry, tutorial.chargeHintPrompt, tutorial.chargeHintPanel);
 
         // Prefab（System/Tutorial）は実行時状態だけの束。組み立てた中身を入れる
         registry.GetComponent<TutorialComponent>(InstantiatePrefab(registry, context, "System/Tutorial")) = tutorial;
@@ -416,12 +446,20 @@ namespace CombatAndroid::ECS {
             if(tutorial.chargeHintDoneTimer >= 0.0f) {
                 tutorial.chargeHintDoneTimer += deltaTime;
                 if(tutorial.chargeHintDoneTimer >= params.doneHold) {
-                    tutorial.chargeHintState = ChargeHintState::Done;
-                    HideChargeHint(registry, tutorial);
-                    continue;
+                    // 「OK!」を見せ終えたら、フェードで消してから隠す
+                    if(!tutorial.chargeHintFading) {
+                        tutorial.chargeHintFading = true;
+                        UiDisappear(registry, tutorial.chargeHintPanel, true);
+                    } else if(!UiIsVisibilityAnimating(registry, tutorial.chargeHintPanel)) {
+                        tutorial.chargeHintState = ChargeHintState::Done;
+                        HideChargeHint(registry, tutorial);
+                        UiResetVisibility(registry, tutorial.chargeHintPanel);
+                        continue;
+                    }
                 }
             } else if(isCharging && ResolveChargeStage(anim->chargeTimer, *player) >= kChargeHintClearStage) {
                 tutorial.chargeHintDoneTimer = 0.0f;
+                UiPunch(registry, tutorial.chargeHintPanel, 0.8f, true);    // ピンクまで溜めた手ごたえ
             }
 
             const bool  hintDone = tutorial.chargeHintDoneTimer >= 0.0f;
@@ -430,6 +468,18 @@ namespace CombatAndroid::ECS {
             const float hintWidth = FitPanelWidth(kChargeHintDef.text);
             const float panelLeft = panelCenterX - hintWidth * 0.5f;
             StretchSprite(registry, *ctx, tutorial.chargeHintPanel, panelCenterX, hintY, hintWidth, params.panelHeight, params.panelColor);
+
+            //-------------------------------------------------------------
+            // 出した瞬間は下から滑り込ませる。手順の案内が終わって積む位置が下がったときは、
+            // 前の位置から滑らせて移す（いきなり飛ばない）
+            //-------------------------------------------------------------
+            if(!tutorial.chargeHintShown) {
+                tutorial.chargeHintShown = true;
+                UiAppearFromBelow(registry, tutorial.chargeHintPanel, 0.0f, true);
+            } else if(hintY != tutorial.chargeHintLastY) {
+                UiSlideFrom(registry, tutorial.chargeHintPanel, 0.0f, tutorial.chargeHintLastY - hintY, true);
+            }
+            tutorial.chargeHintLastY = hintY;
 
             std::wstring hintText = kChargeHintDef.text;
             if(hintDone)

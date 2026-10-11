@@ -3,6 +3,7 @@
 //! @brief   縦に並んだ選択肢のメニュー（ポーズ・リザルト・タイトル共通）の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
@@ -81,6 +82,11 @@ namespace CombatAndroid::ECS {
         widget.downPrompt    = CreateKeyPrompt(registry, context, L"S", PromptChevron::Down, sortOrderBase + kPromptLayer);
         widget.confirmPrompt = CreateKeyPrompt(registry, context, L"F", PromptChevron::Right, sortOrderBase + kPromptLayer);
 
+        // [W][S][F]は強調帯の横に付いて回るので、帯の動き（出現・行の移動）に追従させる
+        UiFollowPrompt(registry, widget.upPrompt, widget.highlightEntity);
+        UiFollowPrompt(registry, widget.downPrompt, widget.highlightEntity);
+        UiFollowPrompt(registry, widget.confirmPrompt, widget.highlightEntity);
+
         return widget;
     }
 
@@ -135,6 +141,34 @@ namespace CombatAndroid::ECS {
             ShowInputPromptAtScreen(registry, context, widget.confirmPrompt, promptX + kPromptConfirmGapX, cursorY, style);
         else
             HideInputPrompt(registry, widget.confirmPrompt);
+
+        //-------------------------------------------------------------
+        // 動き。メニューは時間が止まっている間に開くので、どれも実時間で進める
+        //-------------------------------------------------------------
+        if(!widget.shown) {
+            // 開いた瞬間：選択肢を上から順に横から滑り込ませ、強調帯は選択中の行と同じ順番で出す
+            for(int i = 0; i < count; ++i)
+                UiAppearFromSide(registry, widget.itemEntities[i], i, true);
+            UiAppearFromSide(registry, widget.highlightEntity, cursor, true);
+        } else if(cursor != widget.lastCursor) {
+            // カーソルが動いた：帯（と付いて回る[W][S][F]）を前の行から滑らせ、選んだ行の文字を軽く弾ませる
+            UiSlideFrom(registry, widget.highlightEntity, 0.0f, widget.lastCursorY - cursorY, true);
+            UiPunch(registry, widget.itemEntities[cursor], 0.5f, true);
+        }
+
+        widget.shown       = true;
+        widget.lastCursor  = cursor;
+        widget.lastCursorY = cursorY;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 選択中の選択肢を弾ませる
+    //-------------------------------------------------------------
+    void PunchGameMenuSelection(Tsukino::ECS::Registry& registry, const GameMenuWidget& widget) {
+        if(!widget.shown || widget.lastCursor < 0 || widget.lastCursor >= kGameMenuMaxItems)
+            return;
+        UiPunch(registry, widget.highlightEntity, 1.0f, true);
+        UiPunch(registry, widget.itemEntities[static_cast<size_t>(widget.lastCursor)], 1.0f, true);
     }
 
     //-------------------------------------------------------------
@@ -153,6 +187,9 @@ namespace CombatAndroid::ECS {
         HideInputPrompt(registry, widget.upPrompt);
         HideInputPrompt(registry, widget.downPrompt);
         HideInputPrompt(registry, widget.confirmPrompt);
+
+        widget.shown      = false;    // 次に出すときは、また滑り込ませる
+        widget.lastCursor = -1;
     }
 
     //-------------------------------------------------------------

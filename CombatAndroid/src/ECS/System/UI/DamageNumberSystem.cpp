@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 
+#include <Tsukino/Core/Math/Easing.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
@@ -242,7 +243,7 @@ namespace CombatAndroid::ECS {
             // 上昇。スクリーン座標は下方向が正（WorldAnchorSystemの投影式）なので、
             // 上へ動かすにはscreenOffset.yを負にする。減速させるためease-outにする
             //-------------------------------------------------------------
-            float riseCurve     = 1.0f - (1.0f - t) * (1.0f - t);
+            float riseCurve     = Tsukino::Core::Math::Easing::OutQuad(t);
             anchor.screenOffset = hlslpp::float2(0.0f, -params.riseDistance * riseCurve);
 
             //-------------------------------------------------------------

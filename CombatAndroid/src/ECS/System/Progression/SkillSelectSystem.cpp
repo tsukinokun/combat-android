@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/Table/WeaponEvolutionTable.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
@@ -323,6 +324,42 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  開いた瞬間の動き（暗転が浮かび、見出しがポップし、カードが上から順に横から滑り込む）
+        //! @note   メニュー中はシーンがdeltaTime=0を渡すので、動きはどれも実時間で進める
+        //-------------------------------------------------------------
+        void StartOpenMotion(Tsukino::ECS::Registry& registry, SkillSelectComponent& select) {
+            UiAppear(registry, select.backdropEntity, UiAppearDesc{.unscaledTime = true});
+            UiPopIn(registry, select.titleEntity, 0.0f, true);
+
+            for(int i = 0; i < select.candidateCount; ++i) {
+                SkillSelectCardEntities& card = select.cards[static_cast<size_t>(i)];
+                // カードの文字は板と一緒に動かす（一度付ければ以後ずっと追従する）
+                UiFollow(registry, card.nameEntity, card.panelEntity);
+                UiFollow(registry, card.descEntity, card.panelEntity);
+                UiAppearFromSide(registry, card.panelEntity, i + 1, true);    // 見出しの後から順に
+            }
+
+            // 強調枠は選んでいるカードと一緒に出し、ゆっくり呼吸させて「選べる」ことを見せる
+            UiAppearFromSide(registry, select.highlightEntity, select.cursorIndex + 1, true);
+            UiStopPulse(registry, select.highlightEntity);
+            UiPulse(registry, select.highlightEntity, 0.35f, true);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  カーソルが動いたときの動き（強調枠が前のカードから滑って移り、選んだカードが軽く弾む）
+        //-------------------------------------------------------------
+        void StartCursorMotion(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, SkillSelectComponent& select,
+                               int previousIndex) {
+            const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
+            const float screenCenterY = screenHeight * 0.5f;
+            const float fromY         = CalculateCardCenterY(screenCenterY, previousIndex, select.candidateCount)
+                                - CalculateCardCenterY(screenCenterY, select.cursorIndex, select.candidateCount);
+
+            UiSlideFrom(registry, select.highlightEntity, 0.0f, fromY, true);
+            UiPunch(registry, select.cards[static_cast<size_t>(select.cursorIndex)].panelEntity, 0.4f, true);
+        }
+
+        //-------------------------------------------------------------
         //! @brief  メニューを構成するエンティティを全て消す関数
         //! @param  registry [in] ECSレジストリ
         //! @param  select   [in] メニューの状態
@@ -331,6 +368,7 @@ namespace CombatAndroid::ECS {
             HideEntity(registry, select.backdropEntity);
             HideEntity(registry, select.highlightEntity);
             HideEntity(registry, select.titleEntity);
+            UiStopPulse(registry, select.highlightEntity);    // 隠している間まで呼吸を回し続けない
 
             for(SkillSelectCardEntities& card : select.cards) {
                 HideEntity(registry, card.panelEntity);
@@ -364,7 +402,7 @@ namespace CombatAndroid::ECS {
     //! @brief システムの更新
     //-------------------------------------------------------------
     void SkillSelectSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
-        // メニュー自体はアニメーションを持たないため表示中はdeltaTimeを使わない
+        // メニューの動きはUiMotion（実時間）に任せるため、表示中はdeltaTimeを使わない
         //（そもそも表示中はシーンがdeltaTime=0を渡してくる）。メニューが閉じた後の
         // レベルアップ後無敵演出（下記）だけは実時間で進行させるため、ここでは捨てない
 
@@ -443,6 +481,7 @@ namespace CombatAndroid::ECS {
                 ClearAllHitStop(registry);
 
                 RefreshUi(registry, *ctx, select, skills, player);
+                StartOpenMotion(registry, select);
                 continue;    // 表示した直後のフレームでそのまま決定入力を拾わない
             }
 
@@ -485,9 +524,11 @@ namespace CombatAndroid::ECS {
                 const int nextIndex = pointer.hoverIndex >= 0 ? pointer.hoverIndex
                                                               : std::clamp(select.cursorIndex + step, 0, select.candidateCount - 1);
                 if(nextIndex != select.cursorIndex) {
-                    select.cursorIndex = nextIndex;
+                    const int previousIndex = select.cursorIndex;
+                    select.cursorIndex      = nextIndex;
                     PlaySound(registry, SoundId::MenuMove);
                     RefreshUi(registry, *ctx, select, skills, player);
+                    StartCursorMotion(registry, *ctx, select, previousIndex);
                 }
             }
 

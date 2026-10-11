@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
+#include <Tsukino/Core/Math/Easing.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -172,16 +173,6 @@ namespace CombatAndroid::ECS {
         [[nodiscard]]
         float SmoothStep01(float t) {
             return t * t * (3.0f - 2.0f * t);
-        }
-
-        //-------------------------------------------------------------
-        //! @brief  終わりに向かって減速するイージング（3次）
-        //! @param  t [in] 0から1の進行度
-        //-------------------------------------------------------------
-        [[nodiscard]]
-        float EaseOutCubic(float t) {
-            float inverse = 1.0f - t;
-            return 1.0f - inverse * inverse * inverse;
         }
 
         //-------------------------------------------------------------
@@ -461,7 +452,7 @@ namespace CombatAndroid::ECS {
             float enterT = std::clamp(log.elapsed / params.enterDuration, 0.0f, 1.0f);
             float exitT  = std::clamp((log.elapsed - (params.lifetime - params.exitDuration)) / params.exitDuration, 0.0f, 1.0f);
 
-            float offsetX = params.slideInDistance * (1.0f - EaseOutCubic(enterT));
+            float offsetX = params.slideInDistance * (1.0f - Tsukino::Core::Math::Easing::OutCubic(enterT));
             float offsetY = -params.exitRiseDistance * SmoothStep01(exitT);
             float alpha   = SmoothStep01(enterT) * (1.0f - SmoothStep01(exitT));
 

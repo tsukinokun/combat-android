@@ -12,10 +12,13 @@
 #include <CombatAndroid/ECS/Component/Progression/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
+
+#include <Tsukino/Core/Math/Easing.hpp>
 
 #include <hlsl++.h>
 #include <entt/entt.hpp>
@@ -63,6 +66,17 @@ namespace CombatAndroid::ECS {
 
             //! 昇格直後に文字を大きくする割合。0.45で最大1.45倍
             float rankUpFlashScaleGain = 0.45f;
+
+            //-------------------------------------------------------------
+            // バーと数値の動き
+            //-------------------------------------------------------------
+            float          trailHoldSeconds = 0.35f;    //!< 被弾してから「減った分」の帯が縮み始めるまでの秒数
+            float          trailShrinkSpeed = 7.0f;     //!< 帯が残量へ追いつく速さ（Damp。大きいほど速い）
+            hlslpp::float4 trailColor       = hlslpp::float4(1.0f, 0.95f, 0.85f, 0.9f);    //!< 帯の色（白っぽく光らせて、減った量を見せる）
+            float          expFillSpeed     = 9.0f;     //!< EXPバーが実際の量へ追いつく速さ（Damp）
+            float          hpPunchStrength  = 1.6f;     //!< 被弾したときにHPの数値を弾ませる強さ（UiMotionの既定の倍率）
+            float          levelPunchStrength = 2.0f;   //!< レベルアップでLvの数値を弾ませる強さ
+            float          lastMinuteSeconds = 60.0f;   //!< クリアまでの残りがこの秒数を切ったら、生存時間を呼吸させる
         };
 
         template <class Archive>
@@ -80,6 +94,32 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "dangerRankGreenFade", params.dangerRankGreenFade);
             LoadField(archive, "dangerRankBlueFade", params.dangerRankBlueFade);
             LoadField(archive, "rankUpFlashScaleGain", params.rankUpFlashScaleGain);
+            LoadField(archive, "trailHoldSeconds", params.trailHoldSeconds);
+            LoadField(archive, "trailShrinkSpeed", params.trailShrinkSpeed);
+            LoadField(archive, "trailColor", params.trailColor);
+            LoadField(archive, "expFillSpeed", params.expFillSpeed);
+            LoadField(archive, "hpPunchStrength", params.hpPunchStrength);
+            LoadField(archive, "levelPunchStrength", params.levelPunchStrength);
+            LoadField(archive, "lastMinuteSeconds", params.lastMinuteSeconds);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  バーの左端を固定して、割合ぶんの幅で1本のスプライトを置く
+        //-------------------------------------------------------------
+        void PlaceBarSprite(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float leftX, float centerY, float width, float height,
+                            float ratio, const hlslpp::float4& color) {
+            if(entity == entt::null)
+                return;
+
+            ratio = std::clamp(ratio, 0.0f, 1.0f);
+
+            auto& transform    = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(entity);
+            transform.position = hlslpp::float3(leftX + width * ratio * 0.5f, centerY, 0.0f);
+            transform.scale    = hlslpp::float3(width * ratio / kBarTexturePixelSize, height / kBarTexturePixelSize, 1.0f);
+            transform.dirty    = true;
+
+            if(auto* sprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(entity))
+                sprite->tintColor = color;
         }
 
         //-------------------------------------------------------------
@@ -160,11 +200,55 @@ namespace CombatAndroid::ECS {
                       hpColor);
 
             //-------------------------------------------------------------
-            // EXPバー
+            // HPの「減った分」。残量は被弾した瞬間に縮め（どれだけ残っているかはすぐ分かるように）、
+            // その後ろの白い帯だけ少し待ってから追いつかせて、どれだけ減ったかを目で追えるようにする。
+            // 回復したときは帯も一緒に伸ばす（帯が残量より短いと隠れて見えない）。
+            // 時間はゲーム内時間なので、メニュー中は止まり、スロー中はゆっくり縮む
+            //-------------------------------------------------------------
+            hpRatio = std::clamp(hpRatio, 0.0f, 1.0f);
+            if(hud.trailRatio < 0.0f || hpRatio >= hud.trailRatio) {
+                hud.trailRatio     = hpRatio;
+                hud.trailHoldTimer = 0.0f;
+            } else if(hud.lastHealth >= 0.0f && health.currentHealth < hud.lastHealth) {
+                hud.trailHoldTimer = params.trailHoldSeconds;    // 連続で被弾したら、待ちを延ばして帯をまとめて見せる
+            }
+
+            if(hud.trailHoldTimer > 0.0f)
+                hud.trailHoldTimer = std::max(hud.trailHoldTimer - deltaTime, 0.0f);
+            else
+                hud.trailRatio = Tsukino::Core::Math::Easing::Damp(hud.trailRatio, hpRatio, params.trailShrinkSpeed, deltaTime);
+
+            PlaceBarSprite(registry, hud.hpBarTrailEntity, params.hpBarLeftX, params.hpBarTopY + params.hpBarHeight * 0.5f, params.hpBarWidth,
+                           params.hpBarHeight, hud.trailRatio, params.trailColor);
+
+            // 被弾したらHPの数値を弾ませる
+            if(hud.lastHealth >= 0.0f && health.currentHealth < hud.lastHealth - 0.01f)
+                UiPunch(registry, hud.hpTextEntity, params.hpPunchStrength);
+            hud.lastHealth = health.currentHealth;
+
+            //-------------------------------------------------------------
+            // EXPバー。玉を吸うたびに一気に伸びると気づきにくいので、実際の量へなめらかに追わせる。
+            // レベルアップで量が0近くへ戻ったときは、追わせずにそのまま戻す（逆向きに縮んで見えないように）
             //-------------------------------------------------------------
             float expRatio = exp.requiredExp > 0 ? static_cast<float>(exp.currentExp) / static_cast<float>(exp.requiredExp) : 0.0f;
+            expRatio       = std::clamp(expRatio, 0.0f, 1.0f);
+
+            const bool leveledUp = hud.lastLevel >= 0 && exp.level > hud.lastLevel;
+            if(hud.shownExpRatio < 0.0f || leveledUp || expRatio < hud.shownExpRatio)
+                hud.shownExpRatio = (leveledUp && expRatio > 0.0f) ? 0.0f : expRatio;
+            hud.shownExpRatio = Tsukino::Core::Math::Easing::Damp(hud.shownExpRatio, expRatio, params.expFillSpeed, deltaTime);
+
             UpdateBar(registry, hud.expBarBackgroundEntity, hud.expBarFillEntity, params.hpBarLeftX, (params.hpBarTopY + params.hpBarHeight + params.expBarGapY), params.hpBarWidth, params.expBarHeight,
-                      expRatio, params.expBarFillColor);
+                      hud.shownExpRatio, params.expBarFillColor);
+
+            // レベルが上がったらLvの数値を大きく弾ませる
+            if(leveledUp)
+                UiPunch(registry, hud.expTextEntity, params.levelPunchStrength);
+            hud.lastLevel = exp.level;
+
+            // クリアまで残り僅かになったら、生存時間をゆっくり呼吸させて終わりが近いことを知らせる
+            if(clock.elapsedSeconds >= kRunClearSeconds - params.lastMinuteSeconds)
+                UiPulse(registry, hud.survivalTimeTextEntity, 1.5f);
 
             //-------------------------------------------------------------
             // 数値テキスト

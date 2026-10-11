@@ -1,0 +1,16 @@
+{
+    "UiMotion": {
+        "appearDuration": 0.28,
+        "appearSlide": 36.0,
+        "appearStagger": 0.05,
+        "popScaleFrom": 0.6,
+        "popDuration": 0.35,
+        "disappearDuration": 0.18,
+        "disappearSlide": 16.0,
+        "punchStrength": 0.12,
+        "punchDuration": 0.3,
+        "pulseAmount": 0.06,
+        "pulsePeriod": 0.9,
+        "slideDuration": 0.14
+    }
+}

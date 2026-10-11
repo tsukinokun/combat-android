@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Table/SkillTable.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpriteComponent.hpp>
@@ -138,7 +139,7 @@ namespace CombatAndroid::ECS {
     void PlayerSkillHudSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
         const PlayerSkillHudParams& params = GetParams();
 
-        // 一覧はアニメーションを持たず取得段階の現在値をそのまま映すだけなので、経過時間を使わない
+        // 一覧の動き（ポップ・弾み）はUiMotionに任せ、ここは取得段階の現在値を映すだけなので、経過時間を使わない
         (void)deltaTime;
 
         auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
@@ -192,6 +193,20 @@ namespace CombatAndroid::ECS {
                         textFont->text  = std::wstring(entry.displayName) + L" Lv." + std::to_wstring(level);
                         textFont->color = params.skillTextColor;
                     }
+                }
+
+                //-------------------------------------------------------------
+                // 新しく得たスキルはアイコンをポップさせ、段階が上がったスキルは弾ませる（文字はアイコンに追従）。
+                // 取得はスキル選択の最中（時間が止まっている）なので、動きはメニューを閉じた瞬間から見える
+                //-------------------------------------------------------------
+                int& shownLevel = hud.shownLevels[static_cast<size_t>(entry.id)];
+                if(level != shownLevel) {
+                    UiFollow(registry, row.textEntity, row.iconEntity);
+                    if(shownLevel <= 0)
+                        UiPopIn(registry, row.iconEntity);
+                    else if(level > shownLevel)
+                        UiPunch(registry, row.iconEntity, 1.5f);
+                    shownLevel = level;
                 }
 
                 ++rowIndex;
