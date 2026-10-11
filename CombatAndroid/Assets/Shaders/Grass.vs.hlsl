@@ -48,6 +48,8 @@ cbuffer CBufferGrass : register(b12)
     float4 waveTiming;         // x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
     float4 pushers[32];        // かき分ける敵ごとに xy: XZ座標, zw: 予約
     float4 pusherParams;       // x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+    float4 slashes[4];         // 斬撃弾ごとに xy: 頭（今の位置）のXZ, zw: 尾のXZ
+    float4 slashParams;        // x: 斬撃弾の数, y: かき分け半径, z: かき分けの強さ, w: 予約
 };
 
 // 同時に揺らせる衝撃波の数。GrassFieldSystem.hpp の kMaxGrassWaves と一致させること
@@ -55,6 +57,12 @@ static const uint kMaxGrassWaves = 2;
 
 // 草をかき分ける敵の上限。GrassFieldSystem.hpp の kMaxGrassPushers と一致させること
 static const uint kMaxGrassPushers = 32;
+
+// 草をかき分ける斬撃弾の上限。GrassFieldSystem.hpp の kMaxGrassSlashes と一致させること
+static const uint kMaxGrassSlashes = 4;
+
+// 斬撃弾の跡の尾での強さ（頭を1として）。尾へ向かって弱めて、割れた草が閉じていくように見せる
+static const float kSlashTailStrength = 0.25f;
 
 //--------------------------------------------------------------
 // 草の動きの形を決める定数（値の調整はGrassFieldComponentの方で行い、ここは形だけ）
@@ -93,6 +101,21 @@ void PushBladeAway(float2 rootXZ, float2 center, float radius, float strength, i
 
     bendDir    = normalize(bendDir * bendAmount + pushDir * pushAmount);
     bendAmount = bendAmount + pushAmount;
+}
+
+//--------------------------------------------------------------
+// 線分（斬撃弾の頭→尾）から草を横へ押しのける。
+// 線分上の一番近い点を中心として PushBladeAway と同じ形で倒し、
+// 強さは頭で1、尾で kSlashTailStrength まで弱める
+//--------------------------------------------------------------
+void PushBladeAwayFromSegment(float2 rootXZ, float2 head, float2 tail, float radius, float strength, inout float2 bendDir, inout float bendAmount)
+{
+    const float2 segment   = tail - head;
+    const float  lengthSq  = dot(segment, segment);
+    const float  t         = (lengthSq > 0.001f) ? saturate(dot(rootXZ - head, segment) / lengthSq) : 0.0f;
+    const float2 closest   = head + segment * t;
+
+    PushBladeAway(rootXZ, closest, radius, strength * lerp(1.0f, kSlashTailStrength, t), bendDir, bendAmount);
 }
 
 //--------------------------------------------------------------
@@ -482,6 +505,18 @@ VSOutput VSMain(VSInput input, uint instanceID : SV_InstanceID)
         [loop]
         for(uint p = 0; p < pusherCount; ++p)
             PushBladeAway(rootXZ, pushers[p].xy, pusherParams.y, pusherParams.z, bendDir, bendAmount);
+    }
+
+    //----------------------------------------------------------
+    // 斬撃弾のかき分け。弾が通った跡（頭→尾の線分）の草を左右へ割る。敵と同じく近景の層だけ
+    //----------------------------------------------------------
+    if(lodParams.z < 0.5f && slashParams.y > 0.0f)
+    {
+        const uint slashCount = min((uint)slashParams.x, kMaxGrassSlashes);
+
+        [loop]
+        for(uint s = 0; s < slashCount; ++s)
+            PushBladeAwayFromSegment(rootXZ, slashes[s].xy, slashes[s].zw, slashParams.y, slashParams.z, bendDir, bendAmount);
     }
 
     //----------------------------------------------------------

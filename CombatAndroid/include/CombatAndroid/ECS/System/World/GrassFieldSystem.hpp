@@ -43,10 +43,17 @@ namespace CombatAndroid::ECS {
     inline constexpr Tsukino::u32 kMaxGrassPushers = 32;
 
     //--------------------------------------------------------------
+    //! 草をかき分ける斬撃弾の上限
+    //! @note Grass.vs.hlsl の kMaxGrassSlashes と一致させること。
+    //!       斬撃弾は溜め解放1回で1発なので、同時に飛ぶのは多くても数本
+    //--------------------------------------------------------------
+    inline constexpr Tsukino::u32 kMaxGrassSlashes = 4;
+
+    //--------------------------------------------------------------
     //! @struct CBufferGrass
     //! @brief  草の頂点シェーダーへ渡すパラメータ
     //! @note   Grass.vs.hlsl の CBufferGrass と1バイト単位で一致させること
-    //!         （全メンバfloat4で800バイト）。種の数（3）は両ファイルで
+    //!         （全メンバfloat4で880バイト）。種の数（3）は両ファイルで
     //!         決め打ちしており、speciesHeight/speciesWidthScale の xyz が
     //!         それぞれの種に対応する。種を増やす場合はここと
     //!         Grass.vs.hlsl、GetGradientSRV（GrassFieldSystem.cpp）の
@@ -78,6 +85,8 @@ namespace CombatAndroid::ECS {
         hlslpp::float4 waveTiming;          //!< x: 輪が通ってから揺れを止めるまでの秒数, yzw: 予約
         hlslpp::float4 pushers[kMaxGrassPushers];    //!< かき分ける敵ごとに xy: XZ座標, zw: 予約
         hlslpp::float4 pusherParams;        //!< x: 敵の数, y: かき分け半径, z: かき分けの強さ, w: 予約
+        hlslpp::float4 slashes[kMaxGrassSlashes];    //!< 斬撃弾ごとに xy: 頭（今の位置）のXZ, zw: 尾のXZ
+        hlslpp::float4 slashParams;         //!< x: 斬撃弾の数, y: かき分け半径, z: かき分けの強さ, w: 予約
     };
 
     //--------------------------------------------------------------

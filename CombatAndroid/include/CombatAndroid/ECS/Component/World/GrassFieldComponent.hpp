@@ -173,6 +173,12 @@ namespace CombatAndroid::ECS {
         float enemyPushRadius   = 70.0f;    // 敵の周りで草を押しのける距離（0で無効）
         float enemyPushStrength = 1.0f;     // 押しのける強さ
 
+        //! @note 斬撃弾（ProjectileComponent）は、今の位置から進んできた向きへ slashTrailLength 戻った所までの
+        //!       線分で草を左右へ割る。尾へ向かって弱まるので、通った跡が閉じていくように見える
+        float slashPushRadius   = 110.0f;   // 斬撃弾の跡から草を押しのける距離（0で無効）
+        float slashPushStrength = 1.4f;     // 押しのける強さ（頭での値）
+        float slashTrailLength  = 350.0f;   // 跡の長さ（ワールド単位）
+
         //----------------------------------------------------------
         // 衝撃波（連撃3段目の範囲で草を揺らす。GrassWaveEvent）
         //----------------------------------------------------------

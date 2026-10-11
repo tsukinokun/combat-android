@@ -8,6 +8,7 @@
 
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/ProjectileComponent.hpp>
 #include <CombatAndroid/ECS/Event/World/GrassWaveEvent.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
@@ -612,6 +613,23 @@ namespace CombatAndroid::ECS {
                 params.pushers[i] = hlslpp::float4(m_pusherCandidates[i].x, m_pusherCandidates[i].z, 0.0f, 0.0f);
         }
         params.pusherParams = hlslpp::float4(static_cast<float>(pusherCount), activeField->enemyPushRadius, activeField->enemyPushStrength, 0.0f);
+
+        //--------------------------------------------------------------
+        // 斬撃弾のかき分け。頭は今の位置、尾は進んできた向きへ slashTrailLength 戻った所
+        // （撃った地点より後ろへは伸ばさない）。弾ごとの状態は増やさずに跡を作れる
+        //--------------------------------------------------------------
+        Tsukino::u32 slashCount = 0;
+        if(activeField->slashPushRadius > 0.0f) {
+            auto projectileView = registry.View<ProjectileComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+            projectileView.each([&](entt::entity, const ProjectileComponent& projectile, const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+                if(slashCount >= kMaxGrassSlashes)
+                    return;
+                const float          trail = std::min(projectile.traveledDistance, std::max(activeField->slashTrailLength, 0.0f));
+                const hlslpp::float3 tail  = transform.position - projectile.direction * trail;
+                params.slashes[slashCount++] = hlslpp::float4(transform.position.x, transform.position.z, tail.x, tail.z);
+            });
+        }
+        params.slashParams = hlslpp::float4(static_cast<float>(slashCount), activeField->slashPushRadius, activeField->slashPushStrength, 0.0f);
 
         //--------------------------------------------------------------
         // 草むら（塊）。
