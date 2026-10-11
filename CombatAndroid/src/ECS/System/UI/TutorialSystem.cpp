@@ -23,6 +23,7 @@
 
 #include <entt/entt.hpp>
 
+#include <algorithm>
 #include <string>
 
 // 名前空間 : CombatAndroid::ECS
@@ -49,13 +50,18 @@ namespace CombatAndroid::ECS {
             {L"Space で回避（転がっている間は無敵）", L"SPACE", false, false},
             {L"落ちている武器に近づくと拾える", nullptr, false, false},
             {L"マウスホイールで武器を切り替える", nullptr, true, false},
-            {L"バトルアックスは左クリック長押しで溜め攻撃", nullptr, true, true},
             {L"迫りくる群れの中で、10分間生き延びろ！", nullptr, false, false},
         };
         static_assert(std::size(kStepDefs) == static_cast<size_t>(TutorialStep::Count), "kStepDefsはTutorialStepの並びと揃えること");
 
-        //! 「操作 n / 6」の分母（目標の表示は操作ではないので数えない）
+        //! 「操作 n / 5」の分母（目標の表示は操作ではないので数えない）
         constexpr int kOperationStepCount = static_cast<int>(TutorialStep::Goal);
+
+        //! バトルアックスを拾ったときに出す、溜め攻撃の案内（手順の流れとは別。番号は付けない）
+        const TutorialStepDef kChargeHintDef = {L"バトルアックスは左クリック長押しで溜め攻撃（ピンクで最大威力）", nullptr, true, true};
+
+        //! 溜め攻撃の案内を消す溜め段階（3＝最大。リムライトとゲージがピンク〜紫になる）
+        constexpr int kChargeHintClearStage = 3;
 
         //-------------------------------------------------------------
         //! @struct TutorialParams
@@ -79,7 +85,9 @@ namespace CombatAndroid::ECS {
             float panelBottomMargin = 170.0f;    //!< 画面下端から板の中心まで
             float promptInsetX = 70.0f;     //!< 板の左端からキー表示の中心まで
             float textInsetX = 150.0f;    //!< 板の左端から文の左端まで
-            float counterOffsetY = -60.0f;    //!< 板の中心から見た「操作 n / 6」のY
+            float textPaddingRight = 40.0f;    //!< 文の右端から板の右端まで空ける幅（文が長いときは板をこれが空くまで広げる）
+            float counterOffsetY = -60.0f;    //!< 板の中心から見た「操作 n / 5」のY
+            float stackOffsetY = -130.0f;     //!< 手順の案内が出ているとき、溜め攻撃の案内をその板の中心からこれだけずらして積む
 
             hlslpp::float4 panelColor = hlslpp::float4(0.02f, 0.02f, 0.03f, 0.72f);    //!< 取得ログと同じ黒い半透明
             hlslpp::float4 textColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -100,7 +108,9 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "panelBottomMargin", params.panelBottomMargin);
             LoadField(archive, "promptInsetX", params.promptInsetX);
             LoadField(archive, "textInsetX", params.textInsetX);
+            LoadField(archive, "textPaddingRight", params.textPaddingRight);
             LoadField(archive, "counterOffsetY", params.counterOffsetY);
+            LoadField(archive, "stackOffsetY", params.stackOffsetY);
             LoadField(archive, "panelColor", params.panelColor);
             LoadField(archive, "textColor", params.textColor);
             LoadField(archive, "doneColor", params.doneColor);
@@ -116,15 +126,60 @@ namespace CombatAndroid::ECS {
             return s_params;
         }
 
+        //! 1文字の幅を見積もる基準（.dfont の Size。UiTextSize.cpp の基準と同じ）
+        constexpr float kFontBasePixels = 32.0f;
+
+        //! 「OK!」を足した文。板の幅はこちらで測り、OKが付いた瞬間に板が伸び縮みしないようにする
+        constexpr const wchar_t* kDoneSuffix = L"　OK!";
+
         //-------------------------------------------------------------
-        //! @brief  案内を全部隠す
+        //! @brief  文の画面上の幅を見積もる（全角は1文字ぶん、ASCIIは半分）
+        //! @note   フォントから実測する仕組みは無いので、板からはみ出さない程度の目安として使う
         //-------------------------------------------------------------
-        void HideAll(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+        [[nodiscard]]
+        float EstimateTextWidth(const std::wstring& text, float scale) {
+            float ems = 0.0f;
+            for(wchar_t c : text)
+                ems += (c < 0x80) ? 0.5f : 1.0f;
+            return ems * kFontBasePixels * scale;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  文が収まる板の幅（既定の幅より狭くはしない）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float FitPanelWidth(const wchar_t* text) {
+            const TutorialParams& params = GetParams();
+            const float textWidth = EstimateTextWidth(std::wstring(text) + kDoneSuffix, GetUiTextScale(UiTextSize::Body));
+            return std::max(params.panelWidth, params.textInsetX + textWidth + params.textPaddingRight);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  手順の案内を隠す
+        //-------------------------------------------------------------
+        void HideSteps(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
             HideUiSprite(registry, tutorial.panelEntity);
             HideUiText(registry, tutorial.textEntity);
             HideUiText(registry, tutorial.counterEntity);
             for(const InputPromptWidget& prompt : tutorial.prompts)
                 HideInputPrompt(registry, prompt);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  溜め攻撃の案内を隠す
+        //-------------------------------------------------------------
+        void HideChargeHint(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+            HideUiSprite(registry, tutorial.chargeHintPanel);
+            HideUiText(registry, tutorial.chargeHintText);
+            HideInputPrompt(registry, tutorial.chargeHintPrompt);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  案内を全部隠す
+        //-------------------------------------------------------------
+        void HideAll(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial) {
+            HideSteps(registry, tutorial);
+            HideChargeHint(registry, tutorial);
         }
 
         //-------------------------------------------------------------
@@ -149,10 +204,6 @@ namespace CombatAndroid::ECS {
                 const TutorialStep candidate = static_cast<TutorialStep>(next);
                 if(candidate == TutorialStep::Switch && player.weaponInventory.size() < 2) {
                     ++next;    // 1本しか持っていないので切り替えようが無い
-                    continue;
-                }
-                if(candidate == TutorialStep::Charge && !HasChargeWeapon(registry, player)) {
-                    ++next;    // 溜め攻撃できる武器を持っていない
                     continue;
                 }
                 break;
@@ -187,10 +238,79 @@ namespace CombatAndroid::ECS {
                 return static_cast<int>(player.weaponInventory.size()) > tutorial.inventorySizeAtStep;
             case TutorialStep::Switch:
                 return player.selectedWeaponIndex != tutorial.selectedWeaponAtStep;
-            case TutorialStep::Charge:
-                return anim.currentState == PlayerAnimState::Charge;
             default:
                 return false;
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  手順の案内を進めて表示する。全部終わっていれば隠すだけ
+        //-------------------------------------------------------------
+        void UpdateSteps(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& ctx, TutorialComponent& tutorial,
+                         const PlayerComponent& player, const PlayerAnimationSetComponent& anim, float deltaTime, float panelCenterX,
+                         float panelCenterY) {
+            const TutorialParams& params = GetParams();
+
+            if(tutorial.finished) {
+                HideSteps(registry, tutorial);
+                return;
+            }
+
+            //-------------------------------------------------------------
+            // 進行。できたら「OK」を少し見せてから次へ、できなくても時間切れで次へ
+            //-------------------------------------------------------------
+            tutorial.stepTimer += deltaTime;
+
+            if(tutorial.step == TutorialStep::Goal) {
+                if(tutorial.stepTimer >= params.goalDuration) {
+                    tutorial.finished = true;
+                    HideSteps(registry, tutorial);
+                    return;
+                }
+            } else if(tutorial.doneTimer >= 0.0f) {
+                tutorial.doneTimer += deltaTime;
+                if(tutorial.doneTimer >= params.doneHold)
+                    AdvanceStep(registry, tutorial, player);
+            } else if(IsStepDone(tutorial, player, anim, deltaTime)) {
+                tutorial.doneTimer = 0.0f;
+            } else if(tutorial.stepTimer >= params.stepTimeout) {
+                AdvanceStep(registry, tutorial, player);
+            }
+
+            //-------------------------------------------------------------
+            // 表示
+            //-------------------------------------------------------------
+            const int              stepIndex = static_cast<int>(tutorial.step);
+            const TutorialStepDef& def       = kStepDefs[stepIndex];
+            const bool             isGoal    = tutorial.step == TutorialStep::Goal;
+            const bool             isDone    = tutorial.doneTimer >= 0.0f;
+
+            const float panelWidth = FitPanelWidth(def.text);
+            const float panelLeft  = panelCenterX - panelWidth * 0.5f;
+            StretchSprite(registry, ctx, tutorial.panelEntity, panelCenterX, panelCenterY, panelWidth, params.panelHeight, params.panelColor);
+
+            std::wstring text = def.text;
+            if(isDone)
+                text += kDoneSuffix;
+
+            const hlslpp::float4 textColor = isGoal ? params.goalColor : (isDone ? params.doneColor : params.textColor);
+            if(isGoal) {
+                // 目標はキー表示が無いので、板の中央に置く
+                HideUiText(registry, tutorial.textEntity);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
+            } else {
+                PlaceUiText(registry, tutorial.textEntity, panelLeft + params.textInsetX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
+                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + params.counterOffsetY, GetUiTextScale(UiTextSize::Small),
+                            L"操作 " + std::to_wstring(stepIndex + 1) + L" / " + std::to_wstring(kOperationStepCount), params.counterColor);
+            }
+
+            for(int i = 0; i < static_cast<int>(TutorialStep::Count); ++i) {
+                const InputPromptWidget& prompt = tutorial.prompts[static_cast<size_t>(i)];
+                if(i != stepIndex) {
+                    HideInputPrompt(registry, prompt);
+                    continue;
+                }
+                ShowInputPromptAtScreen(registry, ctx, prompt, panelLeft + params.promptInsetX, panelCenterY, InputPromptStyle{});
             }
         }
     }    // namespace
@@ -215,6 +335,18 @@ namespace CombatAndroid::ECS {
             desc.useHoldRing   = def.useHold;
             desc.sortOrderBase = UI::kTutorialPromptBase;
             tutorial.prompts[static_cast<size_t>(i)] = CreateInputPromptWidget(registry, context, desc);
+        }
+
+        // 溜め攻撃の案内（拾ったときに出す）
+        tutorial.chargeHintPanel = CreateUiRectEntity(registry, context, UI::kTutorialPanel);
+        tutorial.chargeHintText  = CreateUiTextEntity(registry, UI::kTutorialText, UiTextAlign::Left);
+        {
+            InputPromptDesc desc;
+            desc.keyLabel                = L"";
+            desc.useMouse                = kChargeHintDef.useMouse;
+            desc.useHoldRing             = kChargeHintDef.useHold;
+            desc.sortOrderBase           = UI::kTutorialPromptBase;
+            tutorial.chargeHintPrompt    = CreateInputPromptWidget(registry, context, desc);
         }
 
         // Prefab（System/Tutorial）は実行時状態だけの束。組み立てた中身を入れる
@@ -248,7 +380,7 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<TutorialComponent>();
         for(auto entity : view) {
             TutorialComponent& tutorial = view.get<TutorialComponent>(entity);
-            if(tutorial.finished)
+            if(tutorial.finished && tutorial.chargeHintState == ChargeHintState::Done)
                 continue;
 
             //-------------------------------------------------------------
@@ -260,70 +392,55 @@ namespace CombatAndroid::ECS {
                 continue;
             }
 
-            //-------------------------------------------------------------
-            // 進行。できたら「OK」を少し見せてから次へ、できなくても時間切れで次へ
-            //-------------------------------------------------------------
-            tutorial.stepTimer += deltaTime;
-
-            if(tutorial.step == TutorialStep::Goal) {
-                if(tutorial.stepTimer >= params.goalDuration) {
-                    tutorial.finished = true;
-                    HideAll(registry, tutorial);
-                    continue;
-                }
-            } else if(tutorial.doneTimer >= 0.0f) {
-                tutorial.doneTimer += deltaTime;
-                if(tutorial.doneTimer >= params.doneHold)
-                    AdvanceStep(registry, tutorial, *player);
-            } else if(IsStepDone(tutorial, *player, *anim, deltaTime)) {
-                tutorial.doneTimer = 0.0f;
-            } else if(tutorial.stepTimer >= params.stepTimeout) {
-                AdvanceStep(registry, tutorial, *player);
-            }
-
-            //-------------------------------------------------------------
-            // 表示
-            //-------------------------------------------------------------
             const float screenWidth  = ctx->window ? static_cast<float>(ctx->window->GetWidth()) : 1700.0f;
             const float screenHeight = ctx->window ? static_cast<float>(ctx->window->GetHeight()) : 1000.0f;
             const float panelCenterX = screenWidth * 0.5f;
             const float panelCenterY = screenHeight - params.panelBottomMargin;
-            const float panelLeft    = panelCenterX - params.panelWidth * 0.5f;
 
-            const int                stepIndex = static_cast<int>(tutorial.step);
-            const TutorialStepDef&   def       = kStepDefs[stepIndex];
-            const bool               isGoal    = tutorial.step == TutorialStep::Goal;
-            const bool               isDone    = tutorial.doneTimer >= 0.0f;
+            UpdateSteps(registry, *ctx, tutorial, *player, *anim, deltaTime, panelCenterX, panelCenterY);
 
-            StretchSprite(registry, *ctx, tutorial.panelEntity, panelCenterX, panelCenterY, params.panelWidth, params.panelHeight, params.panelColor);
+            //-------------------------------------------------------------
+            // 溜め攻撃の案内。手順の流れとは別に、溜め攻撃できる武器を拾った時点で出し、
+            // 最大段階（ピンク）まで溜めたら「OK」を少し見せて消す。時間切れは無い。
+            // 手順の案内が出ている間は、その上に積む
+            //-------------------------------------------------------------
+            if(tutorial.chargeHintState == ChargeHintState::Waiting && HasChargeWeapon(registry, *player))
+                tutorial.chargeHintState = ChargeHintState::Showing;
 
-            std::wstring text = def.text;
-            if(isDone)
-                text += L"　OK!";
-
-            const hlslpp::float4 textColor = isGoal ? params.goalColor : (isDone ? params.doneColor : params.textColor);
-            if(isGoal) {
-                // 目標はキー表示が無いので、板の中央に置く
-                HideUiText(registry, tutorial.textEntity);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
-            } else {
-                PlaceUiText(registry, tutorial.textEntity, panelLeft + params.textInsetX, panelCenterY, GetUiTextScale(UiTextSize::Body), text, textColor);
-                PlaceUiText(registry, tutorial.counterEntity, panelCenterX, panelCenterY + params.counterOffsetY, GetUiTextScale(UiTextSize::Small),
-                            L"操作 " + std::to_wstring(stepIndex + 1) + L" / " + std::to_wstring(kOperationStepCount), params.counterColor);
+            if(tutorial.chargeHintState != ChargeHintState::Showing) {
+                HideChargeHint(registry, tutorial);
+                continue;
             }
 
-            for(int i = 0; i < static_cast<int>(TutorialStep::Count); ++i) {
-                const InputPromptWidget& prompt = tutorial.prompts[static_cast<size_t>(i)];
-                if(i != stepIndex) {
-                    HideInputPrompt(registry, prompt);
+            const bool isCharging = anim->currentState == PlayerAnimState::Charge;
+            if(tutorial.chargeHintDoneTimer >= 0.0f) {
+                tutorial.chargeHintDoneTimer += deltaTime;
+                if(tutorial.chargeHintDoneTimer >= params.doneHold) {
+                    tutorial.chargeHintState = ChargeHintState::Done;
+                    HideChargeHint(registry, tutorial);
                     continue;
                 }
-
-                InputPromptStyle style;
-                if(def.useHold && anim->currentState == PlayerAnimState::Charge)
-                    style.holdProgress = 1.0f;    // 溜めている間はゲージを満たして見せる
-                ShowInputPromptAtScreen(registry, *ctx, prompt, panelLeft + params.promptInsetX, panelCenterY, style);
+            } else if(isCharging && ResolveChargeStage(anim->chargeTimer, *player) >= kChargeHintClearStage) {
+                tutorial.chargeHintDoneTimer = 0.0f;
             }
+
+            const bool  hintDone = tutorial.chargeHintDoneTimer >= 0.0f;
+            const float hintY    = tutorial.finished ? panelCenterY : panelCenterY + params.stackOffsetY;
+
+            const float hintWidth = FitPanelWidth(kChargeHintDef.text);
+            const float panelLeft = panelCenterX - hintWidth * 0.5f;
+            StretchSprite(registry, *ctx, tutorial.chargeHintPanel, panelCenterX, hintY, hintWidth, params.panelHeight, params.panelColor);
+
+            std::wstring hintText = kChargeHintDef.text;
+            if(hintDone)
+                hintText += kDoneSuffix;
+            PlaceUiText(registry, tutorial.chargeHintText, panelLeft + params.textInsetX, hintY, GetUiTextScale(UiTextSize::Body), hintText,
+                        hintDone ? params.doneColor : params.textColor);
+
+            InputPromptStyle style;
+            if(isCharging)
+                style.holdProgress = 1.0f;    // 溜めている間はゲージを満たして見せる
+            ShowInputPromptAtScreen(registry, *ctx, tutorial.chargeHintPrompt, panelLeft + params.promptInsetX, hintY, style);
         }
     }
 }    // namespace CombatAndroid::ECS

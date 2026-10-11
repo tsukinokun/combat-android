@@ -51,7 +51,7 @@ namespace CombatAndroid::UI {
 
     //! 画面下の操作の案内（タイトルから始めたときだけ）。HUDと同じく、スキル選択の暗転板(400)より奥
     constexpr int kTutorialPanel      = 240;    //!< 黒い半透明の板
-    constexpr int kTutorialText       = 250;    //!< 案内の文・「操作 n / 6」
+    constexpr int kTutorialText       = 250;    //!< 案内の文・「操作 n / 5」
     constexpr int kTutorialPromptBase = 255;    //!< キー表示（+4までの5層を使う）
 
     //! 全画面演出

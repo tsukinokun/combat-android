@@ -1,15 +1,15 @@
 {
     "GrassFieldComponent": {
         "enabled": true,
-        "bladeCount": 80000,
-        "fieldSize": 3200.0,
+        "bladeCount": 180000,
+        "fieldSize": 4800.0,
         "seed": 20260908,
         "farFieldSize": 9000.0,
-        "farBladeCount": 65000,
-        "lodBlendStart": 1250.0,
-        "lodBlendEnd": 1550.0,
-        "horizonFillStart": 1000.0,
-        "horizonFillEnd": 1550.0,
+        "farBladeCount": 100000,
+        "lodBlendStart": 1900.0,
+        "lodBlendEnd": 2300.0,
+        "horizonFillStart": 1700.0,
+        "horizonFillEnd": 2300.0,
         "species": {
             "value0": {
                 "height": 80.0,

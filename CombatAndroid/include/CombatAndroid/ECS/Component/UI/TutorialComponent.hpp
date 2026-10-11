@@ -22,9 +22,18 @@ namespace CombatAndroid::ECS {
         Dodge,          //!< Spaceで回避
         Pickup,         //!< Fで武器を拾う
         Switch,         //!< ホイールで武器を切り替える（2本以上持っていないときは飛ばす）
-        Charge,         //!< バトルアックスで溜め攻撃（持っていないときは飛ばす）
         Goal,           //!< 目標（10分生き延びろ）を出して終わる
         Count,
+    };
+
+    //-------------------------------------------------------------
+    //! @enum   ChargeHintState
+    //! @brief  バトルアックスの溜め攻撃の案内の状態。手順の流れとは別に、拾った時点で出す
+    //-------------------------------------------------------------
+    enum class ChargeHintState : int {
+        Waiting = 0,    //!< まだ溜め攻撃できる武器を拾っていない
+        Showing,        //!< 案内を出している（最大段階まで溜めるまで出し続ける）
+        Done,           //!< 最大段階まで溜めた（以後は出さない）
     };
 
     //-------------------------------------------------------------
@@ -46,9 +55,19 @@ namespace CombatAndroid::ECS {
 
         Tsukino::ECS::Entity panelEntity   = entt::null;    //!< 画面下の半透明の板（Sprite）
         Tsukino::ECS::Entity textEntity    = entt::null;    //!< 案内の文（Font）
-        Tsukino::ECS::Entity counterEntity = entt::null;    //!< 「操作 2 / 6」（Font）
+        Tsukino::ECS::Entity counterEntity = entt::null;    //!< 「操作 2 / 5」（Font）
 
         //! 手順ごとのキー表示（Goalは使わない）
         std::array<InputPromptWidget, static_cast<size_t>(TutorialStep::Count)> prompts{};
+
+        //-------------------------------------------------------------
+        // バトルアックスの溜め攻撃の案内。手順の流れには入れず、拾った時点で番号無しで出す。
+        // 手順の案内が出ている間はその上に積む
+        //-------------------------------------------------------------
+        ChargeHintState      chargeHintState     = ChargeHintState::Waiting;
+        float                chargeHintDoneTimer = -1.0f;         //!< 最大段階まで溜めてからの経過秒数（0以上の間は「OK」を出して消えるのを待つ）
+        Tsukino::ECS::Entity chargeHintPanel     = entt::null;    //!< 案内の板（Sprite）
+        Tsukino::ECS::Entity chargeHintText      = entt::null;    //!< 案内の文（Font）
+        InputPromptWidget    chargeHintPrompt{};                  //!< マウス＋長押しゲージ
     };
 }    // namespace CombatAndroid::ECS
