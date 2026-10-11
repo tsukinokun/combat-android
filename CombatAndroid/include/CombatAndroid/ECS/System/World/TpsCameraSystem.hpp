@@ -6,6 +6,7 @@
 #pragma once
 #include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
 
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
@@ -18,7 +19,8 @@ namespace CombatAndroid::ECS {
     //! @class  TpsCameraSystem
     //! @brief  プレイヤーの向いている方向の後方に追従する三人称視点カメラの更新システム
     //! @note   位置はばねで追従し、PlayerDamagedEventを受けると注視点をばねで揺らす。
-    //!         PlayerFinisherEventを受けると、プレイヤーへ寄って画角を狭める
+    //!         PlayerFinisherEventを受けると、プレイヤーへ寄って画角を狭める。
+    //!         PlayerHeavyStrikeEventを受けると、インパクトの瞬間に注視点を下へ叩いて揺らす
     //-------------------------------------------------------------
     class TpsCameraSystem : public Tsukino::ECS::ISystem {
     public:
@@ -48,6 +50,12 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void OnPlayerFinisher(const PlayerFinisherEvent& event);
 
+        //-------------------------------------------------------------
+        //! @brief 連撃の最終段の通知ハンドラ。インパクトまでの秒数を次のUpdateまで溜めておく
+        //! @param event [in] 最終段イベント
+        //-------------------------------------------------------------
+        void OnPlayerHeavyStrike(const PlayerHeavyStrikeEvent& event);
+
         //! 次のUpdateで揺れへ与えるダメージ量の合計
         //! @note 同じフレームに複数回被弾したら足し合わせる（倍率の上限はUpdateで掛ける）
         float m_pendingShakeDamage = 0.0f;
@@ -56,8 +64,13 @@ namespace CombatAndroid::ECS {
         //! @note 同じフレームに複数来たら、先に来るインパクトに合わせる（SlowMotionControllerと同じ）
         float m_pendingZoomImpactDelay = -1.0f;
 
+        //! 次のUpdateで受け付ける連撃最終段の、インパクトまでの秒数（-1で要求なし）
+        //! @note 同じフレームに複数来たら、先に来るインパクトに合わせる
+        float m_pendingStrikeShakeDelay = -1.0f;
+
         std::mt19937                   m_rng{std::random_device{}()};    //!< 揺れ始めの向きに使う乱数生成器
         Tsukino::ECS::ScopedConnection m_damagedConnection;              //!< PlayerDamagedEventの購読
         Tsukino::ECS::ScopedConnection m_finisherConnection;             //!< PlayerFinisherEventの購読
+        Tsukino::ECS::ScopedConnection m_heavyStrikeConnection;          //!< PlayerHeavyStrikeEventの購読
     };
 }    // namespace CombatAndroid::ECS

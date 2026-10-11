@@ -24,7 +24,7 @@ namespace CombatAndroid::ECS {
         float mouseSensitivityScale = 1.0f;    //!< マウス感度の倍率（TpsCameraComponent::mouseSensitivityに掛ける）
         int   bgmVolumePercent      = 100;     //!< BGMの音量（0〜100%。PlayBgmの音量に掛ける）
         int   seVolumePercent       = 100;     //!< 効果音の音量（0〜100%。全ての効果音の音量に掛ける）
-        bool  screenShakeEnabled    = true;    //!< 被弾時の画面揺れを出すか
+        bool  screenShakeEnabled    = true;    //!< 被弾時・連撃3段目の画面揺れを出すか
     };
 
     //-------------------------------------------------------------

@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Event/Player/PlayerChargeEvent.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -191,6 +192,12 @@ namespace CombatAndroid::ECS {
                     if(step.areaAttack && weapon->areaAttackRadius > 0.0f) {
                         if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
                             eventBus->Publish(PlayerFinisherEvent{entity, areaAttackDelay});
+                    }
+                    // 最終段は武器を問わず、インパクトの瞬間に画面を揺らして打撃感を出す（TpsCameraSystem）。
+                    // 溜め攻撃の解放はAttack1（stepIndex 0）経由なのでここには来ない
+                    if(stepIndex + 1 == PlayerAnimationSetComponent::kAttackComboCount) {
+                        if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                            eventBus->Publish(PlayerHeavyStrikeEvent{entity, impactDelay});
                     }
                     // 斬撃弾は溜め攻撃の解放でしか撃たない。通常の段へ入るときは必ず下ろしておき、
                     // 前回の解放で立てた要求が持ち越されないようにする（この直後に走る

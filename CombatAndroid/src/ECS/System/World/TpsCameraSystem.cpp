@@ -102,6 +102,8 @@ namespace CombatAndroid::ECS {
     void TpsCameraSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_damagedConnection  = eventBus.Subscribe<PlayerDamagedEvent>([this](const PlayerDamagedEvent& event) { OnPlayerDamaged(event); });
         m_finisherConnection = eventBus.Subscribe<PlayerFinisherEvent>([this](const PlayerFinisherEvent& event) { OnPlayerFinisher(event); });
+        m_heavyStrikeConnection =
+            eventBus.Subscribe<PlayerHeavyStrikeEvent>([this](const PlayerHeavyStrikeEvent& event) { OnPlayerHeavyStrike(event); });
     }
 
     //-------------------------------------------------------------
@@ -121,6 +123,15 @@ namespace CombatAndroid::ECS {
         // 寄り始めるのはインパクトの瞬間（Updateで数える）
         const float delay        = std::max(event.impactDelay, 0.0f);
         m_pendingZoomImpactDelay = (m_pendingZoomImpactDelay < 0.0f) ? delay : std::min(m_pendingZoomImpactDelay, delay);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 連撃の最終段の通知ハンドラ
+    //-------------------------------------------------------------
+    void TpsCameraSystem::OnPlayerHeavyStrike(const PlayerHeavyStrikeEvent& event) {
+        // 揺らすのはインパクトの瞬間（Updateで数える）
+        const float delay         = std::max(event.impactDelay, 0.0f);
+        m_pendingStrikeShakeDelay = (m_pendingStrikeShakeDelay < 0.0f) ? delay : std::min(m_pendingStrikeShakeDelay, delay);
     }
     //-------------------------------------------------------------
     //! @brief システムの更新
@@ -147,6 +158,7 @@ namespace CombatAndroid::ECS {
             pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
             m_pendingShakeDamage     = 0.0f;
             m_pendingZoomImpactDelay = -1.0f;
+            m_pendingStrikeShakeDelay = -1.0f;
             return;
         }
 
@@ -162,6 +174,7 @@ namespace CombatAndroid::ECS {
             pausedView.each([](TpsCameraComponent& tpsCamera) { tpsCamera.wasCapturedLastFrame = false; });
             m_pendingShakeDamage     = 0.0f;
             m_pendingZoomImpactDelay = -1.0f;
+            m_pendingStrikeShakeDelay = -1.0f;
             return;
         }
 
@@ -371,20 +384,37 @@ namespace CombatAndroid::ECS {
                          * std::lerp(1.0f, tpsCamera.deathFovScale, deathFocus);
 
             //-------------------------------------------------------------
-            // 被弾時の揺れ。
-            // 画面の左右・上下の平面内でランダムな向きに初速を与え、ばねで0へ引き戻す。
+            // 被弾時と連撃最終段の揺れ。
+            // 画面の左右・上下の平面内で初速を与え、ばねで0へ引き戻す。
             // 奥行き方向へ揺らすと注視点が前後するだけで画面はほとんど動かないので、
             // 画面に平行な向きに限る
             //-------------------------------------------------------------
             // オプションで画面揺れを切っているときは、溜まった揺れを捨てて何もしない
             // 倒れた後も敵の攻撃は当たり続けるが、寄りのカットを揺らさないよう捨てる
-            if(!GetGameSettings().screenShakeEnabled || targetDead)
-                m_pendingShakeDamage = 0.0f;
+            const bool shakeAllowed = GetGameSettings().screenShakeEnabled && !targetDead;
+            if(!shakeAllowed) {
+                m_pendingShakeDamage       = 0.0f;
+                m_pendingStrikeShakeDelay  = -1.0f;
+                tpsCamera.strikeShakeTimer = -1.0f;
+            }
 
-            if(m_pendingShakeDamage > 0.0f) {
-                const float referenceDamage = std::max(tpsCamera.shakeReferenceDamage, 1.0f);
-                const float scale = std::clamp(m_pendingShakeDamage / referenceDamage, tpsCamera.shakeMinScale, tpsCamera.shakeMaxScale);
+            // 連撃最終段のインパクト待ち。大技のズームと同じく、既に待っているぶんを先に減らしてから
+            // 今フレーム届いたぶんを合流させる（ズームの寄り始めと同じフレームに揺れ始める）
+            bool strikeImpact = false;
+            if(tpsCamera.strikeShakeTimer >= 0.0f) {
+                tpsCamera.strikeShakeTimer -= deltaTime;
+                if(tpsCamera.strikeShakeTimer <= 0.0f) {
+                    tpsCamera.strikeShakeTimer = -1.0f;
+                    strikeImpact               = true;
+                }
+            }
 
+            if(m_pendingStrikeShakeDelay >= 0.0f) {
+                tpsCamera.strikeShakeTimer = (tpsCamera.strikeShakeTimer < 0.0f) ? m_pendingStrikeShakeDelay
+                                                                                 : std::min(tpsCamera.strikeShakeTimer, m_pendingStrikeShakeDelay);
+            }
+
+            if(m_pendingShakeDamage > 0.0f || strikeImpact) {
                 hlslpp::float3 forward       = lookAtTarget - transform.position;
                 float          forwardLength = hlslpp::length(forward);
                 if(forwardLength > 1.0e-3f) {
@@ -397,11 +427,21 @@ namespace CombatAndroid::ECS {
 
                     hlslpp::float3 up = hlslpp::cross(forward, right);
 
-                    std::uniform_real_distribution<float> angleDist(0.0f, kTwoPi);
-                    const float                           angle = angleDist(m_rng);
+                    // 被弾はランダムな向きへ、ダメージに応じた強さで
+                    if(m_pendingShakeDamage > 0.0f) {
+                        const float referenceDamage = std::max(tpsCamera.shakeReferenceDamage, 1.0f);
+                        const float scale = std::clamp(m_pendingShakeDamage / referenceDamage, tpsCamera.shakeMinScale, tpsCamera.shakeMaxScale);
 
-                    hlslpp::float3 direction = right * std::cos(angle) + up * std::sin(angle);
-                    tpsCamera.shakeVelocity  = tpsCamera.shakeVelocity + direction * (tpsCamera.shakeImpulse * scale);
+                        std::uniform_real_distribution<float> angleDist(0.0f, kTwoPi);
+                        const float                           angle = angleDist(m_rng);
+
+                        hlslpp::float3 direction = right * std::cos(angle) + up * std::sin(angle);
+                        tpsCamera.shakeVelocity  = tpsCamera.shakeVelocity + direction * (tpsCamera.shakeImpulse * scale);
+                    }
+
+                    // 最終段の叩きつけは、注視点を下へ叩いて画面をガクッと沈ませる
+                    if(strikeImpact)
+                        tpsCamera.shakeVelocity = tpsCamera.shakeVelocity - up * tpsCamera.strikeShakeImpulse;
                 }
             }
 
@@ -418,5 +458,6 @@ namespace CombatAndroid::ECS {
 
         m_pendingShakeDamage     = 0.0f;
         m_pendingZoomImpactDelay = -1.0f;
+        m_pendingStrikeShakeDelay = -1.0f;
     }
 }    // namespace CombatAndroid::ECS

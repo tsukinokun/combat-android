@@ -40,11 +40,16 @@ namespace CombatAndroid::ECS {
         // 速度が足し合わさって自然に揺れが強まる。
         // 注視点だけをずらすので、カメラは位置を保ったまま首を振るように揺れる
         float shakeFrequency       = 8.0f;      //!< 揺れの振動数（Hz）
-        float shakeDamping         = 0.15f;     //!< 減衰比。小さいほど長く揺れ続ける（0.15で約0.3秒でほぼ収まる）
-        float shakeImpulse         = 450.0f;    //!< 基準ダメージで与える初速（ワールド単位/秒）。振れ幅は 初速 / (2π × 振動数) の8割ほど（450で約7）
+        float shakeDamping         = 0.12f;     //!< 減衰比。小さいほど長く揺れ続ける（0.12で約0.4秒でほぼ収まる）
+        float shakeImpulse         = 1200.0f;   //!< 基準ダメージで与える初速（ワールド単位/秒）。振れ幅は 初速 / (2π × 振動数) の8割ほど（1200で約19）
         float shakeReferenceDamage = 15.0f;     //!< このダメージで初速が shakeImpulse ちょうどになる（敵の基本攻撃力）
         float shakeMinScale        = 0.5f;      //!< 小ダメージでも揺れが分かるよう、ダメージによる倍率の下限
-        float shakeMaxScale        = 2.5f;      //!< 大ダメージで揺れすぎないよう、ダメージによる倍率の上限
+        float shakeMaxScale        = 3.5f;      //!< 大ダメージで揺れすぎないよう、ダメージによる倍率の上限
+
+        //! 連撃の最終段（3段目）のインパクトで与える初速。被弾と同じばねを、画面が沈む向き（下）へ叩く。
+        //! インパクトまでの待ちは大技のズームと同じ数え方（ゲーム内時間・イベントを受けた次のフレームから）
+        float strikeShakeImpulse   = 700.0f;
+        float strikeShakeTimer     = -1.0f;     //!< インパクトまでの残り秒数（内部状態）。負なら待っていない
 
         hlslpp::float3 shakeOffset   = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 注視点のずれ（内部状態）
         hlslpp::float3 shakeVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 上記の速度（内部状態）
