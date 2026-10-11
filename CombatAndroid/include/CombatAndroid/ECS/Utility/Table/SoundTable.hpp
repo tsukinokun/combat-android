@@ -1,7 +1,7 @@
 //-------------------------------------------------------------
 //! @file    SoundTable.hpp
 //! @brief   効果音の種類と、鳴らし方（ファイル・音量・最短間隔）の表の宣言
-//! @note    音源は Assets/Audio/generate_game_sounds.py がプロシージャル生成している。
+//! @note    音源は Assets/Audio/generate_game_sounds.py（UI・演出）と generate_combat_sounds.js（戦闘中）がプロシージャル生成している。
 //!          音を1つ足すときは、生成スクリプト・SoundId・SoundTable.cppのkSoundKeys・
 //!          Assets/Tables/Sounds.json の4か所へ1つずつ足す
 //-------------------------------------------------------------

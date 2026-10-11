@@ -2,11 +2,16 @@
 
 ## 効果音（生成物）
 
-`generate_hit_sounds.py` / `generate_charge_sounds.py` / `generate_game_sounds.py` が
-プロシージャル生成した `.wav` を置いています。音を変えたいときは、各スクリプトの頭にある
-数値をいじって実行し直してください（標準ライブラリだけで動きます）。
+プロシージャル生成した `.wav` を置いています。音を変えたいときは、スクリプトの数値を
+いじって実行し直してください（どちらも標準ライブラリだけで動きます）。
+
+| スクリプト | 作る音 |
+|---|---|
+| `generate_combat_sounds.js` | 戦闘中の音（ヒット・被弾・撃破・振り・回避・溜め解放）。実音寄り。チップチューン調の部品（矩形波・大きなピッチスイープ）は使わない |
+| `generate_game_sounds.py` | UI・演出の音（メニュー・拾得・レベルアップ・クリア等）。レトロ調 |
 
 ```
+node generate_combat_sounds.js
 python generate_game_sounds.py
 ```
 

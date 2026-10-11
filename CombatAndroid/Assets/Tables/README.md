@@ -30,7 +30,7 @@ Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.j
   `PaladinWeaponAttacks.json` に1項目 → `Assets/Prefabs/Weapon/<名前>/` の Prefab と `WeaponSpawner.cpp` の `kWeaponPrefabNames`
 - **スキル**：`SkillId` と `SkillTable.cpp` の `kSkillKeys` に1つ → `Skills.json` に1項目 → 効果を反映する `RecalculateSkillStats` の case 文
 - **敵**：`EnemyTypeId` と `EnemySpawnTable.cpp` の `kEnemyTypes`（名前と生成関数）に1行 → `EnemySpawn.json` と `Elite.json` の `displayNames` に1項目
-- **効果音**：`SoundId` と `SoundTable.cpp` の `kSoundKeys` に1つ → `Sounds.json` に1項目（音源は `Assets/Audio/generate_game_sounds.py`）
+- **効果音**：`SoundId` と `SoundTable.cpp` の `kSoundKeys` に1つ → `Sounds.json` に1項目（音源は `Assets/Audio/generate_game_sounds.py`、戦闘中の音は `generate_combat_sounds.js`）
 
 ## System の調整値（`Systems/`）
 

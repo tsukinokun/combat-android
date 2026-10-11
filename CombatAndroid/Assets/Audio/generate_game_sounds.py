@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------
 # generate_game_sounds.py
-# ゲーム全体の効果音をプロシージャル生成し、同じディレクトリへ書き出す。
-# 質感はgenerate_hit_sounds.pyと同じレトロ調。
+# UI・演出の効果音（メニュー・拾得・レベルアップ・クリア等）をプロシージャル生成し、
+# 同じディレクトリへ書き出す。
+# 戦闘中の音（ヒット・被弾・撃破・振り・回避・溜め解放）は実音寄りに作っていて、
+# generate_combat_sounds.js（node）が別に生成する。
 #
 # どれも0.5秒以下の短い音にしてある。長く鳴り続ける合成音は、うなりや
 # 倍音の癖がそのまま耳障りさになりやすい（溜め音で一度作って没にしている）。
@@ -75,28 +77,6 @@ def noise(samples, start_sec, duration_sec, volume, decay=30.0, low_pass=0.0):
         samples[index] += previous * volume * math.exp(-t * decay)
 
 
-def sweep_noise(samples, start_sec, duration_sec, volume, low_pass_start, low_pass_end):
-    """風切り。ローパスの強さを変化させて「シュッ」と抜ける感じを出す"""
-    begin = int(start_sec * SAMPLE_RATE)
-    count = int(duration_sec * SAMPLE_RATE)
-    previous = 0.0
-
-    for i in range(count):
-        index = begin + i
-        if index >= len(samples):
-            break
-
-        t = i / SAMPLE_RATE
-        progress = t / duration_sec if duration_sec > 0.0 else 1.0
-
-        low_pass = low_pass_start + (low_pass_end - low_pass_start) * progress
-        previous = previous * low_pass + (random.random() * 2.0 - 1.0) * (1.0 - low_pass)
-
-        # 山なりの音量（無音から入って無音へ抜ける）
-        envelope = math.sin(progress * math.pi)
-        samples[index] += previous * volume * envelope
-
-
 def make_buffer(duration_sec):
     return [0.0] * int(SAMPLE_RATE * duration_sec)
 
@@ -109,36 +89,6 @@ def normalize(samples, peak=0.85):
 #--------------------------------------------------------------
 # 効果音の定義
 #--------------------------------------------------------------
-def player_hurt():
-    """被弾。低く潰れた打撃＋短いノイズ"""
-    samples = make_buffer(0.32)
-    tone(samples, 0.0, 0.30, 220.0, 70.0, 0.8, "triangle", decay=11.0)
-    noise(samples, 0.0, 0.10, 0.5, decay=45.0, low_pass=0.4)
-    return normalize(samples)
-
-
-def enemy_down():
-    """撃破。短く落ちるピッチ＋散るノイズ"""
-    samples = make_buffer(0.30)
-    tone(samples, 0.0, 0.26, 420.0, 90.0, 0.7, "square", decay=13.0)
-    noise(samples, 0.0, 0.18, 0.35, decay=22.0, low_pass=0.55)
-    return normalize(samples, 0.8)
-
-
-def swing():
-    """攻撃の振り。太めの風切り"""
-    samples = make_buffer(0.26)
-    sweep_noise(samples, 0.0, 0.24, 0.9, 0.90, 0.55)
-    return normalize(samples, 0.55)
-
-
-def dodge():
-    """回避。攻撃より高く短い風切り"""
-    samples = make_buffer(0.22)
-    sweep_noise(samples, 0.0, 0.20, 0.9, 0.80, 0.30)
-    return normalize(samples, 0.6)
-
-
 def pickup():
     """武器の拾得。明るい2音"""
     samples = make_buffer(0.30)
@@ -228,10 +178,6 @@ def run_failed():
 
 #! 生成するファイルと中身。音を1つ足すときはここへ1行足し、SoundTable.cppの表にも足す
 OUTPUTS = (
-    ("PlayerHurt.wav", player_hurt),
-    ("EnemyDown.wav", enemy_down),
-    ("Swing.wav", swing),
-    ("Dodge.wav", dodge),
     ("Pickup.wav", pickup),
     ("WeaponLevelUp.wav", weapon_level_up),
     ("LevelUp.wav", level_up),
