@@ -41,6 +41,15 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("canopyRadiusMax", trees.canopyRadiusMax),
                 cereal::make_nvp("leafCardsPerTip", trees.leafCardsPerTip),
                 cereal::make_nvp("leafCardSize", trees.leafCardSize),
+                cereal::make_nvp("swayStrength", trees.swayStrength),
+                cereal::make_nvp("swaySpeed", trees.swaySpeed),
+                cereal::make_nvp("swayHeightRef", trees.swayHeightRef),
+                cereal::make_nvp("leafFlutterStrength", trees.leafFlutterStrength),
+                cereal::make_nvp("leafFlutterSpeed", trees.leafFlutterSpeed),
+                cereal::make_nvp("windDirection", trees.windDirection),
+                cereal::make_nvp("gustWavelength", trees.gustWavelength),
+                cereal::make_nvp("gustSpeed", trees.gustSpeed),
+                cereal::make_nvp("gustStrength", trees.gustStrength),
                 cereal::make_nvp("barkBottomColor", trees.barkBottomColor),
                 cereal::make_nvp("barkTopColor", trees.barkTopColor),
                 cereal::make_nvp("leafBottomColor", trees.leafBottomColor),
@@ -76,6 +85,15 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "canopyRadiusMax", trees.canopyRadiusMax);
         LoadField(archive, "leafCardsPerTip", trees.leafCardsPerTip);
         LoadField(archive, "leafCardSize", trees.leafCardSize);
+        LoadField(archive, "swayStrength", trees.swayStrength);
+        LoadField(archive, "swaySpeed", trees.swaySpeed);
+        LoadField(archive, "swayHeightRef", trees.swayHeightRef);
+        LoadField(archive, "leafFlutterStrength", trees.leafFlutterStrength);
+        LoadField(archive, "leafFlutterSpeed", trees.leafFlutterSpeed);
+        LoadField(archive, "windDirection", trees.windDirection);
+        LoadField(archive, "gustWavelength", trees.gustWavelength);
+        LoadField(archive, "gustSpeed", trees.gustSpeed);
+        LoadField(archive, "gustStrength", trees.gustStrength);
         LoadField(archive, "barkBottomColor", trees.barkBottomColor);
         LoadField(archive, "barkTopColor", trees.barkTopColor);
         LoadField(archive, "leafBottomColor", trees.leafBottomColor);

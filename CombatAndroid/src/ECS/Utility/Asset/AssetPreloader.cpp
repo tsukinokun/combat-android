@@ -42,6 +42,8 @@ namespace CombatAndroid::ECS {
         constexpr const char* kMiscPreloadPaths[] = {
             "CombatAndroid/Assets/Shaders/Grass.vs.hlsl",
             "CombatAndroid/Assets/Shaders/Ground.vs.hlsl",
+            "CombatAndroid/Assets/Shaders/TreeSway.vs.hlsl",
+            "CombatAndroid/Assets/Shaders/TreeSwayShadow.vs.hlsl",
             "CombatAndroid/Assets/Audio/HitImpactBlunt.wav",
             "CombatAndroid/Assets/Audio/HitImpactSharp.wav",
             "CombatAndroid/Assets/Audio/ChargeFire.wav",

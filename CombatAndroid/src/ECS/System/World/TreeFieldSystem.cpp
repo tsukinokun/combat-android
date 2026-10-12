@@ -4,6 +4,7 @@
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/World/TreeFieldSystem.hpp>
 #include <CombatAndroid/ECS/Component/World/TreeFieldComponent.hpp>
+#include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Utility/World/ProceduralTree.hpp>
 
@@ -25,6 +26,7 @@
 
 #include <Tsukino/Core/Log.hpp>
 #include <Tsukino/Core/Math/Matrix.hpp>
+#include <Tsukino/Core/Path.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -278,19 +280,77 @@ namespace CombatAndroid::ECS {
             });
 
         //-------------------------------------------------------------
-        // パイプラインとマテリアル。頂点シェーダーはエンジンの「アニメーションしないモデル」用をそのまま借りる。
-        // 1本ずつワールド行列を渡して描くので、ライティング・霧に加えて影（シャドウパス）にも乗る
+        // パイプライン。頂点シェーダーは風で揺らす自前のもの（入出力はエンジンのModelStatic.vsと同じ）、
+        // ピクセルシェーダーはエンジンのGBuffer.psを借りるので、ライティング・霧・くり抜き・網点フェードが効く。
+        // 影は同じ揺れを足す影用の頂点シェーダー＋エンジンの影用ピクセルシェーダーで描き、
+        // DrawCommand::shadowPipelineで差し替える（影も本体と一緒に揺れる）
         //-------------------------------------------------------------
-        auto vsAsset = std::static_pointer_cast<Tsukino::Asset::ShaderAsset>(ctx->assetManager->Get(ctx->builtinAssets->shaders.staticModelVS));
-        auto psAsset = std::static_pointer_cast<Tsukino::Asset::ShaderAsset>(ctx->assetManager->Get(ctx->builtinAssets->shaders.gbufferPS));
-        if(!vsAsset || !psAsset)
+        auto loadShader = [&](const char* path) {
+            return std::static_pointer_cast<Tsukino::Asset::ShaderAsset>(ctx->assetManager->Get(ctx->assetManager->Load(Tsukino::Core::Path(path))));
+        };
+        auto vsAsset       = loadShader("CombatAndroid/Assets/Shaders/TreeSway.vs.hlsl");
+        auto shadowVsAsset = loadShader("CombatAndroid/Assets/Shaders/TreeSwayShadow.vs.hlsl");
+        auto psAsset       = std::static_pointer_cast<Tsukino::Asset::ShaderAsset>(ctx->assetManager->Get(ctx->builtinAssets->shaders.gbufferPS));
+        auto shadowPsAsset = std::static_pointer_cast<Tsukino::Asset::ShaderAsset>(ctx->assetManager->Get(ctx->builtinAssets->shaders.shadowPS));
+        if(!vsAsset || !shadowVsAsset || !psAsset || !shadowPsAsset)
             return;
 
-        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline = ctx->renderer->GetResources().GetPipelineFactory()->Create(
-            *vsAsset, *psAsset, Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV, Tsukino::Renderer::DepthMode::ReadWrite,
-            Tsukino::Renderer::BlendMode::Opaque);
-        if(!pipeline)
+        auto* pipelineFactory = ctx->renderer->GetResources().GetPipelineFactory();
+        std::shared_ptr<Tsukino::Renderer::PipelineState> pipeline =
+            pipelineFactory->Create(*vsAsset, *psAsset, Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV, Tsukino::Renderer::DepthMode::ReadWrite,
+                                    Tsukino::Renderer::BlendMode::Opaque);
+        std::shared_ptr<Tsukino::Renderer::PipelineState> shadowPipeline = pipelineFactory->Create(
+            *shadowVsAsset, *shadowPsAsset, Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV, Tsukino::Renderer::DepthMode::ReadWrite);
+        if(!pipeline || !shadowPipeline)
             return;
+
+        //-------------------------------------------------------------
+        // 揺れのパラメータ。風向きと突風は、草があれば草の値に揃える（草・霧・木が同じ風になびく）
+        //-------------------------------------------------------------
+        hlslpp::float3 windDirection  = field->windDirection;
+        float          gustWavelength = field->gustWavelength;
+        float          gustSpeed      = field->gustSpeed;
+        float          gustStrength   = field->gustStrength;
+        bool           foundGrass     = false;
+        registry.View<GrassFieldComponent>().each([&](entt::entity, const GrassFieldComponent& grass) {
+            if(foundGrass || !grass.enabled)
+                return;
+            windDirection  = grass.windDirection;
+            gustWavelength = grass.gustWavelength;
+            gustSpeed      = grass.gustSpeed;
+            gustStrength   = grass.gustStrength;
+            foundGrass     = true;
+        });
+
+        float windX = windDirection.x, windZ = windDirection.z;
+        const float windLength = std::sqrt(windX * windX + windZ * windZ);
+        if(windLength > 1.0e-4f) {
+            windX /= windLength;
+            windZ /= windLength;
+        } else {
+            windX = 1.0f;
+            windZ = 0.0f;
+        }
+
+        auto updateSwayBuffer = [&](Tsukino::Renderer::UserConstantBuffer& buffer, float flutterStrength) {
+            if(!buffer.IsValid())
+                buffer = Tsukino::Renderer::CreateUserConstantBuffer(ctx->renderer->GetDevice(), sizeof(CBufferTree));
+            if(!buffer.IsValid())
+                return false;
+
+            CBufferTree params;
+            params.windParams = hlslpp::float4(windX, 0.0f, windZ, 0.0f);
+            params.swayParams = hlslpp::float4(field->swayStrength, field->swaySpeed, flutterStrength, field->leafFlutterSpeed);
+            params.gustParams = hlslpp::float4(gustWavelength, gustSpeed, gustStrength, std::max(field->swayHeightRef, 1.0f));
+            Tsukino::Renderer::UpdateUserConstantBuffer(ctx->renderer->GetContext(), buffer, &params, sizeof(params));
+            return true;
+        };
+        // 幹は木全体のしなりだけ、葉はさらに細かくそよがせる
+        if(!updateSwayBuffer(m_trunkSwayBuffer, 0.0f) || !updateSwayBuffer(m_leafSwayBuffer, field->leafFlutterStrength)) {
+            Tsukino::Core::Log::Error("TreeFieldSystem - failed to create the tree sway constant buffer. Trees will not be drawn.");
+            m_buildFailed = true;
+            return;
+        }
 
         Tsukino::Renderer::Material& barkMaterial =
             AllocTreeMaterial(*ctx, pipeline.get(), GetGradientSRV(*ctx, "bark", field->barkBottomColor, field->barkTopColor));
@@ -360,7 +420,8 @@ namespace CombatAndroid::ECS {
                 // 幹と葉を1本ずつ積む。木は動かないので前フレームの行列も同じ
                 // （カメラが動いたぶんのモーションブラーはこれで正しく出る）
                 //-------------------------------------------------------------
-                auto push = [&](Tsukino::Renderer::MeshBuffer& mesh, Tsukino::Renderer::Material& material, Tsukino::Renderer::CBufferMaterial& data) {
+                auto push = [&](Tsukino::Renderer::MeshBuffer& mesh, Tsukino::Renderer::Material& material, Tsukino::Renderer::CBufferMaterial& data,
+                                Tsukino::Renderer::UserConstantBuffer& sway) {
                     Tsukino::Renderer::DrawCommand cmd{};
                     cmd.mesh          = &mesh;
                     cmd.material      = &material;
@@ -371,10 +432,14 @@ namespace CombatAndroid::ECS {
                     cmd.pass          = Tsukino::Renderer::RenderPass::GBuffer;
                     cmd.castsShadow   = true;
                     cmd.ditherFade    = fade;
+                    // 揺れのパラメータ（本体と影の両方の頂点シェーダーが b12 から読む）と、同じ揺れで描く影用パイプライン
+                    cmd.userConstantBuffer = sway.buffer.Get();
+                    cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
+                    cmd.shadowPipeline     = shadowPipeline.get();
                     ctx->renderer->GetDrawQueue().Push(cmd);
                 };
-                push(m_variants[variantIndex].trunk, barkMaterial, barkData);
-                push(m_variants[variantIndex].canopy, leafMaterial, leafData);
+                push(m_variants[variantIndex].trunk, barkMaterial, barkData, m_trunkSwayBuffer);
+                push(m_variants[variantIndex].canopy, leafMaterial, leafData, m_leafSwayBuffer);
 
                 //-------------------------------------------------------------
                 // 当たり判定。近くの木にだけ、幹のカプセルを持つエンティティを作る

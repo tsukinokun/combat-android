@@ -56,6 +56,19 @@ namespace CombatAndroid::ECS {
         float leafCardSize    = 46.0f;     //!< 葉カード1枚の一辺
 
         //----------------------------------------------------------
+        // 風の揺れ（TreeSway.hlsli）。風向きと突風は、草（GrassFieldComponent）があればそちらに揃える
+        //----------------------------------------------------------
+        float          swayStrength        = 7.0f;      //!< 木全体のしなりの振れ幅（swayHeightRefの高さでの、ワールド単位）
+        float          swaySpeed           = 1.1f;      //!< しなりの速さ（ラジアン/秒）
+        float          swayHeightRef       = 450.0f;    //!< しなりの強さの基準にする高さ（これより高い所ほど大きく動く）
+        float          leafFlutterStrength = 2.5f;      //!< 葉のそよぎの振れ幅
+        float          leafFlutterSpeed    = 6.0f;      //!< 葉のそよぎの速さ（ラジアン/秒）
+        hlslpp::float3 windDirection       = hlslpp::float3(1.0f, 0.0f, 0.3f);    //!< 草が無いときの風向き（水平成分だけ使う）
+        float          gustWavelength      = 650.0f;    //!< 草が無いときの突風の波長
+        float          gustSpeed           = 320.0f;    //!< 草が無いときの突風の速さ
+        float          gustStrength        = 0.3f;      //!< 草が無いときの突風の強さ
+
+        //----------------------------------------------------------
         // 色（下→上のグラデーション）
         //----------------------------------------------------------
         hlslpp::float3 barkBottomColor = hlslpp::float3(0.16f, 0.10f, 0.06f);    //!< 幹の根元の色
