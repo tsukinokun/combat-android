@@ -79,6 +79,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/InteractionSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/AmbientParticleSystem.hpp>
 #include <CombatAndroid/ECS/System/World/GrassFieldSystem.hpp>
+#include <CombatAndroid/ECS/System/World/TreeFieldSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionBlurSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionVectorSnapshotSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/DebugCameraSystem.hpp>
@@ -285,5 +286,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FogSystem>(), (int)ECS::SystemPriority::Fog);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AmbientParticleSystem>(), (int)ECS::SystemPriority::AmbientParticle);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GrassFieldSystem>(), (int)ECS::SystemPriority::GrassField);
+        // プログラム生成の木（描画と、プレイヤーの近くの幹の当たり判定）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TreeFieldSystem>(), (int)ECS::SystemPriority::TreeField);
     }
 }    // namespace CombatAndroid

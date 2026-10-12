@@ -1,0 +1,8 @@
+{
+    "Components": [
+        {
+            "key": "TreeFieldComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Environment/Title/Trees/TreeFieldComponent.json"
+        }
+    ]
+}

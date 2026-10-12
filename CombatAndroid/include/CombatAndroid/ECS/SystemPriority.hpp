@@ -124,5 +124,8 @@ namespace CombatAndroid::ECS {
                             // プレイヤー位置は定数バッファへ載せるため、Movementでプレイヤーの
                             // position が確定した後に置く必要がある。描画コマンドはGBufferパスへ
                             // 積まれるだけなので、Renderとの前後は問わない
+        TreeField,          // プログラム生成の木の描画と幹の当たり判定。プレイヤーの今フレームの位置（Movementで確定）を
+                            // 中心に升目を調べるのでその後に置く。描画コマンドはGBufferパスへ積まれるだけでRenderとの前後は問わず、
+                            // 当たり判定のエンティティはPhysicsSystem（Physics。これより前）が次のフレームに拾う
     };
 }    // namespace CombatAndroid::ECS

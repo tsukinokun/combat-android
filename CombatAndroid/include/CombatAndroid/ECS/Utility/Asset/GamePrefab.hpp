@@ -50,7 +50,7 @@ namespace CombatAndroid::ECS {
                                            std::string_view name);
 
     //-------------------------------------------------------------
-    //! @brief  環境（地面・光・空・フォグ・環境パーティクル・草）をPrefabから生成する
+    //! @brief  環境（地面・光・空・フォグ・環境パーティクル・草・木）をPrefabから生成する
     //! @param  registry  [in,out] ECSレジストリ
     //! @param  context   [in]     エンジンコンテキスト
     //! @param  sceneName [in]     "Combat" または "Title"（Assets/Prefabs/Environment/<sceneName>/ を読む）

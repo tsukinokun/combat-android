@@ -26,6 +26,7 @@
 #include <CombatAndroid/ECS/Serialization/Menu/TitleStageComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/Weapon/WeaponComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
+#include <CombatAndroid/ECS/Component/World/TreeFieldComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/GroundFollowComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerAnimationSetComponent.hpp>
@@ -38,6 +39,7 @@
 #include <CombatAndroid/ECS/Serialization/BuiltIn/RimGlowComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/BuiltIn/SpringBoneComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/World/GrassFieldComponentSerialization.hpp>
+#include <CombatAndroid/ECS/Serialization/World/TreeFieldComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/World/GroundFollowComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/Combat/HealthComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/Player/PlayerAnimationSetComponentSerialization.hpp>
@@ -79,7 +81,7 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
-    //! @brief  環境（地面・光・空・フォグ・環境パーティクル・草）をPrefabから生成する
+    //! @brief  環境（地面・光・空・フォグ・環境パーティクル・草・木）をPrefabから生成する
     //-------------------------------------------------------------
     void InstantiateEnvironment(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const char* sceneName) {
         const std::string sceneRoot = std::string(kEnvironmentRoot) + sceneName + "/";
@@ -90,6 +92,7 @@ namespace CombatAndroid::ECS {
         (void)context.prefabFactory->Instantiate(sceneRoot + "Fog/Prefab.json", registry);
         (void)context.prefabFactory->Instantiate(sceneRoot + "Particles/Prefab.json", registry);
         (void)context.prefabFactory->Instantiate(sceneRoot + "Grass/Prefab.json", registry);
+        (void)context.prefabFactory->Instantiate(sceneRoot + "Trees/Prefab.json", registry);
     }
 
     //-------------------------------------------------------------
@@ -121,6 +124,7 @@ namespace CombatAndroid::ECS {
         // ゲーム側Component
         //-------------------------------------------------------------
         factory.RegisterComponent<GrassFieldComponent>("GrassFieldComponent");
+        factory.RegisterComponent<TreeFieldComponent>("TreeFieldComponent");
         factory.RegisterComponent<GroundFollowComponent>("GroundFollowComponent");
         factory.RegisterComponent<TpsCameraComponent>("TpsCameraComponent");
         factory.RegisterComponent<PlayerComponent>("PlayerComponent");

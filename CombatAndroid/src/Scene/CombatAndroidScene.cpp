@@ -192,7 +192,7 @@ namespace CombatAndroid {
         Tsukino::ECS::Registry& registry = m_scene.GetRegistry();
 
         //--------------------------------------------------------------
-        // 環境（地面・光・空・フォグ・環境パーティクル・草）。値は Assets/Prefabs/Environment/ 以下のPrefab JSON（README参照）
+        // 環境（地面・光・空・フォグ・環境パーティクル・草・木）。値は Assets/Prefabs/Environment/ 以下のPrefab JSON（README参照）
         //--------------------------------------------------------------
         CombatAndroid::ECS::InstantiateEnvironment(registry, *context, "Combat");
 

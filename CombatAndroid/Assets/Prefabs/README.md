@@ -19,7 +19,7 @@ JSON の書式は `Prefab.json`（コンポーネント名 → 個別 JSON の�
 ## Environment/
 
 `InstantiateEnvironment(registry, context, "Combat" | "Title")`（`GamePrefab.hpp`）が
-Ground / Sun / Sky / Fog / Particles / Grass を生成する。空（`Sky`）だけ両シーン共通。
+Ground / Sun / Sky / Fog / Particles / Grass / Trees を生成する。空（`Sky`）だけ両シーン共通。
 `UiCamera2D` は Title / Combat / Loading の3シーンで共通（`InstantiateUiCamera2D`）。
 
 1ユニット≒1cm。長さの次元を持つ値はこの縮尺で入れている。
@@ -32,6 +32,13 @@ Ground / Sun / Sky / Fog / Particles / Grass を生成する。空（`Sky`）だ
   通常の戦闘中に切替帯へ入らないようにしてある。風向き（`windDirection`）は **Fog と必ず揃える**
   （ずれると霧と草が別々の風になびく）。`fadeStartRatio` は 1.0 未満にすること。
   種の色は空由来のアンビエントが青に偏っている分、B を低めに置いている。
+- **Trees**：プログラム生成の木（`ProceduralTree`）。ワールドを `cellSize` の升目に区切り、升目の座標から決まる乱数で
+  生やすか・位置・形・向き・大きさを決めるので、何度来ても同じ場所に同じ木がある。形は `variantCount` 種類を
+  使い回す。葉は葉の絵を貼った小さな板（葉カード、`leafCardsPerTip` 枚・一辺 `leafCardSize`）で、テクスチャのアルファで
+  くり抜く（影もエンジンが同じ形で抜く）。描画範囲（`drawRadius`）の端の `fadeBand` の帯では網点で少しずつ現す
+  （`DrawCommand::ditherFade`）。帯は霧で霞む距離に置くこと（TAA が無いので、手前だと網点が見える）。
+  当たり判定は幹だけで、プレイヤーの周り `colliderRadius` 以内の木にだけ作る。開始地点の周り
+  （`startClearRadius`）には生やさない。タイトルは `enabled: false`（TreeFieldSystem も登録していない）。
 - **Particles**：火の粉。暖色の HDR 加算で、上昇させるのが肝。横方向は Fog の風と揃える。
 - **Ground**：戦闘は Kinematic の箱（`GroundFollowSystem` がプレイヤーへ追従させる）。タイトルは見た目用でコライダー無し。
 - **Sun**：タイトルは武器が逆光で潰れないよう正面から当てる（戦闘と向きが逆）。
