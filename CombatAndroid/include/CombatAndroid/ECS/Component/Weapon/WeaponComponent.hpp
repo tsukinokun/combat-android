@@ -139,6 +139,7 @@ namespace CombatAndroid::ECS {
         float cooldownTimer   = 0.0f;     //!< クールダウンの残り
 
         std::vector<Tsukino::ECS::Entity> hitEnemiesThisAttack;    //!< このアタックで既にヒットした敵の記録（多重ヒット防止）。isActiveがtrueになった瞬間のみクリアする
+        std::vector<Tsukino::ECS::Entity> treesHitThisAttack;      //!< このアタックで既に揺らした木の幹の記録（同じ木を何度も揺らさない）。hitEnemiesThisAttackと同じ所でクリアする
 
         //-------------------------------------------------------------
         // スキル「嫉妬」がこのアタックで既に吸収したHPの合計。hitEnemiesThisAttackと同じ

@@ -100,4 +100,18 @@ namespace CombatAndroid::ECS {
                         float lifeStealRatio,
                         float& lifeStealHealed,
                         const KnockbackParams& knockback = KnockbackParams{});
+
+    //-------------------------------------------------------------
+    //! @brief  当たり判定で拾った相手が木の幹なら、木を揺らす通知（TreeHitEvent）を出す
+    //! @param  registry   [in]     ECSレジストリ
+    //! @param  eventBus   [in]     通知先（nullptrなら何もしない）
+    //! @param  hitEntity  [in]     当たり判定で拾った相手。木の幹（TreeColliderComponent）でなければ何もしない
+    //! @param  direction  [in]     攻撃が動いていた向き（木を倒す向き。長さは問わない）
+    //! @param  strength   [in]     強さの倍率
+    //! @param  hitRecord  [in,out] 1回の攻撃で同じ木を何度も揺らさないための記録。載っている木は飛ばし、揺らしたら追加する
+    //! @return 木に当たって通知を出したらtrue
+    //! @note   敵へのヒット（ApplyCombatHit）とは別に呼ぶ。木は攻撃を止めない
+    //-------------------------------------------------------------
+    bool NotifyTreeHit(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, Tsukino::ECS::Entity hitEntity,
+                       const hlslpp::float3& direction, float strength, std::vector<Tsukino::ECS::Entity>& hitRecord);
 }    // namespace CombatAndroid::ECS

@@ -75,6 +75,9 @@ namespace CombatAndroid::ECS {
                     ctx->physicsSystem->OverlapCapsule(sweepCenter, sweepRotation, projectile.radius, halfHeight);
 
                 for(entt::entity hitEntity : overlapping) {
+                    // 木の幹を通ったら、弾の向きへ木を揺らす（弾は止めない）
+                    NotifyTreeHit(registry, eventBus, hitEntity, projectile.direction, 0.8f, projectile.hitTrees);
+
                     bool landed = ApplyCombatHit(registry, eventBus, projectile.owner, entity, hitEntity, projectile.damage, sweepCenter,
                                                  projectile.hitEnemies, projectile.lifeStealRatio, projectile.lifeStealHealed);
 

@@ -39,6 +39,8 @@ Ground / Sun / Sky / Fog / Particles / Grass / Trees を生成する。空（`Sk
   （`DrawCommand::ditherFade`）。帯は霧で霞む距離に置くこと（TAA が無いので、手前だと網点が見える）。
   風の揺れ（`swayStrength` ほか）は `TreeSway.hlsli` が本体と影の両方に付ける。風向きと突風は草（Grass）があれば
   そちらの値に揃うので、Trees 側の `windDirection` / `gust*` は草が無いシーン用。
+  攻撃が幹に当たる（武器・斬撃弾）か、範囲攻撃の衝撃波が届くと、その木をばね（`shakeFrequency` / `shakeDamping`）で
+  大きくしならせ、葉を `leavesPerHit` 枚舞い落とす。強く揺らせるのは同時に8本まで（揺れの大きい順）。
   当たり判定は幹だけで、プレイヤーの周り `colliderRadius` 以内の木にだけ作る。開始地点の周り
   （`startClearRadius`）には生やさない。タイトルは `enabled: false`（TreeFieldSystem も登録していない）。
 - **Particles**：火の粉。暖色の HDR 加算で、上昇させるのが肝。横方向は Fog の風と揃える。

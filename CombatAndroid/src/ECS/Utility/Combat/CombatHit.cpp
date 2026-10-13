@@ -9,6 +9,8 @@
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/Combat/WeaponHitEvent.hpp>
+#include <CombatAndroid/ECS/Component/World/TreeColliderComponent.hpp>
+#include <CombatAndroid/ECS/Event/World/TreeHitEvent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -158,6 +160,27 @@ namespace CombatAndroid::ECS {
         ApplyHitStop(registry, hitEntity, kHitStopDuration, kHitStopScale);
         ApplyHitStop(registry, attacker, kHitStopDuration, kHitStopScale);
 
+        return true;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  当たり判定で拾った相手が木の幹なら、木を揺らす通知を出す
+    //-------------------------------------------------------------
+    bool NotifyTreeHit(Tsukino::ECS::Registry& registry, Tsukino::ECS::EventBus* eventBus, Tsukino::ECS::Entity hitEntity,
+                       const hlslpp::float3& direction, float strength, std::vector<Tsukino::ECS::Entity>& hitRecord) {
+        if(!eventBus || !registry.IsValid(hitEntity))
+            return false;
+
+        const auto* tree = registry.try_get<TreeColliderComponent>(hitEntity);
+        if(!tree)
+            return false;
+
+        // 1回の攻撃で同じ木は1度だけ（振りのサブステップごとに同じ幹が何度も拾われるため）
+        if(std::find(hitRecord.begin(), hitRecord.end(), hitEntity) != hitRecord.end())
+            return false;
+        hitRecord.push_back(hitEntity);
+
+        eventBus->Publish(TreeHitEvent{tree->cellKey, direction, strength});
         return true;
     }
 }    // namespace CombatAndroid::ECS

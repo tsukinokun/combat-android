@@ -635,6 +635,7 @@ namespace CombatAndroid::ECS {
                 // 新しいアタックの開始。ヒット済み記録はここでのみクリアする
                 // （毎フレームの判定側でクリアすると同じ敵に何度もヒットしてしまう）
                 weapon.hitEnemiesThisAttack.clear();
+                weapon.treesHitThisAttack.clear();
                 weapon.lifeStealHealedThisAttack = 0.0f;    // 嫉妬の吸収上限もアタック単位なので同じタイミングで戻す
 
                 // 新しいアタック開始フレームも前フレーム姿勢(浮遊/追従姿勢)からサブステップ補間できるよう、
@@ -721,6 +722,9 @@ namespace CombatAndroid::ECS {
 
                     std::vector<entt::entity> overlapping;
 
+                    // 刃が動いている向き（木に当たったとき、木をこの向きへ倒す）。前フレームの姿勢が無ければ刃の向きで代用する
+                    hlslpp::float3 swingDirection = bladeDir;
+
                     if(weapon.hasPrevAttackPose) {
                         // 刃先（グリップからrange分先）の前フレーム→今フレームの移動距離から、
                         // 判定漏れが出ないサブステップ数を決める（半径分進むごとに1ステップ）
@@ -728,6 +732,8 @@ namespace CombatAndroid::ECS {
                         hlslpp::float3 prevTipPos   = weapon.prevAttackPosition + prevBladeDir * weapon.range;
                         hlslpp::float3 currTipPos   = transform.position + bladeDir * weapon.range;
                         float          tipMoveDist  = hlslpp::length(currTipPos - prevTipPos);
+                        if(tipMoveDist > 1.0e-3f)
+                            swingDirection = currTipPos - prevTipPos;
 
                         constexpr int kMaxSubsteps = 8;
                         int substeps = static_cast<int>(std::ceil(tipMoveDist / std::max(weapon.hitCapsuleRadius, 1.0f)));
@@ -753,6 +759,8 @@ namespace CombatAndroid::ECS {
                     for(entt::entity hitEntity : overlapping) {
                         ApplyWeaponHitToEntity(registry, eventBus, entity, weapon, hitEntity, capsuleCenter, skillAttackMultiplier,
                                                skillLifeStealRatio, /* isAreaAttack */ false);
+                        // 木の幹を斬ったら、刃の動く向きへ木を揺らす（木は刃を止めない。TreeFieldSystemが揺れと落ち葉を出す）
+                        NotifyTreeHit(registry, eventBus, hitEntity, swingDirection, 1.0f, weapon.treesHitThisAttack);
                     }
 
                     weapon.prevAttackPosition = transform.position;

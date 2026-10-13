@@ -18,7 +18,12 @@ cbuffer CBufferTree : register(b12)
     float4 windParams;    // xz: 風向き（水平・正規化済み）, yw: 予約
     float4 swayParams;    // x: 幹のしなりの強さ（基準の高さでの振れ幅）, y: しなりの速さ, z: 葉のそよぎの強さ（0で無し）, w: そよぎの速さ
     float4 gustParams;    // x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: しなりの基準の高さ
+    float4 shakeSlots[8]; // 攻撃で揺れている木ごとに xy: 根元のXZ, zw: しなりのずれのXZ（基準の高さでの量）
+    float4 shakeParams;   // x: 使っているスロット数, y: ずれ1あたりに葉のそよぎを強める量, zw: 予約
 };
+
+// 攻撃で揺らせる木の数。TreeFieldSystem.hpp の kMaxShakingTrees と一致させること
+static const uint kMaxShakingTrees = 8;
 
 static const float kTreeTwoPi = 6.28318531f;
 
@@ -68,6 +73,24 @@ float3 TreeSwayOffset(float3 worldPos, float3 treeBase, float time)
     offset += crossDir3 * (swayParams.x * bendWeight * 0.3f * sin(time * swayParams.y * 0.77f + phase * 1.3f));
 
     //----------------------------------------------------------
+    // 攻撃で揺れている木。根元の位置で自分のスロットを探し、CPUのばねが出したずれを
+    // しなりと同じ重み（高さの2乗）で足す。大きく揺れている間は葉のそよぎも強める
+    //----------------------------------------------------------
+    float flutterBoost = 0.0f;
+    const uint slotCount = min((uint)shakeParams.x, kMaxShakingTrees);
+    [loop]
+    for(uint s = 0; s < slotCount; ++s)
+    {
+        const float2 toSlot = treeBase.xz - shakeSlots[s].xy;
+        if(dot(toSlot, toSlot) < 1.0f)
+        {
+            offset += float3(shakeSlots[s].z, 0.0f, shakeSlots[s].w) * bendWeight;
+            flutterBoost = length(shakeSlots[s].zw) * shakeParams.y;
+            break;
+        }
+    }
+
+    //----------------------------------------------------------
     // 葉のそよぎ。位相を頂点の位置からなめらかに作るので、隣り合う葉は似た動き、
     // 離れた葉は違う動きになり、茂みの表面を波が走るように見える。
     // 葉カード1枚の4隅の位相差は小さいので、板が大きくゆがむことはない
@@ -77,7 +100,7 @@ float3 TreeSwayOffset(float3 worldPos, float3 treeBase, float time)
         const float leafPhase = dot(worldPos, float3(0.021f, 0.017f, 0.025f)) * kTreeTwoPi + phase;
         const float flutter = sin(time * swayParams.w + leafPhase);
         const float lift = sin(time * swayParams.w * 1.7f + leafPhase * 1.3f);
-        offset += (windDir3 * flutter + float3(0.0f, 0.5f * lift, 0.0f)) * (swayParams.z * (0.6f + gust));
+        offset += (windDir3 * flutter + float3(0.0f, 0.5f * lift, 0.0f)) * (swayParams.z * (0.6f + gust + flutterBoost));
     }
 
     return offset;

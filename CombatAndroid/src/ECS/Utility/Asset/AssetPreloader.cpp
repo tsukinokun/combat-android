@@ -44,6 +44,7 @@ namespace CombatAndroid::ECS {
             "CombatAndroid/Assets/Shaders/Ground.vs.hlsl",
             "CombatAndroid/Assets/Shaders/TreeSway.vs.hlsl",
             "CombatAndroid/Assets/Shaders/TreeSwayShadow.vs.hlsl",
+            "CombatAndroid/Assets/Shaders/FallingLeaf.vs.hlsl",
             "CombatAndroid/Assets/Audio/HitImpactBlunt.wav",
             "CombatAndroid/Assets/Audio/HitImpactSharp.wav",
             "CombatAndroid/Assets/Audio/ChargeFire.wav",

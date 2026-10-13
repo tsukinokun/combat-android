@@ -50,6 +50,16 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("gustWavelength", trees.gustWavelength),
                 cereal::make_nvp("gustSpeed", trees.gustSpeed),
                 cereal::make_nvp("gustStrength", trees.gustStrength),
+                cereal::make_nvp("hitShakeImpulse", trees.hitShakeImpulse),
+                cereal::make_nvp("waveShakeImpulse", trees.waveShakeImpulse),
+                cereal::make_nvp("shakeFrequency", trees.shakeFrequency),
+                cereal::make_nvp("shakeDamping", trees.shakeDamping),
+                cereal::make_nvp("shakeFlutterBoost", trees.shakeFlutterBoost),
+                cereal::make_nvp("leavesPerHit", trees.leavesPerHit),
+                cereal::make_nvp("maxFallingLeaves", trees.maxFallingLeaves),
+                cereal::make_nvp("fallingLeafSize", trees.fallingLeafSize),
+                cereal::make_nvp("leafFallSpeed", trees.leafFallSpeed),
+                cereal::make_nvp("leafRestTime", trees.leafRestTime),
                 cereal::make_nvp("barkBottomColor", trees.barkBottomColor),
                 cereal::make_nvp("barkTopColor", trees.barkTopColor),
                 cereal::make_nvp("leafBottomColor", trees.leafBottomColor),
@@ -94,6 +104,16 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "gustWavelength", trees.gustWavelength);
         LoadField(archive, "gustSpeed", trees.gustSpeed);
         LoadField(archive, "gustStrength", trees.gustStrength);
+        LoadField(archive, "hitShakeImpulse", trees.hitShakeImpulse);
+        LoadField(archive, "waveShakeImpulse", trees.waveShakeImpulse);
+        LoadField(archive, "shakeFrequency", trees.shakeFrequency);
+        LoadField(archive, "shakeDamping", trees.shakeDamping);
+        LoadField(archive, "shakeFlutterBoost", trees.shakeFlutterBoost);
+        LoadField(archive, "leavesPerHit", trees.leavesPerHit);
+        LoadField(archive, "maxFallingLeaves", trees.maxFallingLeaves);
+        LoadField(archive, "fallingLeafSize", trees.fallingLeafSize);
+        LoadField(archive, "leafFallSpeed", trees.leafFallSpeed);
+        LoadField(archive, "leafRestTime", trees.leafRestTime);
         LoadField(archive, "barkBottomColor", trees.barkBottomColor);
         LoadField(archive, "barkTopColor", trees.barkTopColor);
         LoadField(archive, "leafBottomColor", trees.leafBottomColor);
