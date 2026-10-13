@@ -7,6 +7,8 @@
 #include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/Combat/WeaponHitEvent.hpp>
+#include <CombatAndroid/ECS/Event/World/TreeHitEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Table/SoundTable.hpp>
 
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
@@ -53,6 +55,17 @@ namespace CombatAndroid::ECS {
 
         std::vector<SoundId> m_pending;    //!< 次のUpdateで鳴らす音
 
+        //-------------------------------------------------------------
+        //! @struct DelayedSound
+        //! @brief  時間を置いてから鳴らす音（連撃3段目のインパクトのように、
+        //!         通知が来るのは段に入った瞬間で、鳴らしたいのは振り下ろした瞬間のもの）
+        //-------------------------------------------------------------
+        struct DelayedSound {
+            float   remaining = 0.0f;              //!< 鳴らすまでの残り秒（ゲーム内時間。スローやヒットストップで伸びる）
+            SoundId id        = SoundId::Count;    //!< 鳴らす音
+        };
+        std::vector<DelayedSound> m_delayed;    //!< 時間待ちの音
+
         //! 音ごとの「最後に鳴らしてからの経過秒」。SoundTableEntry::minIntervalと比べて重なりを間引く
         std::array<float, static_cast<size_t>(SoundId::Count)> m_elapsedSinceLastPlay{};
 
@@ -63,5 +76,7 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::ScopedConnection m_damagedConnection;    //!< PlayerDamagedEventの購読
         Tsukino::ECS::ScopedConnection m_hitConnection;        //!< WeaponHitEventの購読（撃破を拾う）
         Tsukino::ECS::ScopedConnection m_logConnection;        //!< GameLogEventの購読（取得・レベルアップ等）
+        Tsukino::ECS::ScopedConnection m_treeHitConnection;    //!< TreeHitEventの購読（木を叩いた音）
+        Tsukino::ECS::ScopedConnection m_heavyStrikeConnection;    //!< PlayerHeavyStrikeEventの購読（連撃3段目のインパクト）
     };
 }    // namespace CombatAndroid::ECS

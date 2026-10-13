@@ -14,6 +14,8 @@
 
 #include <Tsukino/Core/Path.hpp>
 
+#include <algorithm>
+
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
@@ -52,6 +54,15 @@ namespace CombatAndroid::ECS {
                 Enqueue(SoundId::EnemyDown);
         });
 
+        // 木を叩いた。1回の振りで木を2本巻き込んでも、minInterval（Sounds.json）で1回にまとまる
+        m_treeHitConnection = eventBus.Subscribe<TreeHitEvent>([this](const TreeHitEvent&) { Enqueue(SoundId::TreeHit); });
+
+        // 連撃3段目。通知は段に入った瞬間に来るので、振り下ろした瞬間（impactDelay後）まで待って鳴らす。
+        // 画面の揺れ（TpsCameraSystem）と同じ瞬間になる。空振りでも鳴らす（地面を叩いた手応えの音のため）
+        m_heavyStrikeConnection = eventBus.Subscribe<PlayerHeavyStrikeEvent>([this](const PlayerHeavyStrikeEvent& event) {
+            m_delayed.push_back(DelayedSound{std::max(event.impactDelay, 0.0f), SoundId::HeavyImpact});
+        });
+
         m_logConnection = eventBus.Subscribe<GameLogEvent>([this](const GameLogEvent& event) {
             const SoundId id = ResolveGameLogSound(event.category);
             if(id != SoundId::Count)
@@ -81,6 +92,17 @@ namespace CombatAndroid::ECS {
 
         for(float& elapsed : m_elapsedSinceLastPlay)
             elapsed += realDeltaTime;
+
+        //-------------------------------------------------------------
+        // 時間待ちの音。こちらはゲーム内時間（deltaTime）で数える。インパクトを待つ間に
+        // ヒットストップやポーズが入れば、そのぶん振り下ろしも遅れるため
+        //-------------------------------------------------------------
+        for(DelayedSound& delayed : m_delayed) {
+            delayed.remaining -= deltaTime;
+            if(delayed.remaining <= 0.0f)
+                m_pending.push_back(delayed.id);
+        }
+        std::erase_if(m_delayed, [](const DelayedSound& delayed) { return delayed.remaining <= 0.0f; });
 
         if(m_pending.empty())
             return;

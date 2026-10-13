@@ -31,6 +31,8 @@ namespace CombatAndroid::ECS {
         RunClear,          //!< クリアした
         RunFailed,         //!< 倒された
         WeaponEvolve,      //!< 武器が進化した
+        TreeHit,           //!< 攻撃が木に当たった
+        HeavyImpact,       //!< 連撃3段目のインパクト（叩きつけ・最後の一振り）
         Count,
     };
 

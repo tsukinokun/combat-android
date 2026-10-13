@@ -69,6 +69,16 @@
             "path": "CombatAndroid/Assets/Audio/WeaponEvolve.wav",
             "volume": 0.8,
             "minInterval": 0.0
+        },
+        "TreeHit": {
+            "path": "CombatAndroid/Assets/Audio/TreeHit.wav",
+            "volume": 0.7,
+            "minInterval": 0.08
+        },
+        "HeavyImpact": {
+            "path": "CombatAndroid/Assets/Audio/HeavyImpact.wav",
+            "volume": 0.85,
+            "minInterval": 0.1
         }
     }
 }

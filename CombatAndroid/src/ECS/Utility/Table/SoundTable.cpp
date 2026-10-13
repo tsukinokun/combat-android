@@ -35,7 +35,7 @@ namespace CombatAndroid::ECS {
         //! JSON上の効果音名（SoundIdの並び順）
         constexpr const char* kSoundKeys[] = {
             "PlayerHurt", "EnemyDown", "Swing", "Dodge", "Pickup", "WeaponLevelUp", "LevelUp",
-            "SkillPick", "DangerUp", "MenuMove", "MenuConfirm", "RunClear", "RunFailed", "WeaponEvolve",
+            "SkillPick", "DangerUp", "MenuMove", "MenuConfirm", "RunClear", "RunFailed", "WeaponEvolve", "TreeHit", "HeavyImpact",
         };
 
         // 種類を足したのに名前を書き忘れる事故を防ぐ

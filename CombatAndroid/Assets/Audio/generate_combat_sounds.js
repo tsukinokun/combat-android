@@ -16,6 +16,8 @@
 // - Swing.wav          … 重い武器の振り「ブンッ」
 // - Dodge.wav          … 回避。体が空を切る音と服の擦れ
 // - ChargeFire.wav     … 溜めた斬撃弾が飛び出す「ドォン」
+// - TreeHit.wav        … 木の幹を叩く「コッ」と、揺れた葉のざわめき
+// - HeavyImpact.wav    … 連撃3段目のインパクト。地面へ叩きつける「ズドォン」と、割れて散る土
 //
 // UI・演出の音（メニュー・レベルアップ等）は generate_game_sounds.py が作る。
 // Node 標準のみで動く。音を変えたいときは各関数の数値をいじって再実行する。
@@ -255,6 +257,41 @@ function chargeFire() {
     return finish(out, 0.9, 0.08);
 }
 
+//! 木を叩く：乾いた幹の「コッ」（帯域を狭く絞ったノイズで木の胴鳴りを出す）と、
+//! 少し遅れて揺れた葉が擦れる「ザァッ」。打撃音（HitImpact）と重なっても埋もれないよう、
+//! 芯は軽めにして中域の木の響きを主役にする
+function treeHit() {
+    const rng = makeRng(20261018);
+    const out = buffer(0.75);
+    addClick(out, rng, { gain: 0.55, highpass: 2200, decay: 800 });
+    addNoise(out, rng, { dur: 0.25, freq: 240, q: 6, gain: 3.2, decay: 22 });                                           // 幹の胴鳴り
+    addNoise(out, rng, { dur: 0.15, freq: 640, q: 5, gain: 1.8, decay: 34 });                                           // 乾いた木の高い響き
+    addThump(out, { dur: 0.15, from: 120, to: 90, gain: 0.45, decay: 35 });
+    addNoise(out, rng, { start: 0.03, dur: 0.65, freq: 5200, q: 0.6, gain: 0.55, attack: 0.06, decay: 4.5,
+        grain: 0.006, grainDepth: 0.9 });                                                                                   // 葉のざわめき
+    addRoom(out, 0.12);
+    return finish(out, 0.85, 0.1);
+}
+
+//! 連撃3段目のインパクト：地面を叩き割る「ズドォン」。
+//! ヒット音（HitImpact）と同時に鳴るので、あちらより低く長くして重ねても潰し合わないようにする。
+//! 硬い当たり → 腹に来る低い芯（長め）→ 地面が割れるざらつき → 少し遅れて土くれが散る、の順に積む
+function heavyImpact() {
+    const rng = makeRng(20261019);
+    const out = buffer(1.1);
+    const body = buffer(1.1);
+    addClick(body, rng, { gain: 0.7, highpass: 2600, decay: 600 });
+    addNoise(body, rng, { dur: 0.7, type: 'lowpass', freq: 260, q: 0.8, gain: 2.0, attack: 0.002, decay: 6 });               // 地鳴り
+    addNoise(body, rng, { dur: 0.25, freq: 900, q: 1.0, gain: 1.2, decay: 18, grain: 0.005, grainDepth: 0.85 });            // 地面が割れる
+    addNoise(body, rng, { start: 0.06, dur: 0.6, freq: (t) => 2400 * Math.exp(-t * 3) + 700, q: 0.9, gain: 0.6,
+        attack: 0.02, decay: 5, grain: 0.012, grainDepth: 0.95 });                                                           // 散る土くれ
+    saturate(body, 1.8);
+    mixInto(out, body);
+    addThump(out, { dur: 0.7, from: 70, to: 34, sweep: 9, gain: 1.2, attack: 0.002, decay: 6 });
+    addRoom(out, 0.26, 1.4);
+    return finish(out, 0.92, 0.12);
+}
+
 //--------------------------------------------------------------
 // 書き出し
 //--------------------------------------------------------------
@@ -266,6 +303,8 @@ const OUTPUTS = [
     ['Swing.wav', swing],
     ['Dodge.wav', dodge],
     ['ChargeFire.wav', chargeFire],
+    ['TreeHit.wav', treeHit],
+    ['HeavyImpact.wav', heavyImpact],
 ];
 
 function writeWav(file, samples) {
