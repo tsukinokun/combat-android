@@ -1,0 +1,16 @@
+{
+    "Components": [
+        {
+            "key": "AuraParticleComponent",
+            "value": "null"
+        },
+        {
+            "key": "SpriteComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Effect/AuraParticle/SpriteComponent.json"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Effect/AuraParticle/TransformComponent.json"
+        }
+    ]
+}

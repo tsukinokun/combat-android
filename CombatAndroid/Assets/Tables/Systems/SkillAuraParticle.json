@@ -1,0 +1,25 @@
+{
+    "SkillAuraParticle": {
+        "saturation": 1.8,
+        "colorBoost": 2.2,
+        "spawnRateLv1": 12.0,
+        "spawnRateLv5": 50.0,
+        "sizeLv1": 0.3,
+        "sizeLv5": 0.48,
+        "heightScaleLv1": 0.65,
+        "heightScaleLv5": 1.35,
+        "spawnRadiusLv1": 40.0,
+        "spawnRadiusLv5": 62.0,
+        "alphaLv1": 0.65,
+        "alphaLv5": 0.9,
+        "spawnHeight": 15.0,
+        "riseSpeedMin": 140.0,
+        "riseSpeedMax": 230.0,
+        "lifetimeMin": 0.8,
+        "lifetimeMax": 1.4,
+        "inwardSpeed": 0.35,
+        "swayAmplitude": 7.0,
+        "swayFrequency": 6.0,
+        "stretch": 1.5
+    }
+}

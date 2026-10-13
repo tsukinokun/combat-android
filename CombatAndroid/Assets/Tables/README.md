@@ -64,6 +64,8 @@ JSON の書式の補足：
 | `PickupIndicator.indicatorColor` | `Pickup.rimColor`（拾得アイテムのリムグローと同じシアン） |
 
 `InputPrompt` の案内の横位置は `SkillSelect.cardWidth` から計算するので、揃える必要は無い。
+`SkillAura`（体の輪郭の発光）と `SkillAuraParticle`（足元から立ちのぼる光の粒）の色も `Skills.json` の `panelColor` を
+そのまま使う（`saturation` で鮮やかにしてから `colorBoost` 倍する）ので、色を変えたいときは `panelColor` 側を触る。
 
 - **出す**：見た目・手触り・挙動の調整値（速度・時間・距離・高さ・色・強度・閾値）
 - **残す**：数学定数（`kPi` など）／配列サイズ・分割数・プール数など構造に効くもの／

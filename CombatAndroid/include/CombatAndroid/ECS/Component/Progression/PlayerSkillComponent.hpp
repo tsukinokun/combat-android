@@ -20,6 +20,10 @@ namespace CombatAndroid::ECS {
         //! 各スキルの取得段階。0=未取得、上限はkMaxSkillLevel。添字はSkillIdをintにキャストした値
         std::array<int, static_cast<size_t>(SkillId::Count)> levels{};
 
+        //! 最後に取得したスキル（未取得ならCount）。SkillSelectSystemが決定時に書き、
+        //! SkillAuraSystemがレベル同率のときにオーラの色を決めるのに使う
+        SkillId lastAcquired = SkillId::Count;
+
         //-------------------------------------------------------------
         // 以下はテーブルから導出したキャッシュ。スキル取得のたびに
         // RecalculateSkillStatsが levels から丸ごと計算し直す。

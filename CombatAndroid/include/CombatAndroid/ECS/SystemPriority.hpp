@@ -65,6 +65,9 @@ namespace CombatAndroid::ECS {
         EnemyWeaponDrop,    // 敵が持っていた武器を地面へ落とす。EXP玉と同じくEnemyDiedEventを
                             // 購読するだけなので、ExpOrbと同じ並びでよい。落下の補間もここで進めるため、
                             // 手への追従を書くWeaponAttachより後、TransformLateより前である必要がある
+        SkillAuraParticle,  // 取得スキルの色の光の粒をプレイヤーの足元から立ちのぼらせる。粒はプレイヤーの
+                            // 今フレームの位置（Movementで確定）からの相対で置くのでその後に置き、書いたpositionを
+                            // TransformLateがworldMatrixへ焼き込む前である必要がある（ExpOrbの粒と同じ制約）
         PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                           // （ExpOrbが確定）の両方より後に置く
         InputPrompt,      // 操作を促すUI（キーキャップ・長押しゲージ）の表示判断と値の反映。
@@ -100,6 +103,13 @@ namespace CombatAndroid::ECS {
                              // WeaponAttachより後、MotionBlurより前
         MotionBlur,          // ブラーパラメータをRendererへ転送し、MotionVectorComponentを自動アタッチする。
                              // ModelSystem（Render）が描画コマンドを積む前である必要がある
+        SkillAura,           // 取得スキルの色で体の輪郭をうっすら光らせる（RimGlowComponentへ書く）。同じRimGlowを使う
+                             // 溜め攻撃（PlayerAnimationSystem、Gameplay）とレベルアップ後無敵（SkillSelect）の
+                             // 両方より後に置く。あちらが演出を終えるフレームにactive=falseを書いても、
+                             // ここが同じフレームで書き直すのでオーラが1フレーム消えない。ModelSystem（Render）が
+                             // RimGlowをマテリアルへ積む前である必要がある
+        Bloom,               // ブルームのパラメータをRendererへ転送する（エンジンのBloomSystem）。
+                             // 描画の設定を流すだけで他との依存は無いので、MotionBlurと同じく描画の直前に並べておく
         Render,
         Font,    // 文字の描画コマンドを積む。SpriteRenderSystem（Render）との前後関係は
                  // もう登録順では決まらない：RendererがOverlayパスを DrawCommand::sortOrder で

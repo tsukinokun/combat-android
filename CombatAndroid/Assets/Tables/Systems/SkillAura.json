@@ -1,0 +1,12 @@
+{
+    "SkillAura": {
+        "colorBoost": 2.0,
+        "saturation": 1.8,
+        "rimIntensityLv1": 0.5,
+        "rimIntensityLv5": 1.2,
+        "rimPower": 2.5,
+        "pulseSpeed": 2.2,
+        "pulseDepth": 0.25,
+        "blendSpeed": 4.0
+    }
+}

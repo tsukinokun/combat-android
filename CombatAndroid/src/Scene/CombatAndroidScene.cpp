@@ -24,6 +24,7 @@
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/ExpOrbComponent.hpp>
+#include <CombatAndroid/ECS/Component/Effect/AuraParticleComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/UI/PlayerHudComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
@@ -337,6 +338,14 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         for(int i = 0; i < CombatAndroid::ECS::kExpOrbPoolSize; ++i)
             (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "UI/ExpOrb");
+
+        //--------------------------------------------------------------
+        // 取得スキルのオーラ（足元から立ちのぼる光の粒）用エンティティのプール。
+        // EXP玉と同じく、加算合成のワールド空間ビルボード（Prefab: Effect/AuraParticle）を
+        // 固定数作っておき、SkillAuraParticleSystemが使い回す
+        //--------------------------------------------------------------
+        for(int i = 0; i < CombatAndroid::ECS::kAuraParticlePoolSize; ++i)
+            (void)CombatAndroid::ECS::InstantiatePrefab(registry, *context, "Effect/AuraParticle");
 
         //--------------------------------------------------------------
         // 画面左上のプレイヤーHP/EXPバー。WorldAnchorComponentは使わず固定ピクセル座標に置き、

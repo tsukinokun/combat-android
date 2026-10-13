@@ -17,6 +17,8 @@
 #include <CombatAndroid/ECS/System/Combat/CombatSystem.hpp>
 #include <CombatAndroid/ECS/System/Combat/ProjectileSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/AttackMotionBlurSystem.hpp>
+#include <CombatAndroid/ECS/System/Effect/SkillAuraSystem.hpp>
+#include <CombatAndroid/ECS/System/Effect/SkillAuraParticleSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyAttackTelegraphSystem.hpp>
@@ -81,6 +83,7 @@
 #include <CombatAndroid/ECS/System/World/GrassFieldSystem.hpp>
 #include <CombatAndroid/ECS/System/World/TreeFieldSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionBlurSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/BloomSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/MotionVectorSnapshotSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/DebugCameraSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/EffectSystem.hpp>
@@ -173,6 +176,8 @@ namespace CombatAndroid {
             m_scene.AddSystem(enemyWeaponDropSystem, (int)ECS::SystemPriority::EnemyWeaponDrop);
             enemyWeaponDropSystem->Initialize(eventBus);
         }
+        // 取得スキル（七つの大罪）の色の光の粒をプレイヤーの足元から立ちのぼらせる
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillAuraParticleSystem>(), (int)ECS::SystemPriority::SkillAuraParticle);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
         // 場面の切り替わりを繋ぐ黒。TransformUIより前に板の位置を書く必要があるのでここに置く
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), (int)ECS::SystemPriority::PlayerHud);
@@ -232,6 +237,10 @@ namespace CombatAndroid {
         // 攻撃演出→ブラー強度→Rendererの順に流す
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::AttackMotionBlurSystem>(), (int)ECS::SystemPriority::AttackMotionBlur);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::MotionBlurSystem>(), (int)ECS::SystemPriority::MotionBlur);
+        // 取得スキル（七つの大罪）の色で体の輪郭をうっすら光らせる（オーラの主役の粒はSkillAuraParticleSystem）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillAuraSystem>(), (int)ECS::SystemPriority::SkillAura);
+        // ブルーム。BloomComponentを持つエンティティが居なければ何もしない（今はシーンに置いていない）
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::BloomSystem>(), (int)ECS::SystemPriority::Bloom);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SpriteRenderSystem>(), (int)ECS::SystemPriority::Render);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::ModelSystem>(), (int)ECS::SystemPriority::Render);
         // 地面（GroundFollowComponentを持つエンティティ）へ土テクスチャの板を描く

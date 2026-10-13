@@ -542,6 +542,7 @@ namespace CombatAndroid::ECS {
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];
                 acquiredLevel      = std::min(acquiredLevel + 1, kMaxSkillLevel);
+                skills.lastAcquired = acquiredId;
                 RecalculateSkillStats(skills);
 
                 //-------------------------------------------------------------

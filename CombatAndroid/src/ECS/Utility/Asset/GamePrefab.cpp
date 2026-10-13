@@ -33,6 +33,8 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerExperienceComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Component/Effect/SkillAuraComponent.hpp>
+#include <CombatAndroid/ECS/Component/Effect/AuraParticleComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Serialization/BuiltIn/AnimationPlayerComponentSerialization.hpp>
 #include <CombatAndroid/ECS/Serialization/BuiltIn/CharacterControllerComponentSerialization.hpp>
@@ -143,6 +145,8 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         factory.RegisterComponent<PlayerExperienceComponent>("PlayerExperienceComponent");
         factory.RegisterComponent<PlayerSkillComponent>("PlayerSkillComponent");
+        factory.RegisterComponent<SkillAuraComponent>("SkillAuraComponent");
+        factory.RegisterComponent<AuraParticleComponent>("AuraParticleComponent");
         factory.RegisterComponent<BehaviorTreeComponent>("BehaviorTreeComponent");
         factory.RegisterComponent<ProjectileComponent>("ProjectileComponent");
         factory.RegisterComponent<DamageNumberComponent>("DamageNumberComponent");

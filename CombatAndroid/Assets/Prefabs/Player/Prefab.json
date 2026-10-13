@@ -17,6 +17,10 @@
             "value": "null"
         },
         {
+            "key": "SkillAuraComponent",
+            "value": "null"
+        },
+        {
             "key": "AnimationPlayerComponent",
             "value": "CombatAndroid/Assets/Prefabs/Player/AnimationPlayerComponent.json"
         },
