@@ -39,6 +39,9 @@ namespace CombatAndroid::ECS {
         PauseMenu,        // Escのポーズメニュー。SkillSelectと同じ理由（PlayerSystemが同じフレームの入力を
                           // 読む前に割り込み、開いている間はmoveInputを潰す）でMovementより前に置く
         Movement,         // プレイヤー入力・敵AIの移動をTransformの後、Physicsの前に反映する
+        EnemyObstacle,    // 敵が木の幹をすり抜けないよう押し出す（EnemyTreeCollisionSystem）。敵を動かす
+                          // EnemyBehaviorSystem（Movement）の直後に置き、その回のフレームで動いた分を押し戻す。
+                          // 物理（Kinematicの同期）とTransformLateより前なので、すり抜けた位置は一度も画面に出ない
         GroundFollow,     // 地面（Kinematicボディ）をプレイヤーへ追従させる。Movementでその回の
                           // プレイヤー位置が確定した直後に行う。Kinematicボディの物理側への同期は
                           // Physicsが担うため、ここで書いたTransformをその同じフレームのPhysicsが

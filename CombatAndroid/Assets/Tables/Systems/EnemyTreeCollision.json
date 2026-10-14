@@ -1,0 +1,7 @@
+{
+    "EnemyTreeCollision": {
+        "activeRange": 3000.0,
+        "slideBias": 0.5,
+        "extraPadding": 0.0
+    }
+}

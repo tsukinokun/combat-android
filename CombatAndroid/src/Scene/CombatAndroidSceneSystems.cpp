@@ -20,6 +20,7 @@
 #include <CombatAndroid/ECS/System/Effect/SkillAuraSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/SkillAuraParticleSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyBehaviorSystem.hpp>
+#include <CombatAndroid/ECS/System/Enemy/EnemyTreeCollisionSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyAttackTelegraphSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/PaladinWeaponSwitchSystem.hpp>
@@ -130,6 +131,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSystem>(), (int)ECS::SystemPriority::Movement);
         // 敵は全てBehaviorTreeComponentを持つBT駆動（歩いて近づき、射程内で攻撃・被弾でノックバック・死亡演出）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyBehaviorSystem>(), (int)ECS::SystemPriority::Movement);
+        // 敵が木の幹をすり抜けないよう、動いた直後に幹の外へ押し出す（幹に沿って滑って回り込む）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyTreeCollisionSystem>(), (int)ECS::SystemPriority::EnemyObstacle);
         // 地面をプレイヤーへ追従させる。草原と同じく「見た目は無限に続く」を実現するため
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GroundFollowSystem>(), (int)ECS::SystemPriority::GroundFollow);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerAnimationSystem>(), (int)ECS::SystemPriority::Gameplay);

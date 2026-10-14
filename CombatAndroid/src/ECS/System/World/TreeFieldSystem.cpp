@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/Component/World/TreeFieldComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/TreeColliderComponent.hpp>
+#include <CombatAndroid/ECS/Utility/World/TreeObstacle.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Utility/World/ProceduralTree.hpp>
 
@@ -766,6 +767,15 @@ namespace CombatAndroid::ECS {
 
         m_wantedColliders.clear();
 
+        //-------------------------------------------------------------
+        // 敵の押し出し（EnemyTreeCollisionSystem）に使う幹の一覧を作り直す。
+        // 敵はTransformを直接動かすので物理の幹では止まらず、この2Dの円で押し出す
+        //-------------------------------------------------------------
+        TreeObstacleContext& obstacles = registry.HasContext<TreeObstacleContext>() ? registry.GetContext<TreeObstacleContext>()
+                                                                                     : registry.SetContext<TreeObstacleContext>();
+        obstacles.cellSize = cellSize;
+        obstacles.trunks.clear();
+
         for(int cellZ = minCellZ; cellZ <= maxCellZ; ++cellZ) {
             for(int cellX = minCellX; cellX <= maxCellX; ++cellX) {
                 // 升目に立っている木（升目の座標から決まる。生えていない升目と開始地点の周りは無し）
@@ -785,6 +795,9 @@ namespace CombatAndroid::ECS {
                 const TreeVariant& variant      = m_variants[variantIndex];
                 const float        yaw          = tree->yaw;
                 const float        scale        = tree->scale;
+
+                // 幹の円（当たり判定のカプセルと同じ太さ）。フェードで描かれない木も、立っていれば幹として数える
+                obstacles.trunks[MakeCellKey(cellX, cellZ)] = TreeObstacle{x, z, variant.trunkRadius * field->colliderRadiusScale * scale};
 
                 //-------------------------------------------------------------
                 // 描画範囲の端の帯では、網点で少しずつ現す（DrawCommand::ditherFade）。
