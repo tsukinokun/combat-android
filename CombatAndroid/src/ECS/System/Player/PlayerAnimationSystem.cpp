@@ -402,23 +402,27 @@ namespace CombatAndroid::ECS {
             bool hasWeapon = player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity);
 
             //-------------------------------------------------------------
-            // 装備武器が溜め攻撃対応（WeaponComponent::chargeAttackEnabled）かどうかで、
-            // 左クリックの押下を「即座にAttack1」か「Chargeへ入って構える」かに振り分ける
+            // 武器の攻撃の型で、左クリックの扱いを分ける（WeaponComponent::chargeAttackEnabled）。
+            //   連撃の武器：何もしていなければ1段目へ。攻撃中・回避中の押下は先行入力として溜め、
+            //              段が終わったら次の段（回避の後なら1段目）として消費する
+            //   溜めの武器：何もしていないときに押したら溜めの構えへ入るだけ。連撃は持たないので、
+            //              振り・回避・溜めの最中の押下は捨てる（先行入力もしない。振り終えてから押し直す）
+            // 溜めの武器が連撃の2段目・3段目へ入ってしまうと、連撃の大技（3段目の範囲攻撃・画面揺れ・
+            // 衝撃波）が溜めの武器でも出てしまうため、型ごとに経路を分けておく
             //-------------------------------------------------------------
-            bool weaponChargeCapable = hasWeapon && registry.GetComponent<WeaponComponent>(player.weaponEntity).chargeAttackEnabled;
+            const bool isChargeWeapon = hasWeapon && registry.GetComponent<WeaponComponent>(player.weaponEntity).chargeAttackEnabled;
+            const bool isComboWeapon  = hasWeapon && !isChargeWeapon;
+            const bool isIdleForAttack = !isAttacking && !isDodging && !isCharging;
 
             bool chargeJustStarted = false;
             bool attackJustStarted = false;
             if(attackJustPressed && hasWeapon) {
-                if(!isAttacking && !isDodging && !isCharging) {
-                    if(weaponChargeCapable) {
-                        chargeJustStarted = true;
-                    } else {
-                        attackJustStarted = true;
-                    }
-                } else if(!isCharging) {
-                    // 回避中・攻撃中の攻撃入力はここへ入り、モーションが終わってから1段目として消費される。
-                    // 溜め中（isCharging）の再押下は起こり得ない（離すまでIsKeyPressedは再発火しない）ため無視する
+                if(isChargeWeapon) {
+                    chargeJustStarted = isIdleForAttack;
+                } else if(isIdleForAttack) {
+                    attackJustStarted = true;
+                } else {
+                    // 連撃の武器で攻撃中・回避中に押された。モーションが終わってから次の段／1段目として消費する
                     animSet.bufferedInput = BufferedInput::Attack;
                 }
             }
@@ -502,8 +506,8 @@ namespace CombatAndroid::ECS {
             } else if(dodgeFinished) {
                 animSet.dodgeCooldownTimer = player.dodgeCooldown;
 
-                if(animSet.bufferedInput == BufferedInput::Attack && hasWeapon) {
-                    // 回避中に押された攻撃をここで消費して連撃の1段目へ入る
+                if(animSet.bufferedInput == BufferedInput::Attack && isComboWeapon) {
+                    // 回避中に押された攻撃をここで消費して連撃の1段目へ入る（溜めの武器は先行入力しない）
                     desiredState = PlayerAnimState::Attack1;
                 }
                 // それ以外はdesiredStateを上で計算した移動判定のまま使う
@@ -530,8 +534,9 @@ namespace CombatAndroid::ECS {
                     animSet.attackComboIndex = 0;
                     EnterDodge();
                     desiredState = PlayerAnimState::Dodge;
-                } else if(animSet.bufferedInput == BufferedInput::Attack && !isLastStep) {
-                    // 先行入力があれば次段へ連撃継続する
+                } else if(animSet.bufferedInput == BufferedInput::Attack && !isLastStep && isComboWeapon) {
+                    // 先行入力があれば次段へ連撃継続する。連撃を持つのは連撃の武器だけ
+                    //（溜めの武器は先行入力を溜めないが、振りの途中で武器を持ち替えた場合に備えてここでも確かめる）
                     animSet.bufferedInput = BufferedInput::None;
                     Tsukino::u32 nextComboIndex     = animSet.attackComboIndex + 1;
                     desiredState           = AttackStateFromIndex(nextComboIndex);
@@ -633,9 +638,11 @@ namespace CombatAndroid::ECS {
                 if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
                     eventBus->Publish(PlayerChargeReleasedEvent{entity, releasedWeapon.projectileSpawnDelay});
 
-                // 最大段階（紫）まで溜めた解放は大技として通知する（カメラのズームと世界のスロー）。
-                // インパクトは斬撃弾が飛び出す瞬間
-                if(chargeStage >= 3) {
+                // 最大段階（紫）まで溜めた解放は大技。カメラのズームと世界のスローへ通知し、
+                // 斬撃弾が飛び出す瞬間に足元から草の衝撃波も出す（CombatSystemが発射と同時に出す）
+                const bool isFinisher                       = chargeStage >= 3;
+                releasedWeapon.pendingProjectileIsFinisher = isFinisher;
+                if(isFinisher) {
                     if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
                         eventBus->Publish(PlayerFinisherEvent{entity, releasedWeapon.projectileSpawnDelay});
                 }

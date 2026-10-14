@@ -647,8 +647,8 @@ namespace CombatAndroid::ECS {
 
                 // AoE(範囲攻撃)の武装。この段がAoEを要求していて、かつ装備武器がAoE対応
                 // （areaAttackRadius>0、warhammer等のみ）の場合だけタイマーを仕込む。
-                // AoEを持たなくても草を揺らす波（grassWaveRadius>0、battleaxe）があれば、波のためだけに仕込む
-                if(weapon.pendingAreaAttack && (weapon.areaAttackRadius > 0.0f || weapon.grassWaveRadius > 0.0f)) {
+                // 草の衝撃波はAoEの瞬間に一緒に出す（溜めの武器の衝撃波は斬撃弾の射出の瞬間。下の射出の処理）
+                if(weapon.pendingAreaAttack && weapon.areaAttackRadius > 0.0f) {
                     weapon.areaAttackArmed = true;
                     weapon.areaAttackTimer = std::max(weapon.pendingAreaAttackDelay, 0.0f);
                 } else {
@@ -890,6 +890,12 @@ namespace CombatAndroid::ECS {
 
                             pendingProjectiles.push_back(spawn);
                         }
+
+                        // 最大段階まで溜めた解放（大技）は、斬撃弾が飛び出す瞬間に足元から草の衝撃波を出す
+                        // （連撃の武器の大技＝AoEの瞬間に出すのと同じ扱い。半径は指定が無ければAoEと同じ）
+                        const float grassWaveRadius = (weapon.grassWaveRadius > 0.0f) ? weapon.grassWaveRadius : weapon.areaAttackRadius;
+                        if(weapon.pendingProjectileIsFinisher && eventBus && grassWaveRadius > 0.0f)
+                            eventBus->Publish(GrassWaveEvent{ownerTransform.position, grassWaveRadius});
                     }
                 }
             }

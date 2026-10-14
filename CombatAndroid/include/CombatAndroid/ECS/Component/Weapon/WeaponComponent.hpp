@@ -226,8 +226,9 @@ namespace CombatAndroid::ECS {
         float areaAttackEffectScale = 1.0f;    //!< 上記エフェクトの再生スケール。本作は1ユニット≒1cm規約だがEffekseer側は
                                                  //!< メートル単位で作られるため、単位合わせに100前後の値が要る（実機で見ながら調整する）
 
-        //! AoEの瞬間に草を揺らす波の半径（ダメージは無い。GrassWaveEvent）。0ならareaAttackRadiusと同じ半径を使う。
-        //! AoEを持たない武器（battleaxe）でも、ここに値を入れればAoEの段（連撃3段目）で草だけ揺れる
+        //! 大技のインパクトで足元から草を揺らす衝撃波の半径（ダメージは無い。GrassWaveEvent）。0ならareaAttackRadiusと同じ半径を使う。
+        //! 大技は武器の攻撃の型で決まる：連撃の武器は範囲攻撃の段（連撃3段目）、溜めの武器は最大段階まで溜めた解放
+        //! （斬撃弾が飛び出す瞬間）。範囲攻撃を持たない溜めの武器（battleaxe）は、ここに値を入れたときだけ衝撃波が出る
         float grassWaveRadius = 0.0f;
 
         bool  pendingAreaAttack      = false;    //!< 次にattackRequestedが消費される際、AoEを要求するか。PlayerAnimationSystemがAttackStep::areaAttackから設定する
@@ -270,7 +271,9 @@ namespace CombatAndroid::ECS {
         // 解放する。weaponId/WeaponTable経由では持たず、attackClip等と同じ流儀でインスタンスごとに
         // 設定する（battleaxeのスポーン箇所のみtrueにする）
         //-------------------------------------------------------------
-        bool chargeAttackEnabled = false;    //!< trueならこの武器は左クリック長押しで溜め攻撃できる
+        //! 攻撃の型。trueなら溜めの武器（左クリックで溜めの構えに入り、離して解放する。連撃は持たない）、
+        //! falseなら連撃の武器（左クリックごとに連撃の段を進める）。PlayerAnimationSystemが入力の扱いを分ける
+        bool chargeAttackEnabled = false;
 
         //-------------------------------------------------------------
         // 斬撃弾。溜め攻撃を解放したときだけ、前方へ飛ぶ攻撃判定（ProjectileComponent）を
@@ -301,6 +304,8 @@ namespace CombatAndroid::ECS {
                                                //!< PlayerAnimationSystemが溜め攻撃の解放時に立てる
         int   pendingProjectileChargeStage = 1;    //!< 上の要求を立てたときの溜め段階（1=白 / 2=青 / 3=紫）。
                                                     //!< CombatSystemが貫通するかの判定に使う
+        bool  pendingProjectileIsFinisher = false;    //!< 上の要求が大技（最大段階まで溜めた解放）か。
+                                                      //!< CombatSystemが射出と同時に草の衝撃波（grassWaveRadius）を出すかの判定に使う
         float projectileSpawnDelay = 0.25f;    //!< 攻撃開始から射出までの遅延（秒）。振り抜くタイミングに合わせる
 
         bool  projectileArmed = false;    //!< 今回の攻撃で射出待ちか（CombatSystemが管理。射出または攻撃終了で消費）
