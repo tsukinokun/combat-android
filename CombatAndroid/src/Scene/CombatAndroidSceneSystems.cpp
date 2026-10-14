@@ -28,6 +28,7 @@
 #include <CombatAndroid/ECS/System/Combat/SoftTargetSystem.hpp>
 #include <CombatAndroid/ECS/System/Combat/AttackTurnAssistSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/TargetMarkerSystem.hpp>
+#include <CombatAndroid/ECS/System/World/OcclusionCutoutSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/World/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/Player/PlayerAnimationSystem.hpp>
@@ -242,6 +243,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PickupIndicatorSystem>(), (int)ECS::SystemPriority::PickupIndicator);
         // ソフトターゲットの敵を四隅のカギ括弧で囲む（振り向きが効く範囲なら濃く）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TargetMarkerSystem>(), (int)ECS::SystemPriority::TargetMarker);
+        // プレイヤーを遮る木・敵・落ちている武器を、プレイヤーの周りだけ網点で抜く
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::OcclusionCutoutSystem>(), (int)ECS::SystemPriority::OcclusionCutout);
         // UIの動き（UiMotion.hppの出現・消える・弾む・呼吸）。メニュー中もUnscaledTimeContextの実時間で動く
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::UITweenSystem>(), (int)ECS::SystemPriority::UITween);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformUI);

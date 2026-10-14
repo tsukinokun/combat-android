@@ -104,6 +104,10 @@ namespace CombatAndroid::ECS {
         PickupIndicator,  // 画面外の拾得アイテムへ向く矢印。EliteIndicatorと同じ制約・同じ並びでよい
         TargetMarker,     // ソフトターゲットの敵を囲む四隅のカギ括弧。敵の体を今フレームのカメラ行列で画面へ写すので
                           // Cameraの後、書いた位置がworldMatrixへ焼き込まれるTransformUIの前（EliteIndicatorと同じ制約）
+        OcclusionCutout,  // プレイヤーを遮る物を、プレイヤーの周りだけ網点で抜く円をRendererへ渡す（エンジンの遮り抜き）。
+                          // プレイヤーの胸を今フレームのカメラ行列で画面へ写すのでCameraの後に置き、
+                          // 抜く対象かどうかを読むModelSystem（Render）が描画コマンドを積む前に、武器の
+                          // OcclusionCutoutComponent::enabled（持っている武器は抜かない）を合わせておく
         UITween,          // UIの動き（エンジンのUITweenSystem。出現・消える・弾む・呼吸）を見た目のずれと透明度へ反映する。
                           // トゥイーンを始めるUIのシステム（メニュー・HUD・チュートリアル等）はどれもこれより前にあるので、
                           // 始めたフレームから動く。見た目のずれはTransformSystemがworldMatrixを作るときに重ねるため、

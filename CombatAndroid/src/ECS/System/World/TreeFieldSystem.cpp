@@ -833,6 +833,8 @@ namespace CombatAndroid::ECS {
                     cmd.pass          = Tsukino::Renderer::RenderPass::GBuffer;
                     cmd.castsShadow   = true;
                     cmd.ditherFade    = fade;
+                    // プレイヤーを遮ったら、プレイヤーの周りだけ網点で抜く（OcclusionCutoutSystem）
+                    cmd.occlusionCutout = true;
                     // 揺れのパラメータ（本体と影の両方の頂点シェーダーが b12 から読む）と、同じ揺れで描く影用パイプライン
                     cmd.userConstantBuffer = sway.buffer.Get();
                     cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;

@@ -1,6 +1,10 @@
 {
     "Components": [
         {
+            "key": "OcclusionCutoutComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/OcclusionCutoutComponent.json"
+        },
+        {
             "key": "ModelComponent",
             "value": "CombatAndroid/Assets/Prefabs/Weapon/Greatsword/ModelComponent.json"
         },

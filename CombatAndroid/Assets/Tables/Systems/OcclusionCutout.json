@@ -1,0 +1,12 @@
+{
+    "OcclusionCutout": {
+        "radiusWorld": 110.0,
+        "centerHeight": 105.0,
+        "deadCenterHeight": 35.0,
+        "deadEnemyVisibility": 0.35,
+        "deadEnemyFadeSpeed": 4.0,
+        "depthMargin": 60.0,
+        "centerVisibility": 0.1,
+        "edgeSoftStart": 0.35
+    }
+}

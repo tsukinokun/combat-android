@@ -1,6 +1,10 @@
 {
     "Components": [
         {
+            "key": "OcclusionCutoutComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/SmallZombie/OcclusionCutoutComponent.json"
+        },
+        {
             "key": "AnimationControllerComponent",
             "value": "null"
         },
