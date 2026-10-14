@@ -63,7 +63,15 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("barkBottomColor", trees.barkBottomColor),
                 cereal::make_nvp("barkTopColor", trees.barkTopColor),
                 cereal::make_nvp("leafBottomColor", trees.leafBottomColor),
-                cereal::make_nvp("leafTopColor", trees.leafTopColor));
+                cereal::make_nvp("leafTopColor", trees.leafTopColor),
+                cereal::make_nvp("barkRidgeCount", trees.barkRidgeCount),
+                cereal::make_nvp("barkPlateCount", trees.barkPlateCount),
+                cereal::make_nvp("barkFissureDarkness", trees.barkFissureDarkness),
+                cereal::make_nvp("barkNormalStrength", trees.barkNormalStrength),
+                cereal::make_nvp("barkAoStrength", trees.barkAoStrength),
+                cereal::make_nvp("barkMossColor", trees.barkMossColor),
+                cereal::make_nvp("barkMossHeight", trees.barkMossHeight),
+                cereal::make_nvp("barkMossAmount", trees.barkMossAmount));
     }
 
     template <class Archive>
@@ -118,5 +126,13 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "barkTopColor", trees.barkTopColor);
         LoadField(archive, "leafBottomColor", trees.leafBottomColor);
         LoadField(archive, "leafTopColor", trees.leafTopColor);
+        LoadField(archive, "barkRidgeCount", trees.barkRidgeCount);
+        LoadField(archive, "barkPlateCount", trees.barkPlateCount);
+        LoadField(archive, "barkFissureDarkness", trees.barkFissureDarkness);
+        LoadField(archive, "barkNormalStrength", trees.barkNormalStrength);
+        LoadField(archive, "barkAoStrength", trees.barkAoStrength);
+        LoadField(archive, "barkMossColor", trees.barkMossColor);
+        LoadField(archive, "barkMossHeight", trees.barkMossHeight);
+        LoadField(archive, "barkMossAmount", trees.barkMossAmount);
     }
 }    // namespace CombatAndroid::ECS

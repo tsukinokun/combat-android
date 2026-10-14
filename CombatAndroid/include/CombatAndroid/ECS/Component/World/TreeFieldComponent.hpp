@@ -85,9 +85,21 @@ namespace CombatAndroid::ECS {
         //----------------------------------------------------------
         // 色（下→上のグラデーション）
         //----------------------------------------------------------
-        hlslpp::float3 barkBottomColor = hlslpp::float3(0.16f, 0.10f, 0.06f);    //!< 幹の根元の色
-        hlslpp::float3 barkTopColor    = hlslpp::float3(0.30f, 0.21f, 0.13f);    //!< 枝先の色
+        hlslpp::float3 barkBottomColor = hlslpp::float3(0.20f, 0.13f, 0.08f);    //!< 幹の根元の色
+        hlslpp::float3 barkTopColor    = hlslpp::float3(0.34f, 0.25f, 0.16f);    //!< 枝先の色
         hlslpp::float3 leafBottomColor = hlslpp::float3(0.05f, 0.16f, 0.05f);    //!< 葉の色の暗い側（葉ごとにこの間で選ぶ）
         hlslpp::float3 leafTopColor    = hlslpp::float3(0.24f, 0.48f, 0.12f);    //!< 葉の色の明るい側
+
+        //----------------------------------------------------------
+        // 樹皮の模様（幹のテクスチャはBuildBarkPixelsがここから作る。色の土台は上のbarkBottom/TopColor）
+        //----------------------------------------------------------
+        int            barkRidgeCount      = 22;                                     //!< 幹1周あたりに並ぶ樹皮の板の数（多いほど細かい）
+        int            barkPlateCount      = 70;                                     //!< 木の高さ全体で縦に並ぶ樹皮の板の数
+        float          barkFissureDarkness = 0.75f;                                  //!< 裂け目の底の暗さ（0で暗くしない、1で真っ黒）
+        float          barkNormalStrength  = 2.5f;                                   //!< 凹凸の強さ（法線マップの傾きの倍率）
+        float          barkAoStrength      = 0.6f;                                   //!< 裂け目の陰の濃さ（0で陰を付けない）
+        hlslpp::float3 barkMossColor       = hlslpp::float3(0.16f, 0.24f, 0.07f);    //!< 根元の苔の色
+        float          barkMossHeight      = 0.12f;                                  //!< 苔が生える高さ（木の高さに対する割合）
+        float          barkMossAmount      = 0.7f;                                   //!< 苔の濃さ（0で苔なし）
     };
 }    // namespace CombatAndroid::ECS

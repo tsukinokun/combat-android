@@ -46,9 +46,17 @@
         "fallingLeafSize": 14.0,
         "leafFallSpeed": 70.0,
         "leafRestTime": 4.0,
-        "barkBottomColor": { "x": 0.16, "y": 0.10, "z": 0.06 },
-        "barkTopColor": { "x": 0.30, "y": 0.21, "z": 0.13 },
+        "barkBottomColor": { "x": 0.20, "y": 0.13, "z": 0.08 },
+        "barkTopColor": { "x": 0.34, "y": 0.25, "z": 0.16 },
         "leafBottomColor": { "x": 0.05, "y": 0.16, "z": 0.05 },
-        "leafTopColor": { "x": 0.24, "y": 0.48, "z": 0.12 }
+        "leafTopColor": { "x": 0.24, "y": 0.48, "z": 0.12 },
+        "barkRidgeCount": 22,
+        "barkPlateCount": 70,
+        "barkFissureDarkness": 0.75,
+        "barkNormalStrength": 2.5,
+        "barkAoStrength": 0.6,
+        "barkMossColor": { "x": 0.16, "y": 0.24, "z": 0.07 },
+        "barkMossHeight": 0.12,
+        "barkMossAmount": 0.7
     }
 }

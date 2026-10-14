@@ -11,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <execution>
 #include <limits>
 #include <vector>
 // 名前空間 : CombatAndroid::ECS
@@ -422,5 +423,284 @@ namespace CombatAndroid::ECS {
             }
         }
         return pixels;
+    }
+
+    namespace {
+        //-------------------------------------------------------------
+        //! @brief  格子点の整数座標から0〜1の乱数を作る（同じ座標・種なら毎回同じ値）
+        //-------------------------------------------------------------
+        float LatticeHash(int x, int y, std::uint32_t seed) {
+            std::uint32_t h = static_cast<std::uint32_t>(x) * 374761393u + static_cast<std::uint32_t>(y) * 668265263u + seed * 2246822519u;
+            h               = (h ^ (h >> 13)) * 1274126177u;
+            h ^= h >> 16;
+            return static_cast<float>(h & 0xffffffu) / static_cast<float>(0xffffff);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  横に周期を持つバリューノイズ（0〜1）
+        //! @param  x       [in] 横の座標（格子1マス=1）
+        //! @param  y       [in] 縦の座標
+        //! @param  periodX [in] 横の周期（格子の数）。x と x+periodX は同じ値になる
+        //! @note   幹は1周でuが0→1に戻るので、横は周期で作らないと継ぎ目に線が出る
+        //-------------------------------------------------------------
+        float PeriodicNoise(float x, float y, int periodX, std::uint32_t seed) {
+            const float fx = std::floor(x);
+            const float fy = std::floor(y);
+            const int   ix = static_cast<int>(fx);
+            const int   iy = static_cast<int>(fy);
+            float       tx = x - fx;
+            float       ty = y - fy;
+            tx             = tx * tx * (3.0f - 2.0f * tx);
+            ty             = ty * ty * (3.0f - 2.0f * ty);
+
+            const int   period = std::max(periodX, 1);
+            auto        wrap   = [period](int v) { return ((v % period) + period) % period; };
+            const float a      = LatticeHash(wrap(ix), iy, seed);
+            const float b      = LatticeHash(wrap(ix + 1), iy, seed);
+            const float c      = LatticeHash(wrap(ix), iy + 1, seed);
+            const float d      = LatticeHash(wrap(ix + 1), iy + 1, seed);
+            return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  横に周期を持つノイズを数オクターブ重ねたもの（0〜1）
+        //-------------------------------------------------------------
+        float PeriodicFbm(float x, float y, int periodX, std::uint32_t seed, int octaves) {
+            float sum = 0.0f, amp = 0.5f, norm = 0.0f;
+            for(int o = 0; o < octaves; ++o) {
+                const int scale = 1 << o;
+                sum += PeriodicNoise(x * static_cast<float>(scale), y * static_cast<float>(scale), periodX * scale, seed + static_cast<std::uint32_t>(o) * 101u) * amp;
+                norm += amp;
+                amp *= 0.5f;
+            }
+            return sum / norm;
+        }
+
+        //-------------------------------------------------------------
+        //! @struct CellHit
+        //! @brief  ボロノイ（セル模様）の1点ぶんの結果
+        //-------------------------------------------------------------
+        struct CellHit {
+            float f1 = 0.0f;    //!< 一番近い種点までの距離
+            float f2 = 0.0f;    //!< 二番目に近い種点までの距離（f2-f1 がセルの境目からの距離の目安）
+            float id = 0.0f;    //!< 一番近いセルの乱数（0〜1。セルごとの色のばらつきに使う）
+        };
+
+        //-------------------------------------------------------------
+        //! @brief  横に周期を持つボロノイ
+        //! @param  stretchY [in] 縦の距離に掛ける倍率（1未満で縦に長いセルになる）
+        //! @note   樹皮の板（裂け目に囲まれた菱形の塊）を作るのに使う。境目が裂け目になり、
+        //!         裂け目どうしが分かれたり合流したりする網目になる（平行な縦線より実物に近い）
+        //-------------------------------------------------------------
+        CellHit PeriodicVoronoi(float x, float y, int periodX, std::uint32_t seed, float stretchY) {
+            const int ix     = static_cast<int>(std::floor(x));
+            const int iy     = static_cast<int>(std::floor(y));
+            const int period = std::max(periodX, 1);
+            CellHit   hit;
+            hit.f1 = hit.f2 = 1e9f;
+            for(int dy = -1; dy <= 1; ++dy) {
+                for(int dx = -1; dx <= 1; ++dx) {
+                    const int   cx = ix + dx;
+                    const int   cy = iy + dy;
+                    const int   wx = ((cx % period) + period) % period;
+                    const float sx = static_cast<float>(cx) + 0.1f + 0.8f * LatticeHash(wx, cy, seed);
+                    const float sy = static_cast<float>(cy) + 0.1f + 0.8f * LatticeHash(wx, cy, seed + 7u);
+                    const float ddx = x - sx;
+                    const float ddy = (y - sy) * stretchY;
+                    const float d   = std::sqrt(ddx * ddx + ddy * ddy);
+                    if(d < hit.f1) {
+                        hit.f2 = hit.f1;
+                        hit.f1 = d;
+                        hit.id = LatticeHash(wx, cy, seed + 9u);
+                    } else if(d < hit.f2) {
+                        hit.f2 = d;
+                    }
+                }
+            }
+            return hit;
+        }
+
+        [[nodiscard]]
+        float Saturate01(float v) {
+            return std::clamp(v, 0.0f, 1.0f);
+        }
+
+        [[nodiscard]]
+        float SmoothStep(float edge0, float edge1, float x) {
+            const float t = Saturate01((x - edge0) / (edge1 - edge0));
+            return t * t * (3.0f - 2.0f * t);
+        }
+
+        [[nodiscard]]
+        std::uint8_t ToByte(float v) {
+            return static_cast<std::uint8_t>(Saturate01(v) * 255.0f + 0.5f);
+        }
+    }    // namespace
+
+    //-------------------------------------------------------------
+    //! @brief  樹皮テクスチャのピクセルを作る
+    //-------------------------------------------------------------
+    BarkPixels BuildBarkPixels(const BarkTextureParams& params) {
+        const int           width   = std::max(params.width, 8);
+        const int           height  = std::max(params.height, 8);
+        const int           ridges  = std::max(params.ridgeCount, 1);
+        const int           plates  = std::max(params.plateCount, 1);
+        const std::uint32_t seed    = params.seed;
+        const size_t        texels  = static_cast<size_t>(width) * height;
+
+        //-------------------------------------------------------------
+        // 行ごとに独立して計算できるので、行を並列に回す（1回きりの生成だが、
+        // 大きいテクスチャを1スレッドで作るとシーン開始時に目立つ止まりになるため）。
+        // 各行は自分の行のピクセルにしか書かないので、書き込みは競合しない
+        //-------------------------------------------------------------
+        std::vector<int> rows(static_cast<size_t>(height));
+        for(int y = 0; y < height; ++y)
+            rows[static_cast<size_t>(y)] = y;
+
+        //-------------------------------------------------------------
+        // 1) 高さ（0=裂け目の底、1=板の頂）。座標は「横=幹1周でridges、縦=木の高さ全体でplates」
+        //-------------------------------------------------------------
+        std::vector<float> heightField(texels);
+        std::vector<float> mossNoise(texels);
+        std::vector<float> tintNoise(texels);
+        std::vector<float> plateTone(texels);      // 板ごとの乱数（板ごとに色を少しずつ変える）
+        std::vector<float> lichenNoise(texels);    // 地衣類（白っぽい斑点）の出方
+        std::for_each(std::execution::par, rows.begin(), rows.end(), [&](int y) {
+            const float v  = (static_cast<float>(y) + 0.5f) / static_cast<float>(height);
+            const float py = v * static_cast<float>(plates);
+            for(int x = 0; x < width; ++x) {
+                const float u  = (static_cast<float>(x) + 0.5f) / static_cast<float>(width);
+                const float px = u * static_cast<float>(ridges);
+
+                //-------------------------------------------------------------
+                // 座標を少しゆがませる。セルの境目（裂け目）が直線にならず、うねった線になる
+                //-------------------------------------------------------------
+                const float warpX = (PeriodicFbm(px * 1.5f, py * 0.6f, ridges * 2, seed + 11u, 2) - 0.5f) * 0.45f;
+                const float warpY = (PeriodicFbm(px * 1.5f, py * 0.6f, ridges * 2, seed + 12u, 2) - 0.5f) * 0.45f;
+                const float wx    = px + warpX;
+                const float wy    = py + warpY;
+
+                //-------------------------------------------------------------
+                // 深い裂け目：粗いセル（縦長）の境目。分かれたり合流したりする網目になる
+                // 浅い割れ：細かいセルの境目。板の面を小さく割る
+                // 横は周期（ridges・ridges*2）なので、幹を1周しても継ぎ目が出ない
+                //-------------------------------------------------------------
+                const CellHit coarse = PeriodicVoronoi(wx, wy * 0.3f, ridges, seed + 13u, 0.45f);
+                const CellHit fine   = PeriodicVoronoi(wx * 2.0f, wy * 0.7f, ridges * 2, seed + 14u, 0.5f);
+                const float   crackW = 0.10f + 0.14f * PeriodicNoise(px * 1.2f, py * 0.4f, ridges, seed + 15u);    // 裂け目の幅も場所で変える
+                const float   deep   = SmoothStep(0.01f, crackW, coarse.f2 - coarse.f1);
+                const float   shallow = SmoothStep(0.0f, 0.07f, fine.f2 - fine.f1);
+
+                // 板は真ん中ほど少し盛り上がる（板の縁が裂け目へ向かって丸く落ちる）
+                const float plateRound = 1.0f - std::min(coarse.f1, 1.0f) * 0.35f;
+                float       h          = deep * (0.78f + 0.22f * shallow) * (0.75f + 0.25f * plateRound);
+
+                //-------------------------------------------------------------
+                // 表面の質感。縦に引き伸ばしたノイズで木の繊維の筋を、細かいノイズでざらつきを、
+                // 段差状のノイズで薄く剥がれかけた皮の層を出す
+                //-------------------------------------------------------------
+                const float fiber = PeriodicFbm(px * 12.0f, py * 0.8f, ridges * 12, seed + 32u, 3) - 0.5f;
+                const float grain = PeriodicFbm(px * 6.0f, py * 5.0f, ridges * 6, seed + 31u, 3) - 0.5f;
+                const float layer = PeriodicFbm(px * 3.0f, py * 2.0f, ridges * 3, seed + 33u, 2) * 4.0f;
+                const float flake = SmoothStep(0.75f, 0.95f, layer - std::floor(layer)) * 0.12f;    // 層の縁の段
+                h                 = Saturate01(h * (1.0f + fiber * 0.45f + grain * 0.3f) - flake * h);
+
+                const size_t index  = static_cast<size_t>(y) * width + x;
+                heightField[index]  = h;
+                mossNoise[index]    = PeriodicFbm(px * 1.2f, py * 0.9f, ridges, seed + 41u, 3);
+                tintNoise[index]    = PeriodicFbm(px * 0.8f, py * 0.5f, ridges, seed + 51u, 2);
+                plateTone[index]    = coarse.id;
+                lichenNoise[index]  = PeriodicFbm(px * 2.5f, py * 1.5f, ridges * 3, seed + 61u, 3);
+            }
+        });
+
+        BarkPixels result;
+        result.albedo.resize(texels * 4);
+        result.normal.resize(texels * 4);
+        result.ao.resize(texels * 4);
+
+        std::for_each(std::execution::par, rows.begin(), rows.end(), [&](int y) {
+            const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(height);
+            for(int x = 0; x < width; ++x) {
+                const size_t index = static_cast<size_t>(y) * width + x;
+                const float  h     = heightField[index];
+
+                //-------------------------------------------------------------
+                // 2) 色。実物の樹皮は「裂け目の奥＝暗く赤みのある茶」「板＝茶」「風雨にさらされた板の頂＝灰色がかる」
+                //    の3色に分かれて見える。高さで3つを混ぜ、板ごと・場所ごとに少しずつばらつかせる
+                //-------------------------------------------------------------
+                const float tone  = 0.88f + 0.24f * plateTone[index];    // 板ごとの明るさの違い
+                const float tint  = 0.9f + 0.2f * tintNoise[index];      // 場所ごとのゆるい色むら
+                float       base[3];
+                for(int k = 0; k < 3; ++k)
+                    base[k] = params.bottomColor[k] + (params.topColor[k] - params.bottomColor[k]) * v;
+                const float luma = base[0] * 0.2126f + base[1] * 0.7152f + base[2] * 0.0722f;
+
+                const float warm[3]    = {1.15f, 0.95f, 0.8f};    // 裂け目の奥の赤み
+                const float weather    = SmoothStep(0.75f, 1.0f, h) * (0.2f + 0.35f * tintNoise[index]);    // 頂ほど灰色に褪せる
+                const float plateBlend = SmoothStep(0.05f, 0.55f, h);
+                float       color[3];
+                for(int k = 0; k < 3; ++k) {
+                    const float crack = base[k] * (1.0f - params.fissureDarkness) * warm[k];
+                    float       plate = base[k] * tone * tint;
+                    plate             = plate + (luma * 1.2f - plate) * weather * 0.5f;
+                    color[k]          = crack + (plate - crack) * plateBlend;
+                }
+
+                // 地衣類：板の頂にところどころ白っぽい緑灰色の斑点が付く（苔と同じくmossAmountで消せる）
+                const float lichenColor[3] = {0.50f, 0.50f, 0.40f};
+                const float lichen = SmoothStep(0.74f, 0.82f, lichenNoise[index]) * SmoothStep(0.55f, 0.9f, h) * 0.35f * params.mossAmount;
+                for(int k = 0; k < 3; ++k)
+                    color[k] = color[k] + (lichenColor[k] * (0.8f + 0.2f * h) - color[k]) * lichen;
+
+                // 苔：根元ほど、裂け目ほど、ノイズの濃い所ほど乗る。境目はノイズで揺らして直線にしない
+                const float mossLine = params.mossHeight * (0.7f + 0.6f * mossNoise[index]);
+                float       moss     = 1.0f - SmoothStep(mossLine * 0.5f, mossLine, v);
+                moss *= SmoothStep(0.35f, 0.65f, mossNoise[index] + (1.0f - h) * 0.35f);
+                moss = Saturate01(moss * params.mossAmount);
+                for(int k = 0; k < 3; ++k) {
+                    const float mossColor = params.mossColor[k] * (0.75f + 0.5f * h);    // 苔も頂の方が明るい
+                    color[k]              = color[k] + (mossColor - color[k]) * moss;
+                }
+
+                const size_t offset        = index * 4;
+                result.albedo[offset + 0] = ToByte(color[0]);
+                result.albedo[offset + 1] = ToByte(color[1]);
+                result.albedo[offset + 2] = ToByte(color[2]);
+                result.albedo[offset + 3] = 255;
+
+                //-------------------------------------------------------------
+                // 3) 法線。高さの傾きから作る（横は周期でつなぐ、縦は端で止める）。
+                //    x=u方向、y=v方向（GBuffer.ps.hlslのApplyNormalMapがUVの増える向きを基底にする）
+                //-------------------------------------------------------------
+                const int   xl = (x + width - 1) % width;
+                const int   xr = (x + 1) % width;
+                const int   yd = std::max(y - 1, 0);
+                const int   yu = std::min(y + 1, height - 1);
+                const float du = (heightField[static_cast<size_t>(y) * width + xr] - heightField[static_cast<size_t>(y) * width + xl]) * 0.5f;
+                const float dv = (heightField[static_cast<size_t>(yu) * width + x] - heightField[static_cast<size_t>(yd) * width + x]) * 0.5f;
+                float       nx = -du * params.normalStrength;
+                float       ny = -dv * params.normalStrength;
+                float       nz = 1.0f;
+                const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+                nx /= len;
+                ny /= len;
+                nz /= len;
+                result.normal[offset + 0] = ToByte(nx * 0.5f + 0.5f);
+                result.normal[offset + 1] = ToByte(ny * 0.5f + 0.5f);
+                result.normal[offset + 2] = ToByte(nz * 0.5f + 0.5f);
+                result.normal[offset + 3] = 255;
+
+                //-------------------------------------------------------------
+                // 4) AO。裂け目の奥ほど光が届かない
+                //-------------------------------------------------------------
+                const std::uint8_t ao = ToByte(1.0f - params.aoStrength * (1.0f - h) * (1.0f - h));
+                result.ao[offset + 0]  = ao;
+                result.ao[offset + 1]  = ao;
+                result.ao[offset + 2]  = ao;
+                result.ao[offset + 3]  = 255;
+            }
+        });
+        return result;
     }
 }    // namespace CombatAndroid::ECS

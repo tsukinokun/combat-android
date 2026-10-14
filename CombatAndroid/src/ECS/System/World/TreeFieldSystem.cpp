@@ -39,15 +39,13 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <chrono>
 #include <string>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
         constexpr float kTwoPi = 6.28318531f;
 
-        //! 色のグラデーションテクスチャの高さと幅（草のグラデーションと同じ作り）
-        constexpr Tsukino::u32 kGradientHeight = 32;
-        constexpr Tsukino::u32 kGradientWidth  = 4;
 
         //-------------------------------------------------------------
         //! @brief  32bitの値を混ぜる（升目の座標から乱数を作るのに使う）
@@ -88,52 +86,88 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  下→上の色のグラデーションテクスチャを得る（同じ色なら作り直さず使い回す）
-        //! @param  context [in,out] エンジンコンテキスト
-        //! @param  name    [in]     キャッシュのキーに含める名前（樹皮・葉）
-        //! @param  bottom  [in]     下（v=0）の色
-        //! @param  top     [in]     上（v=1）の色
-        //! @return テクスチャのSRV。作れなければnullptr
+        //! @struct BarkSRVs
+        //! @brief  樹皮テクスチャ3枚（色・法線・AO）のSRV
         //-------------------------------------------------------------
-        ID3D11ShaderResourceView* GetGradientSRV(Tsukino::EngineIntegration::EngineContext& context, const char* name,
-                                                 const hlslpp::float3& bottom, const hlslpp::float3& top) {
+        struct BarkSRVs {
+            ID3D11ShaderResourceView* albedo = nullptr;
+            ID3D11ShaderResourceView* normal = nullptr;
+            ID3D11ShaderResourceView* ao     = nullptr;
+        };
+
+        //-------------------------------------------------------------
+        //! @brief  樹皮テクスチャ（色・法線・AO）を得る（同じ調整値なら作り直さず使い回す）
+        //! @param  context [in,out] エンジンコンテキスト
+        //! @param  field   [in]     色・模様・苔の調整値と種を持つ
+        //! @return 3枚のSRV。作れなかったものはnullptr（呼び出し側が既定のテクスチャで埋める）
+        //! @note   細かい模様なので、ミップマップを作らせて遠くの木でちらつかないようにする
+        //-------------------------------------------------------------
+        BarkSRVs GetBarkSRVs(Tsukino::EngineIntegration::EngineContext& context, const TreeFieldComponent& field) {
             if(!context.assetManager || !context.renderer)
+                return {};
+
+            BarkTextureParams params;
+            params.seed            = field.seed;
+            params.ridgeCount      = std::clamp(field.barkRidgeCount, 1, 32);
+            params.plateCount      = std::clamp(field.barkPlateCount, 1, 256);
+            params.fissureDarkness = std::clamp(field.barkFissureDarkness, 0.0f, 1.0f);
+            params.normalStrength  = std::max(field.barkNormalStrength, 0.0f);
+            params.aoStrength      = std::clamp(field.barkAoStrength, 0.0f, 1.0f);
+            params.mossHeight      = std::max(field.barkMossHeight, 0.0f);
+            params.mossAmount      = std::clamp(field.barkMossAmount, 0.0f, 1.0f);
+            const hlslpp::float3 colors[3] = {field.barkBottomColor, field.barkTopColor, field.barkMossColor};
+            float* const         targets[3] = {params.bottomColor, params.topColor, params.mossColor};
+            for(int c = 0; c < 3; ++c) {
+                targets[c][0] = std::clamp(static_cast<float>(colors[c].x), 0.0f, 1.0f);
+                targets[c][1] = std::clamp(static_cast<float>(colors[c].y), 0.0f, 1.0f);
+                targets[c][2] = std::clamp(static_cast<float>(colors[c].z), 0.0f, 1.0f);
+            }
+
+            //-------------------------------------------------------------
+            // キャッシュのキー。模様に効く値をすべて含める（JSONを変えて再起動したら作り直される）
+            //-------------------------------------------------------------
+            std::string key = "procedural|tree|bark|" + std::to_string(params.seed) + "|" + std::to_string(params.ridgeCount) + "|"
+                              + std::to_string(params.plateCount);
+            for(float v : {params.fissureDarkness, params.normalStrength, params.aoStrength, params.mossHeight, params.mossAmount})
+                key += "|" + std::to_string(static_cast<int>(v * 1000.0f));
+            for(const float* color : targets)
+                for(int k = 0; k < 3; ++k)
+                    key += "_" + std::to_string(static_cast<int>(color[k] * 255.0f + 0.5f));
+
+            const Tsukino::Asset::AssetHandle handles[3] = {
+                Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key + "|albedo"),
+                Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key + "|normal"),
+                Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key + "|ao"),
+            };
+
+            auto& resources = context.renderer->GetResources();
+            auto  toSRV     = [&](const Tsukino::Asset::AssetHandle& handle) -> ID3D11ShaderResourceView* {
+                if(Tsukino::Core::Ref<Tsukino::Asset::IAsset> existing = context.assetManager->Get(handle))
+                    return resources.GetTextureSRV(*std::static_pointer_cast<Tsukino::Asset::TextureAsset>(existing));
                 return nullptr;
+            };
 
-            auto toByte = [](float v) { return static_cast<int>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
+            // 3枚とも作ってあれば、それを使う
+            if(context.assetManager->Get(handles[0]) && context.assetManager->Get(handles[1]) && context.assetManager->Get(handles[2]))
+                return BarkSRVs{toSRV(handles[0]), toSRV(handles[1]), toSRV(handles[2])};
 
-            const std::string key = std::string("procedural|tree|") + name + "|" + std::to_string(toByte(bottom.x)) + "_"
-                                    + std::to_string(toByte(bottom.y)) + "_" + std::to_string(toByte(bottom.z)) + "_" + std::to_string(toByte(top.x))
-                                    + "_" + std::to_string(toByte(top.y)) + "_" + std::to_string(toByte(top.z));
-            const Tsukino::Asset::AssetHandle handle = Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key);
-
-            if(Tsukino::Core::Ref<Tsukino::Asset::IAsset> existing = context.assetManager->Get(handle)) {
-                auto texture = std::static_pointer_cast<Tsukino::Asset::TextureAsset>(existing);
-                return context.renderer->GetResources().GetTextureSRV(*texture);
+            // 一度だけの生成。大きいのでかかった時間を残しておく（カクつきの調査用）
+            const auto barkStart = std::chrono::steady_clock::now();
+            BarkPixels pixels    = BuildBarkPixels(params);
+            const auto barkMs    = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - barkStart).count();
+            Tsukino::Core::Log::Info("TreeFieldSystem: bark texture generated in " + std::to_string(barkMs) + " ms");
+            std::vector<std::uint8_t>* sources[3] = {&pixels.albedo, &pixels.normal, &pixels.ao};
+            for(int i = 0; i < 3; ++i) {
+                auto texture          = std::make_shared<Tsukino::Asset::TextureAsset>();
+                texture->width        = static_cast<Tsukino::u32>(params.width);
+                texture->height       = static_cast<Tsukino::u32>(params.height);
+                texture->format       = DXGI_FORMAT_R8G8B8A8_UNORM;
+                texture->pixels       = std::move(*sources[i]);
+                texture->generateMips = true;
+                texture->SetHandle(handles[i]);
+                context.assetManager->RegisterAsset(handles[i], texture);
             }
-
-            auto texture    = std::make_shared<Tsukino::Asset::TextureAsset>();
-            texture->width  = kGradientWidth;
-            texture->height = kGradientHeight;
-            texture->format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            texture->pixels.resize(static_cast<size_t>(kGradientWidth) * kGradientHeight * 4);
-
-            // 先頭の行がv=0（下）。下から上へbottom→topで埋める
-            for(Tsukino::u32 row = 0; row < kGradientHeight; ++row) {
-                const float          t     = static_cast<float>(row) / static_cast<float>(kGradientHeight - 1);
-                const hlslpp::float3 color = bottom + (top - bottom) * t;
-                for(Tsukino::u32 x = 0; x < kGradientWidth; ++x) {
-                    const size_t offset          = (static_cast<size_t>(row) * kGradientWidth + x) * 4;
-                    texture->pixels[offset + 0] = static_cast<Tsukino::u8>(toByte(color.x));
-                    texture->pixels[offset + 1] = static_cast<Tsukino::u8>(toByte(color.y));
-                    texture->pixels[offset + 2] = static_cast<Tsukino::u8>(toByte(color.z));
-                    texture->pixels[offset + 3] = 255;
-                }
-            }
-
-            texture->SetHandle(handle);
-            context.assetManager->RegisterAsset(handle, texture);
-            return context.renderer->GetResources().GetTextureSRV(*texture);
+            return BarkSRVs{toSRV(handles[0]), toSRV(handles[1]), toSRV(handles[2])};
         }
 
         //-------------------------------------------------------------
@@ -206,17 +240,18 @@ namespace CombatAndroid::ECS {
         //! @brief  マテリアル1つ（パイプラインと色のテクスチャ）を今フレームぶん確保する
         //-------------------------------------------------------------
         Tsukino::Renderer::Material& AllocTreeMaterial(Tsukino::EngineIntegration::EngineContext& ctx, Tsukino::Renderer::PipelineState* pipeline,
-                                                       ID3D11ShaderResourceView* albedo) {
+                                                       ID3D11ShaderResourceView* albedo, ID3D11ShaderResourceView* normal = nullptr,
+                                                       ID3D11ShaderResourceView* ao = nullptr) {
             auto& resources = ctx.renderer->GetResources();
 
             Tsukino::Renderer::Material& material = ctx.renderer->GetDrawQueue().AllocMaterial();
             material.SetPipeline(pipeline);
             material.SetSampler(resources.GetSampler(Tsukino::GraphicsCommon::SamplerType::LinearClamp));
             material.SetTexture(Tsukino::Renderer::SRVSlot::Albedo, albedo ? albedo : resources.GetWhiteTextureSRV());
-            material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, resources.GetFlatNormalTextureSRV());
+            material.SetTexture(Tsukino::Renderer::SRVSlot::Normal, normal ? normal : resources.GetFlatNormalTextureSRV());
             material.SetTexture(Tsukino::Renderer::SRVSlot::MetallicRoughness, resources.GetWhiteTextureSRV());
             material.SetTexture(Tsukino::Renderer::SRVSlot::Emissive, resources.GetWhiteTextureSRV());
-            material.SetTexture(Tsukino::Renderer::SRVSlot::AO, resources.GetWhiteTextureSRV());
+            material.SetTexture(Tsukino::Renderer::SRVSlot::AO, ao ? ao : resources.GetWhiteTextureSRV());
             return material;
         }
 
@@ -710,8 +745,8 @@ namespace CombatAndroid::ECS {
             return;
         }
 
-        Tsukino::Renderer::Material& barkMaterial =
-            AllocTreeMaterial(*ctx, pipeline.get(), GetGradientSRV(*ctx, "bark", field->barkBottomColor, field->barkTopColor));
+        const BarkSRVs               bark         = GetBarkSRVs(*ctx, *field);
+        Tsukino::Renderer::Material& barkMaterial = AllocTreeMaterial(*ctx, pipeline.get(), bark.albedo, bark.normal, bark.ao);
         Tsukino::Renderer::Material& leafMaterial = AllocTreeMaterial(*ctx, pipeline.get(), GetLeafAtlasSRV(*ctx, *field, LeafAtlasParams{}.leavesPerTile));
         Tsukino::Renderer::CBufferMaterial& barkData = AllocTreeMaterialData(*ctx, 0.9f);
         Tsukino::Renderer::CBufferMaterial& leafData = AllocTreeMaterialData(*ctx, 0.75f);

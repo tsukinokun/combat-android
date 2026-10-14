@@ -91,4 +91,52 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     std::vector<std::uint8_t> BuildLeafAtlasPixels(const LeafAtlasParams& params);
+
+    //-------------------------------------------------------------
+    //! @struct BarkTextureParams
+    //! @brief  幹に貼る樹皮テクスチャ（色・法線・AOの3枚）の作り方
+    //! @note   幹のUVは「u＝幹の周り（1周で0→1）、v＝木全体の高さの割合（下0→上1）」。
+    //!         テクスチャもこの向きで、横は周り、縦は木の高さ全体に1枚が貼られる
+    //-------------------------------------------------------------
+    struct BarkTextureParams {
+        std::uint32_t seed   = 1;       //!< 模様の乱数の種
+        int           width  = 512;     //!< 横（幹の周り）のピクセル数
+        int           height = 2048;    //!< 縦（木の高さ全体）のピクセル数
+
+        float bottomColor[3] = {0.20f, 0.13f, 0.08f};    //!< 根元の色（高さで上の色へ補間する）
+        float topColor[3]    = {0.34f, 0.25f, 0.16f};    //!< 枝先の色
+
+        int   ridgeCount      = 22;      //!< 幹1周あたりに並ぶ樹皮の板（裂け目に囲まれた塊）の数。多いほど細かい
+        int   plateCount      = 70;      //!< 木の高さ全体で縦に並ぶ板の数（細かい割れはこの倍）
+        float fissureDarkness = 0.75f;   //!< 裂け目の底の暗さ（0で暗くしない、1で真っ黒）
+        float normalStrength  = 2.5f;    //!< 凹凸の強さ（法線マップの傾きの倍率）
+        float aoStrength      = 0.6f;    //!< 裂け目の陰の濃さ（AO。0で陰を付けない）
+
+        float mossColor[3] = {0.16f, 0.24f, 0.07f};    //!< 苔の色
+        float mossHeight   = 0.12f;                    //!< 苔が生える高さ（vの割合。根元からこの辺りまで）
+        float mossAmount   = 0.7f;                     //!< 苔の濃さ（0で苔なし）
+    };
+
+    //-------------------------------------------------------------
+    //! @struct BarkPixels
+    //! @brief  樹皮テクスチャ3枚分のピクセル（どれもRGBA8、width×height×4バイト、先頭がv=0の行）
+    //-------------------------------------------------------------
+    struct BarkPixels {
+        std::vector<std::uint8_t> albedo;    //!< 色
+        std::vector<std::uint8_t> normal;    //!< 法線（タンジェント空間。x=u方向、y=v方向、n*0.5+0.5）
+        std::vector<std::uint8_t> ao;        //!< 陰（R=G=Bに同じ値）
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  樹皮テクスチャのピクセルを作る
+    //! @param  params [in] 作り方
+    //! @return 色・法線・AOの3枚
+    //! @note   「高さ」（0=裂け目の底、1=板の頂）を1枚作り、3枚ともそこから作る。
+    //!         縦長のセル模様（ボロノイ）の境目を裂け目にして、分かれたり合流したりする網目を作り、
+    //!         細かいセルの浅い割れ・木の繊維・剥がれかけた皮の層を重ねる。
+    //!         色は裂け目の奥（暗い赤茶）・板（茶）・褪せた頂（灰色）の3つを混ぜ、根元に苔、
+    //!         板の頂に地衣類の斑点を乗せる。横（u）は0と1がつながるよう、乱数を周期で作る
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    BarkPixels BuildBarkPixels(const BarkTextureParams& params);
 }    // namespace CombatAndroid::ECS
