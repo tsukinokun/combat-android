@@ -721,7 +721,7 @@ namespace CombatAndroid::ECS {
         std::partial_sort(shaking.begin(), shaking.begin() + static_cast<std::ptrdiff_t>(slotCount), shaking.end(),
                           [&](const TreeShake* a, const TreeShake* b) { return shakeSize(a) > shakeSize(b); });
 
-        auto updateSwayBuffer = [&](Tsukino::Renderer::UserConstantBuffer& buffer, float flutterStrength) {
+        auto updateSwayBuffer = [&](Tsukino::Renderer::UserConstantBuffer& buffer, float flutterStrength, float normalMinFacing) {
             if(!buffer.IsValid())
                 buffer = Tsukino::Renderer::CreateUserConstantBuffer(ctx->renderer->GetDevice(), sizeof(CBufferTree));
             if(!buffer.IsValid())
@@ -735,12 +735,14 @@ namespace CombatAndroid::ECS {
                 params.shakeSlots[i] = (i < slotCount) ? hlslpp::float4(shaking[i]->x, shaking[i]->z, shaking[i]->offset.x, shaking[i]->offset.z)
                                                        : hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f);
             }
-            params.shakeParams = hlslpp::float4(static_cast<float>(slotCount), field->shakeFlutterBoost, 0.0f, 0.0f);
+            params.shakeParams = hlslpp::float4(static_cast<float>(slotCount), field->shakeFlutterBoost, normalMinFacing, 0.0f);
             Tsukino::Renderer::UpdateUserConstantBuffer(ctx->renderer->GetContext(), buffer, &params, sizeof(params));
             return true;
         };
-        // 幹は木全体のしなりだけ、葉はさらに細かくそよがせる
-        if(!updateSwayBuffer(m_trunkSwayBuffer, 0.0f) || !updateSwayBuffer(m_leafSwayBuffer, field->leafFlutterStrength)) {
+        // 幹は木全体のしなりだけ、葉はさらに細かくそよがせる。
+        // 法線をカメラへ寄せるのも葉だけ（幹は本物の法線なので触らない。TreeSway.vs.hlsl）
+        const float leafMinFacing = std::clamp(field->leafNormalMinFacing, 0.0f, 0.95f);
+        if(!updateSwayBuffer(m_trunkSwayBuffer, 0.0f, 0.0f) || !updateSwayBuffer(m_leafSwayBuffer, field->leafFlutterStrength, leafMinFacing)) {
             Tsukino::Core::Log::Error("TreeFieldSystem - failed to create the tree sway constant buffer. Trees will not be drawn.");
             m_buildFailed = true;
             return;

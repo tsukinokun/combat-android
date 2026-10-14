@@ -32,6 +32,7 @@
         "swayHeightRef": 450.0,
         "leafFlutterStrength": 2.5,
         "leafFlutterSpeed": 6.0,
+        "leafNormalMinFacing": 0.3,
         "windDirection": { "x": 1.0, "y": 0.0, "z": 0.3 },
         "gustWavelength": 650.0,
         "gustSpeed": 320.0,

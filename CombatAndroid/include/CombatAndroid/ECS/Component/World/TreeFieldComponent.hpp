@@ -63,6 +63,7 @@ namespace CombatAndroid::ECS {
         float          swayHeightRef       = 450.0f;    //!< しなりの強さの基準にする高さ（これより高い所ほど大きく動く）
         float          leafFlutterStrength = 2.5f;      //!< 葉のそよぎの振れ幅
         float          leafFlutterSpeed    = 6.0f;      //!< 葉のそよぎの速さ（ラジアン/秒）
+        float          leafNormalMinFacing = 0.3f;      //!< 葉の法線をカメラへ寄せる下限（N・V）。茂みの縁の葉が空や太陽を映して白く飛ぶのを防ぐ。上げるほど陰影が平たくなる（0で無効）
         hlslpp::float3 windDirection       = hlslpp::float3(1.0f, 0.0f, 0.3f);    //!< 草が無いときの風向き（水平成分だけ使う）
         float          gustWavelength      = 650.0f;    //!< 草が無いときの突風の波長
         float          gustSpeed           = 320.0f;    //!< 草が無いときの突風の速さ

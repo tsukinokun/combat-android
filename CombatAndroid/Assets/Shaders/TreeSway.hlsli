@@ -19,7 +19,7 @@ cbuffer CBufferTree : register(b12)
     float4 swayParams;    // x: 幹のしなりの強さ（基準の高さでの振れ幅）, y: しなりの速さ, z: 葉のそよぎの強さ（0で無し）, w: そよぎの速さ
     float4 gustParams;    // x: 突風の波長, y: 突風の速さ, z: 突風の強さ, w: しなりの基準の高さ
     float4 shakeSlots[8]; // 攻撃で揺れている木ごとに xy: 根元のXZ, zw: しなりのずれのXZ（基準の高さでの量）
-    float4 shakeParams;   // x: 使っているスロット数, y: ずれ1あたりに葉のそよぎを強める量, zw: 予約
+    float4 shakeParams;   // x: 使っているスロット数, y: ずれ1あたりに葉のそよぎを強める量, z: 葉の法線をカメラへ寄せる下限（0で無効。幹は0）, w: 予約
 };
 
 // 攻撃で揺らせる木の数。TreeFieldSystem.hpp の kMaxShakingTrees と一致させること

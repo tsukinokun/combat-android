@@ -55,6 +55,22 @@ VSOutput VSMain(VSInput input)
     output.curClip  = mul(worldPos, viewProj);
     output.position = output.curClip;
     output.normal   = normalize(mul(input.normal, (float3x3)world));    // 揺れは小さいので法線はそのまま使う
+
+    //----------------------------------------------------------
+    // 葉だけ：法線がカメラから背を向けすぎないよう、カメラの方へ寄せる。
+    // 葉の板の法線は茂みの中心から外向きの作り物（ふんわり明るく見せるため）で、板は両面描画。
+    // 茂みの縁では法線がカメラからほぼ背を向け（N・V≒0）、かすめる角度の反射（フレネル）が
+    // ほぼ100%になって太陽や空が映り込み、白く飛んでいた。N・Vを下限まで持ち上げると、
+    // 外向きの陰影はほぼ残したまま映り込みが消え、逆光の太陽もN・L≦0になって乗らなくなる
+    //----------------------------------------------------------
+    const float minFacing = shakeParams.z;
+    if(minFacing > 0.0f)
+    {
+        const float3 toCamera = normalize(cameraPos.xyz - worldPos.xyz);
+        const float  facing   = dot(output.normal, toCamera);
+        if(facing < minFacing)
+            output.normal = normalize(output.normal + toCamera * (minFacing - facing));
+    }
     output.uv       = input.uv;
 
     //----------------------------------------------------------

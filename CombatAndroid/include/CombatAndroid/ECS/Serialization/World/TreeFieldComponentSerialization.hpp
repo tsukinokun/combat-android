@@ -46,6 +46,7 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("swayHeightRef", trees.swayHeightRef),
                 cereal::make_nvp("leafFlutterStrength", trees.leafFlutterStrength),
                 cereal::make_nvp("leafFlutterSpeed", trees.leafFlutterSpeed),
+                cereal::make_nvp("leafNormalMinFacing", trees.leafNormalMinFacing),
                 cereal::make_nvp("windDirection", trees.windDirection),
                 cereal::make_nvp("gustWavelength", trees.gustWavelength),
                 cereal::make_nvp("gustSpeed", trees.gustSpeed),
@@ -108,6 +109,7 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "swayHeightRef", trees.swayHeightRef);
         LoadField(archive, "leafFlutterStrength", trees.leafFlutterStrength);
         LoadField(archive, "leafFlutterSpeed", trees.leafFlutterSpeed);
+        LoadField(archive, "leafNormalMinFacing", trees.leafNormalMinFacing);
         LoadField(archive, "windDirection", trees.windDirection);
         LoadField(archive, "gustWavelength", trees.gustWavelength);
         LoadField(archive, "gustSpeed", trees.gustSpeed);
