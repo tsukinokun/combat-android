@@ -24,6 +24,9 @@
 #include <CombatAndroid/ECS/System/Enemy/EnemyAttackTelegraphSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/PaladinWeaponSwitchSystem.hpp>
 #include <CombatAndroid/ECS/System/Combat/HitStopSystem.hpp>
+#include <CombatAndroid/ECS/System/Combat/SoftTargetSystem.hpp>
+#include <CombatAndroid/ECS/System/Combat/AttackTurnAssistSystem.hpp>
+#include <CombatAndroid/ECS/System/UI/TargetMarkerSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/World/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/Player/PlayerAnimationSystem.hpp>
@@ -130,6 +133,10 @@ namespace CombatAndroid {
         // 地面をプレイヤーへ追従させる。草原と同じく「見た目は無限に続く」を実現するため
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GroundFollowSystem>(), (int)ECS::SystemPriority::GroundFollow);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerAnimationSystem>(), (int)ECS::SystemPriority::Gameplay);
+        // ソフトターゲット（自動で狙う敵）の選択と、攻撃時のターゲットへの振り向き。
+        // 選ぶのはGameplayの前、回すのは段に入るPlayerAnimationSystemの直後（SystemPriority参照）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SoftTargetSystem>(), (int)ECS::SystemPriority::SoftTarget);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::AttackTurnAssistSystem>(), (int)ECS::SystemPriority::AttackTurnAssist);
         // EnemyAnimationSystemが書いたAnimationControllerComponent::nextを同フレームでAnimationSystemが
         // 消費するため、PlayerAnimationSystemと同じくAnimationSystemより前に登録する
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyAnimationSystem>(), (int)ECS::SystemPriority::Gameplay);
@@ -230,6 +237,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EliteIndicatorSystem>(), (int)ECS::SystemPriority::EliteIndicator);
         // 画面外の拾得アイテム（落ちている武器）へ向く矢印
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PickupIndicatorSystem>(), (int)ECS::SystemPriority::PickupIndicator);
+        // ソフトターゲットの敵を四隅のカギ括弧で囲む（振り向きが効く範囲なら濃く）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TargetMarkerSystem>(), (int)ECS::SystemPriority::TargetMarker);
         // UIの動き（UiMotion.hppの出現・消える・弾む・呼吸）。メニュー中もUnscaledTimeContextの実時間で動く
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::UITweenSystem>(), (int)ECS::SystemPriority::UITween);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)ECS::SystemPriority::TransformUI);

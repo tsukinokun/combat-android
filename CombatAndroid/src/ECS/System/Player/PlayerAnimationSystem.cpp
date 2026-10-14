@@ -16,6 +16,7 @@
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/SoftTarget.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -103,6 +104,14 @@ namespace CombatAndroid::ECS {
             return [stepIndex, armAttack](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 auto&       animSet = registry.GetComponent<PlayerAnimationSetComponent>(entity);
                 const auto& step    = animSet.attackSteps[stepIndex];
+
+                //-------------------------------------------------------------
+                // ソフトターゲットへの振り向き。連撃の各段・回避後の攻撃・溜めの構え（armAttack=false）・
+                // 溜めの解放（Charge→Attack1）は、どれもこのコールバックを通る。
+                // 振り向きが効く範囲にターゲットがいるときだけ要求され、AttackTurnAssistSystemが
+                // このフレームのうちに回し始める（当たり判定を出すCombatSystemより前）
+                //-------------------------------------------------------------
+                RequestAttackTurnAssist(registry, entity);
 
                 //-------------------------------------------------------------
                 // 再生するクリップは既定でプレイヤー側のstep（Hammer Attack.fbx）を使う。

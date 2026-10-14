@@ -1,0 +1,12 @@
+{
+    "SoftTarget": {
+        "selectRange": 600.0,
+        "assistRange": 300.0,
+        "assistAngleDeg": 60.0,
+        "angleWeight": 1.0,
+        "distanceWeight": 0.6,
+        "stickiness": 0.7,
+        "switchCooldown": 0.15,
+        "turnDuration": 0.06
+    }
+}

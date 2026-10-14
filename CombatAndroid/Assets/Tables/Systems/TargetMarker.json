@@ -1,0 +1,17 @@
+{
+    "TargetMarker": {
+        "candidateColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 0.5 },
+        "readyColor": { "x": 1.0, "y": 0.72, "z": 0.25, "w": 0.95 },
+        "candidateThickness": 2.0,
+        "readyThickness": 3.5,
+        "cornerRatio": 0.22,
+        "cornerMin": 8.0,
+        "cornerMax": 40.0,
+        "widthRatio": 0.65,
+        "padding": 0.1,
+        "minBoxSize": 28.0,
+        "acquireScale": 1.6,
+        "acquireDuration": 0.15,
+        "readyBlendSpeed": 14.0
+    }
+}

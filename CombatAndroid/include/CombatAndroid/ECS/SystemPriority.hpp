@@ -44,7 +44,13 @@ namespace CombatAndroid::ECS {
                           // Physicsが担うため、ここで書いたTransformをその同じフレームのPhysicsが
                           // 読めるよう、必ずPhysicsより前に置くこと（後ろだと1フレーム遅れて
                           // 地面が追いついてくる）。それ以外の処理とは依存関係が無い
+        SoftTarget,       // ソフトターゲット（自動で狙う敵）を選ぶ。プレイヤーの位置と移動入力の向き（Movementで確定）を
+                          // 使うのでその後に置き、攻撃の段に入るPlayerAnimationSystem（Gameplay）が今フレームの
+                          // ターゲットで振り向きを要求できるよう、Gameplayより前に置く
         Gameplay,         // ダメージ処理・アニメーション更新は移動確定後に行う
+        AttackTurnAssist, // 攻撃時のターゲットへの振り向きをrotationへ反映する。振り向きを要求するPlayerAnimationSystem
+                          // （Gameplay）の直後に置き、段に入ったフレームのうちに回し始める。武器の当たり判定を出す
+                          // CombatSystem（WeaponAttach）より前なので、振り始めと同時に出る判定も振り向いた向きで出る
         WeaponGripDebug,  // （デバッグビルドのみ）握り位置調整はisAttackingを上書きするため、
                           // PlayerAnimationSystem（Gameplay）が今フレームのisAttackingを確定させた後、
                           // CombatSystem（WeaponAttach）がそれを読む前に割り込む
@@ -93,6 +99,8 @@ namespace CombatAndroid::ECS {
         EliteIndicator,   // 画面外のエリートへ向く矢印。WorldAnchorと同じくカメラ行列が要るのでCameraの後、
                           // 書いた位置・回転がworldMatrixへ焼き込まれる前という同じ制約でTransformUIの前に置く
         PickupIndicator,  // 画面外の拾得アイテムへ向く矢印。EliteIndicatorと同じ制約・同じ並びでよい
+        TargetMarker,     // ソフトターゲットの敵を囲む四隅のカギ括弧。敵の体を今フレームのカメラ行列で画面へ写すので
+                          // Cameraの後、書いた位置がworldMatrixへ焼き込まれるTransformUIの前（EliteIndicatorと同じ制約）
         UITween,          // UIの動き（エンジンのUITweenSystem。出現・消える・弾む・呼吸）を見た目のずれと透明度へ反映する。
                           // トゥイーンを始めるUIのシステム（メニュー・HUD・チュートリアル等）はどれもこれより前にあるので、
                           // 始めたフレームから動く。見た目のずれはTransformSystemがworldMatrixを作るときに重ねるため、

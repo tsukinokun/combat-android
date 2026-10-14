@@ -76,7 +76,8 @@ namespace CombatAndroid::ECS {
             // 死亡中は入力を一切読み取らない（PlayerAnimationSystemがDeathへ強制遷移させる）
             //-------------------------------------------------------------
             if(health.isDead) {
-                cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                cc.moveInput             = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                player.aimInputDirection = hlslpp::float3(0.0f, 0.0f, 0.0f);
                 return;
             }
 
@@ -142,6 +143,8 @@ namespace CombatAndroid::ECS {
                 moveDir = moveDir - cameraRight;
 
             float len = hlslpp::length(moveDir);
+            // 入力の向きはcc.moveInputと違い攻撃中も残す（ソフトターゲットの基準の向きに使う）
+            player.aimInputDirection = (len > 0.001f) ? moveDir / len : hlslpp::float3(0.0f, 0.0f, 0.0f);
             if(len > 0.001f) {
                 moveDir = moveDir / len;
 

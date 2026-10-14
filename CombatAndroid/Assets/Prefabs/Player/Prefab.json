@@ -21,6 +21,10 @@
             "value": "null"
         },
         {
+            "key": "SoftTargetComponent",
+            "value": "null"
+        },
+        {
             "key": "AnimationPlayerComponent",
             "value": "CombatAndroid/Assets/Prefabs/Player/AnimationPlayerComponent.json"
         },

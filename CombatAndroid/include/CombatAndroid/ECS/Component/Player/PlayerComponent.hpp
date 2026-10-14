@@ -5,6 +5,9 @@
 //-------------------------------------------------------------
 #pragma once
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
+
+#include <hlsl++.h>
+
 #include <vector>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -82,6 +85,11 @@ namespace CombatAndroid::ECS {
         // 溜め継続／解放の判定に使う（attackInputPressedは「押した瞬間」だけを表す別物）
         //-------------------------------------------------------------
         bool attackInputHeld = false;
+
+        //! 移動入力の向き（カメラ基準・水平・正規化済み。入力が無ければ0）。PlayerSystemが毎フレーム書く。
+        //! 攻撃中はcc.moveInputが0に潰されるが、こちらは潰さずに残すので、ソフトターゲット
+        //! （SoftTargetSystem）が「攻撃中に入れている方向」を読める
+        hlslpp::float3 aimInputDirection = hlslpp::float3(0.0f, 0.0f, 0.0f);
 
         bool isCharging = false;    //!< 溜め攻撃中か。PlayerAnimationSystemが毎フレーム確定させ、PlayerSystemが向き直り・武器切り替え抑制に参照する
     };
