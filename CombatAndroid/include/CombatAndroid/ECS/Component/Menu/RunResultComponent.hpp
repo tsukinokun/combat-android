@@ -18,7 +18,7 @@ namespace CombatAndroid::ECS {
     enum class RunOutcome {
         None,       //!< まだ走行中
         Dead,       //!< プレイヤーが死亡した
-        Cleared,    //!< 規定時間（kRunClearSeconds）を生き延びた
+        Cleared,    //!< ラスボスを倒した
     };
 
     //! リザルトに並べる成績の行数（生存時間・撃破数・到達レベル・危険度）

@@ -36,7 +36,7 @@ namespace CombatAndroid::ECS {
         float chanceAtFirstRank       = 0.0f;     //!< 出始めの確率
         float chancePerRank           = 0.0f;     //!< 危険度1ごとに増える確率
         float chanceMax               = 0.0f;     //!< 確率の上限
-        float finalStretchChanceScale = 1.0f;     //!< ラスト1分の倍率
+        float finalStretchChanceScale = 1.0f;     //!< ボス戦中の倍率
 
         float sizeScale      = 1.0f;    //!< 見た目・体の当たり・攻撃範囲
         float healthScale    = 1.0f;    //!< 体力
@@ -70,7 +70,7 @@ namespace CombatAndroid::ECS {
     //! @brief  今回湧かせる1体をエリートにするかを抽選する
     //! @param  rng            [in,out] 乱数生成器
     //! @param  dangerRank     [in]     現在の危険度
-    //! @param  isFinalStretch [in]     ラスト1分か
+    //! @param  isFinalStretch [in]     ボス戦中か
     //! @param  liveEliteCount [in]     今生きているエリートの数
     //! @return エリートにするならtrue
     //-------------------------------------------------------------

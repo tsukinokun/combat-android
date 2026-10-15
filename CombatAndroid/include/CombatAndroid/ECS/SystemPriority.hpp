@@ -9,19 +9,24 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     enum class SystemPriority : int {
-        PointerInput = -6,            // マウスの重なり・クリックをPointerTargetComponentへ書く（エンジンのInteractionSystem）。
+        PointerInput = -7,            // マウスの重なり・クリックをPointerTargetComponentへ書く（エンジンのInteractionSystem）。
                                       // メニュー（SkillSelect/PauseMenu/TitleMenu/RunResult）が同じフレームで結果を読むため、
                                       // それらより前に置く。さらにUIを動かす処理・TransformSystemより前なので、
                                       // 判定は前フレームに描いた＝画面に見えている配置で行われる
-        RunClock = -5,              // 走行の経過時間と危険度ランクを進める。全システムの先頭に置く。
+        RunClock = -6,              // 走行の経過時間と危険度ランクを進める。全システムの先頭に置く。
                                       // EnemySpawnが同じフレームでこの危険度を読んで敵を強化し、
                                       // PlayerHudが同じ値を表示するため、ここが最初に進んでいないと
                                       // 「画面に出ている危険度」と「実際に湧いた敵の危険度」が1フレームずれる
-        EnemySpawn = -4,               // サバイバーの湧き潰し（フォグの外から比重抽選で敵を湧かせる）。
+        EnemySpawn = -5,               // サバイバーの湧き潰し（フォグの外から比重抽選で敵を湧かせる）。
                                       // 生成・破棄はStressTestと同じく全システムの先頭で済ませ、その回の
                                       // フレームからTransform/Animation/Physicsが新しい敵を正しく扱えるように
                                       // する。StressTestより手前に置くのは、F1で負荷試験が数を作り直す前に
                                       // 本Systemの生存数の数え上げを終わらせておくため
+        BossDirector = -4,            // 中ボス・ラスボスの出現と撃破の見届け（走行の山場の進行）。走行の時計（RunClock）を読んで
+                                      // ボスを湧かせるのでその後に置き、湧いたボスをその回のフレームから
+                                      // Transform/Animation/Physicsが扱えるよう、EnemySpawnと同じく先頭側で生成を済ませる。
+                                      // ボスのisDead（CombatSystem、WeaponAttach）は前フレームの値を読むことになるが、
+                                      // 撃破後は倒れる演出の分だけ待つので1フレームの遅れは見えない
         StressTest = -3,              // （負荷試験ビルドのみ）敵の大量スポーン。生成・破棄を
                                       // 全システムの先頭で済ませることで、その回のフレームから
                                       // Transform/Animation/Physicsが新しい敵を正しく扱える
@@ -135,6 +140,8 @@ namespace CombatAndroid::ECS {
                  // 条件は引き続き必須（FontRendererSystemはworldMatrix[3]から描画位置を読む）
         Audio,
         Physics,    // コリジョンの更新は最後に行う
+        NightTransition,    // ボス戦の夜への切り替え。太陽・空・霧のコンポーネントと球形の色調補正の値を書くので、
+                            // それらをRendererへ渡すLight / SkyAtmosphere / Fog / SphereColorGradeより前に置く
         Light,      // ディレクショナル/点光源/スポットをまとめてRendererへ渡す。
                     // worldMatrixから位置を取るのでTransform系より後である必要がある
         SkyAtmosphere,
@@ -143,6 +150,8 @@ namespace CombatAndroid::ECS {
                         // 転送する前（Fogより前）である必要がある。それ以外の依存は無い
         Fog,    // フォグはカメラ位置・太陽方向に加え、FogFollowが書いたプレイヤー位置
                 // （距離フォグの基準点）を使うため、Camera / Light / FogFollowより後に置く
+        SphereColorGrade,    // 球形の色調補正のパラメータをRendererへ転送する（エンジンのSphereColorGradeSystem）。
+                             // 値を書くNightTransitionより後に置く。描画の設定を流すだけなのでFogと並べておく
         AmbientParticle,    // 環境パーティクル。カメラ位置も行列も頂点シェーダーがb0から直接読むため
                             // 実質どこに置いてもよいが、同じ大気の演出であるSkyAtmosphere / Fogと並べておく
         GrassField,         // 地面の草。カメラ位置は頂点シェーダーがb0から読むが、かき分け用の

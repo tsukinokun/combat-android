@@ -25,7 +25,7 @@ namespace CombatAndroid::ECS {
         WeaponLevelUp,     //!< 武器のレベルが上がった
         LevelUp,           //!< プレイヤーのレベルが上がった
         SkillPick,         //!< スキルを取得した
-        DangerUp,          //!< 危険度が上がった／ラスト1分に入った
+        DangerUp,          //!< 危険度が上がった／ボスが出た
         MenuMove,          //!< メニューのカーソルを動かした
         MenuConfirm,       //!< メニューで決定した
         RunClear,          //!< クリアした

@@ -41,6 +41,8 @@ System の `.cpp` の無名 namespace にある調整値は、ここへ出す。
 - 戦闘・演出：`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop` `EnemyAttackTelegraph` `EnemyAttackArea`
   `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound` `HitImpactEffect` `EliteIndicator`
   `PickupIndicator`
+- 進行：`BossDirector`（中ボス・ラスボスの出る時間と中身・出現のカットシーン・告知）、
+  `NightTransition`（ボス戦の夜。球の広がる速さ・夜の色合い・夜の太陽／空／霧）
 
 出していない System（`EnemyStressTest` `WeaponGripDebug` `GrassField` `TpsCamera` `Projectile` `EnemySpawnDirector`）は、
 デバッグ専用か、残っているのが下の「残す」ものだけか、調整値を既に Prefab 側に持っているもの。
@@ -102,7 +104,7 @@ JSON の書式の補足：
   ただし傲慢を引けない周回もあるので、相殺は控えめ（危険度10で 1.64→1.85）に留めてある
 - **EnemySpawn**：比重は相対値（合計を100に揃える必要はない）。比重0の敵は抽選に出ないが表には残せる。
   BigZombie は序盤30秒は出さない。Paladin は報酬が大きいので比重5（おおよそ20体に1体）で、序盤60秒は出さない
-- **Elite**：危険度2から出始め、1段ごとに+1%（上限10%）。湧き間隔が中盤で約1秒なので、5%でおよそ1分に3体。ラスト1分は率1.5倍
+- **Elite**：危険度2から出始め、1段ごとに+1%（上限10%）。湧き間隔が中盤で約1秒なので、5%でおよそ1分に3体。ボス戦中は率1.5倍
 - **Skills / 傲慢**：刻みを先細りにしているのは、被ダメージ軽減が実効HPに対して非線形なため（-30%は1.43倍、-50%なら2.0倍）
 - **Skills / 怠惰**：唯一の「諸刃」スキル。回復量は等間隔、攻撃力ペナルティ（`value2`）の伸びは先細りにしてあり、伸ばしきる方が報われる
 - **WeaponEvolution**：ウォーハンマー×憤怒は衝撃波を広げて吹き飛ばす、グレートソード×傲慢は刃を長く太く、

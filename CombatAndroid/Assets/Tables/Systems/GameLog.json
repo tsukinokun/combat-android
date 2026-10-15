@@ -7,7 +7,9 @@
             "SkillAcquired": { "x": 0.75, "y": 0.55, "z": 1.0, "w": 1.0 },
             "DangerRankUp": { "x": 0.95, "y": 0.30, "z": 0.30, "w": 1.0 },
             "WeaponEvolved": { "x": 1.0, "y": 0.92, "z": 0.55, "w": 1.0 },
-            "EliteAppeared": { "x": 0.85, "y": 0.35, "z": 1.0, "w": 1.0 }
+            "EliteAppeared": { "x": 0.85, "y": 0.35, "z": 1.0, "w": 1.0 },
+            "BossAppeared": { "x": 0.45, "y": 0.55, "z": 1.0, "w": 1.0 },
+            "BossDefeated": { "x": 1.0, "y": 0.88, "z": 0.35, "w": 1.0 }
         },
         "panelWidth": 380.0,
         "panelHeight": 68.0,

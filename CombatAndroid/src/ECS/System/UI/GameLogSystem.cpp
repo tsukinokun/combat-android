@@ -51,11 +51,13 @@ namespace CombatAndroid::ECS {
             L"危険度上昇",
             L"武器進化",
             L"エリート出現",
+            L"ボス出現",
+            L"ボス撃破",
         };
 
         //! JSONで種別の色を引くときのキー。並びはkGameLogLabelsと同じ
         const char* const kGameLogCategoryKeys[] = {
-            "WeaponAcquired", "WeaponLevelUp", "PlayerLevelUp", "SkillAcquired", "DangerRankUp", "WeaponEvolved", "EliteAppeared",
+            "WeaponAcquired", "WeaponLevelUp", "PlayerLevelUp", "SkillAcquired", "DangerRankUp", "WeaponEvolved", "EliteAppeared", "BossAppeared", "BossDefeated",
         };
 
         // 種別を足したのに表へ書き忘れる事故を防ぐ
@@ -78,6 +80,8 @@ namespace CombatAndroid::ECS {
                 hlslpp::float4(0.95f, 0.30f, 0.30f, 1.0f),    // 危険度上昇：赤
                 hlslpp::float4(1.00f, 0.92f, 0.55f, 1.0f),    // 武器進化：明るい金
                 hlslpp::float4(0.85f, 0.35f, 1.00f, 1.0f),    // エリート出現：紫（エリートの発光色）
+                hlslpp::float4(0.45f, 0.55f, 1.00f, 1.0f),    // ボス出現：夜の青
+                hlslpp::float4(1.00f, 0.88f, 0.35f, 1.0f),    // ボス撃破：金
             };
 
             //-------------------------------------------------------------

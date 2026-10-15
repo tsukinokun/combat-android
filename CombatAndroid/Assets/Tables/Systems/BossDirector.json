@@ -1,0 +1,70 @@
+{
+    "BossDirector": {
+        "midBossSeconds": 180.0,
+        "finalBossDelaySeconds": 120.0,
+        "defeatDelaySeconds": 2.0,
+        "spawnDistance": 900.0,
+        "detectRange": 100000.0,
+        "midBoss": {
+            "baseType": "BigZombie",
+            "displayName": "巨躯の屍",
+            "sizeScale": 1.8,
+            "healthScale": 25.0,
+            "attackScale": 1.5,
+            "moveSpeedScale": 1.0,
+            "expScale": 10.0
+        },
+        "finalBoss": {
+            "baseType": "Paladin",
+            "displayName": "夜の聖騎士",
+            "sizeScale": 2.2,
+            "healthScale": 60.0,
+            "attackScale": 2.0,
+            "moveSpeedScale": 1.0,
+            "expScale": 30.0
+        },
+        "revealShot": {
+            "distance": 900.0,
+            "height": 120.0,
+            "lookHeight": 250.0,
+            "pitch": 0.12,
+            "fov": 55.0,
+            "duration": 2.0,
+            "blendFrequency": 0.8,
+            "yawOffset": 0.0,
+            "yawDriftSpeed": 0.0
+        },
+        "closeShot": {
+            "distance": 420.0,
+            "height": 60.0,
+            "lookHeight": 260.0,
+            "pitch": -0.05,
+            "fov": 50.0,
+            "duration": 1.6,
+            "blendFrequency": 1.2,
+            "yawOffset": 0.5,
+            "yawDriftSpeed": 0.0
+        },
+        "returnShot": {
+            "distance": 420.0,
+            "height": 150.0,
+            "lookHeight": 210.0,
+            "pitch": 0.22,
+            "fov": 60.0,
+            "duration": 1.0,
+            "blendFrequency": 1.4,
+            "yawOffset": 3.14159,
+            "yawDriftSpeed": 0.0
+        },
+        "announceSeconds": 3.2,
+        "announceOffsetY": -60.0,
+        "subtitleGapY": 70.0,
+        "bandTailX": 520.0,
+        "bandHeight": 170.0,
+        "bandRollDegrees": -3.0,
+        "midBandColor": { "x": 0.08, "y": 0.10, "z": 0.28, "w": 0.88 },
+        "finalBandColor": { "x": 0.30, "y": 0.04, "z": 0.10, "w": 0.88 },
+        "titleColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "subtitleColor": { "x": 0.80, "y": 0.85, "z": 1.0, "w": 1.0 }
+    }
+}

@@ -43,6 +43,8 @@
 #include <CombatAndroid/ECS/System/UI/TutorialSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/RunClockSystem.hpp>
+#include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
+#include <CombatAndroid/ECS/System/World/NightTransitionSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/PlayerDamageEffectSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/PauseMenuSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/RunResultSystem.hpp>
@@ -83,6 +85,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/SphereColorGradeSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/InteractionSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/AmbientParticleSystem.hpp>
 #include <CombatAndroid/ECS/System/World/GrassFieldSystem.hpp>
@@ -120,6 +123,8 @@ namespace CombatAndroid {
         // 走行の経過時間と危険度ランクは、それらを読む湧き潰しより先に進めておく
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::RunClockSystem>(), (int)ECS::SystemPriority::RunClock);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySpawnDirectorSystem>(), (int)ECS::SystemPriority::EnemySpawn);
+        // 中ボス・ラスボスの出現と撃破の見届け。走行の時計を読むのでRunClockの後
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::BossDirectorSystem>(), (int)ECS::SystemPriority::BossDirector);
 #ifdef TSUKINO_ENABLE_STRESS_TEST
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyStressTestSystem>(), (int)ECS::SystemPriority::StressTest);
 #endif
@@ -303,11 +308,14 @@ namespace CombatAndroid {
             m_scene.AddSystem(physicsSystem, (int)ECS::SystemPriority::Physics);
             context->physicsSystem = physicsSystem.get();
         }
+        // ボス戦の夜への切り替え（太陽・空・霧と球形の色調補正の値を書く）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::NightTransitionSystem>(), (int)ECS::SystemPriority::NightTransition);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::LightSystem>(), (int)ECS::SystemPriority::Light);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SkyAtmosphereSystem>(), (int)ECS::SystemPriority::SkyAtmosphere);
         // フォグの距離基準点をプレイヤー位置へ書き込む（TPSカメラの旋回でフォグの入り方が変わらないように）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::FogFollowSystem>(), (int)ECS::SystemPriority::FogFollow);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::FogSystem>(), (int)ECS::SystemPriority::Fog);
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SphereColorGradeSystem>(), (int)ECS::SystemPriority::SphereColorGrade);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::AmbientParticleSystem>(), (int)ECS::SystemPriority::AmbientParticle);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::GrassFieldSystem>(), (int)ECS::SystemPriority::GrassField);
         // プログラム生成の木（描画と、プレイヤーの近くの幹の当たり判定）

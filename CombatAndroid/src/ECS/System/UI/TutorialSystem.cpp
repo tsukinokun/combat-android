@@ -51,7 +51,7 @@ namespace CombatAndroid::ECS {
             {L"Space で回避（転がっている間は無敵）", L"SPACE", false, false},
             {L"落ちている武器に近づくと拾える", nullptr, false, false},
             {L"マウスホイールで武器を切り替える", nullptr, true, false},
-            {L"迫りくる群れの中で、10分間生き延びろ！", nullptr, false, false},
+            {L"群れを生き延び、夜に現れるボスを倒せ！", nullptr, false, false},
         };
         static_assert(std::size(kStepDefs) == static_cast<size_t>(TutorialStep::Count), "kStepDefsはTutorialStepの並びと揃えること");
 

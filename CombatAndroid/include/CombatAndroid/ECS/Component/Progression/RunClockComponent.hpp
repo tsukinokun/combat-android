@@ -28,11 +28,5 @@ namespace CombatAndroid::ECS {
     //! 残り時間の割合を演出の強さとして読むため、両者が同じ値を見る必要がある
     inline constexpr float kRankUpFlashDuration = 1.6f;
 
-    //! この秒数を生き延びたらクリア（RunResultSystemが判定する）。
-    //! 危険度テーブルの最終段（危険度10＝540秒）から1分を戦い抜いたところで区切る
-    inline constexpr float kRunClearSeconds = 600.0f;
-
-    //! クリアまでの残りがこの秒数を切ったら「ラスト1分」として湧きを強める
-    //!（EnemySpawnDirectorSystem）。RunClockSystemが切り替わる瞬間に取得ログを出す
-    inline constexpr float kRunFinalStretchSeconds = 60.0f;
+    // 時間切れで走行は終わらない。クリアはラスボスの撃破（BossDirectorSystem → RunResultSystem）
 }    // namespace CombatAndroid::ECS

@@ -12,6 +12,7 @@
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/Menu/RunResultComponent.hpp>
+#include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/Save/RunRecord.hpp>
@@ -345,9 +346,9 @@ namespace CombatAndroid::ECS {
 
                 if(health.isDead) {
                     result.outcome = RunOutcome::Dead;
-                } else if(clock.elapsedSeconds >= kRunClearSeconds) {
-                    result.outcome       = RunOutcome::Cleared;
-                    clock.elapsedSeconds = kRunClearSeconds;    // 越えた端数はHUDにもリザルトにも出さない
+                } else if(IsFinalBossDefeated(registry)) {
+                    // クリアはラスボスの撃破で決まる（BossDirectorSystemが倒れる演出の分だけ待ってから立てる）
+                    result.outcome = RunOutcome::Cleared;
 
                     // ここから世界を止める（IsRunResultFreezing）。止めた後に残った攻撃判定で
                     // 倒されないよう無敵にし、ヒットストップと移動入力も片付ける

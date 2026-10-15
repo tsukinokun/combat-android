@@ -40,20 +40,22 @@ namespace CombatAndroid::ECS {
             // 死んでいる間は止める。これは元々PlayerHudSystemが生存時間に
             // 掛けていた条件で、GAME OVER後にタイマーだけ進み続けないようにするもの。
             // deltaTimeはシーンがスキル選択中に0を渡してくるため、メニュー表示中も
-            // 自動的に止まる（CombatAndroidSceneのscaledDeltaTime）
+            // 自動的に止まる（CombatAndroidSceneのscaledDeltaTime）。
+            // 上限は無い（クリアは時間ではなくラスボスの撃破で決まる）
             //-------------------------------------------------------------
-            const float previousSeconds = clock.elapsedSeconds;
             if(!health.isDead)
-                clock.elapsedSeconds = std::min(clock.elapsedSeconds + deltaTime, kRunClearSeconds);    // クリアの瞬間で止める
+                clock.elapsedSeconds += deltaTime;
 
 #ifdef _DEBUG
             //-------------------------------------------------------------
             // F12：1分ぶん早送りする。危険度の確認を実時間で待たずに済ませるための
             // デバッグ操作。F1〜F4は負荷試験、F5はエンジンのDebugCameraSystem、
-            // F6〜F11はグリップ調整が使っているためF12を充てている
+            // F6〜F11はグリップ調整が使っているためF12を充てている。
+            // Shift+F12はボスを倒す操作（BossDirectorSystem）なので早送りしない
             //-------------------------------------------------------------
             if(auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>()) {
-                if(ctx->inputSystem && ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F12))
+                if(ctx->inputSystem && ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F12)
+                   && !ctx->inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Shift))
                     clock.elapsedSeconds += GetDangerRankIntervalSeconds();
             }
 #endif
@@ -62,20 +64,10 @@ namespace CombatAndroid::ECS {
                 clock.rankUpFlashTimer -= deltaTime;
 
             //-------------------------------------------------------------
-            // ラスト1分に入った瞬間を知らせる。ここから湧きが強まる（EnemySpawnDirectorSystem）ので、
-            // 危険度の上昇と同じ行で「山場に入った」ことを伝える
-            //-------------------------------------------------------------
-            const float finalStretchStart = kRunClearSeconds - kRunFinalStretchSeconds;
-            if(previousSeconds < finalStretchStart && clock.elapsedSeconds >= finalStretchStart && eventBus)
-                eventBus->Publish(GameLogEvent{GameLogCategory::DangerRankUp, L"ラスト1分"});
-
-            //-------------------------------------------------------------
             // ランクの更新。下がることは無いので上がった時だけ演出と通知を出す
             // （F12で複数段飛んだ場合も、行は最新のランク1本だけ出る）
             //-------------------------------------------------------------
-            // クリアの瞬間（kRunClearSeconds）は危険度テーブル上ちょうど次の段の始まりに当たるが、
-            // その段で戦うことは無いので上げない（リザルトに「危険度11」と出さないため）
-            const int newRank = GetDangerRank(std::min(clock.elapsedSeconds, kRunClearSeconds - 0.001f));
+            const int newRank = GetDangerRank(clock.elapsedSeconds);
             if(newRank > clock.dangerRank) {
                 clock.dangerRank       = newRank;
                 clock.rankUpFlashTimer = kRankUpFlashDuration;

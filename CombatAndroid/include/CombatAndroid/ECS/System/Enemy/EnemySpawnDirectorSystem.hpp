@@ -197,7 +197,7 @@ namespace CombatAndroid::ECS {
         //! kIntervalStart から kIntervalEnd まで線形に詰めきるのにかける時間（秒）
         static constexpr float kIntervalRampSeconds = 300.0f;
 
-        //! クリア前のラスト1分（kRunFinalStretchSeconds）に湧き間隔へ掛ける倍率。
+        //! ボス戦の間（IsBossBattleActive）に湧き間隔へ掛ける倍率。
         //! 0.6秒 → 0.36秒で、湧く速さはおよそ1.7倍になる。同時に居られる数の上限（kMaxLiveEnemies）は変えない
         static constexpr float kFinalStretchIntervalScale = 0.6f;
 

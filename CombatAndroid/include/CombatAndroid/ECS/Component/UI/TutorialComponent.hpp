@@ -22,7 +22,7 @@ namespace CombatAndroid::ECS {
         Dodge,          //!< Spaceで回避
         Pickup,         //!< Fで武器を拾う
         Switch,         //!< ホイールで武器を切り替える（2本以上持っていないときは飛ばす）
-        Goal,           //!< 目標（10分生き延びろ）を出して終わる
+        Goal,           //!< 目標（生き延びてボスを倒せ）を出して終わる
         Count,
     };
 

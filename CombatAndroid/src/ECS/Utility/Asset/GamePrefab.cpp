@@ -56,6 +56,8 @@
 #include <Tsukino/BuiltIn/ECS/Component/SkeletonOutputComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SpringBoneComponent.hpp>
 
+#include <CombatAndroid/ECS/System/World/NightTransitionSystem.hpp>
+
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Engine/ECS/Prefab/PrefabFactory.hpp>
 
@@ -96,6 +98,14 @@ namespace CombatAndroid::ECS {
         (void)context.prefabFactory->Instantiate(sceneRoot + "Particles/Prefab.json", registry);
         (void)context.prefabFactory->Instantiate(sceneRoot + "Grass/Prefab.json", registry);
         (void)context.prefabFactory->Instantiate(sceneRoot + "Trees/Prefab.json", registry);
+
+        //-------------------------------------------------------------
+        // 環境光（空から焼いたIBL）を焼き直させる。Rendererはシーンをまたいで1つで、IBLは
+        // 頼まれない限り起動時の1回しか焼かない。ボス戦の夜（NightTransitionSystem）は暗い空で
+        // 焼き直すので、夜のまま走行が終わると次のシーン（リトライ・タイトル）が夜の環境光のまま
+        // 始まり、影が濃くなっていた。焼くのは最初のフレームの描画で、その時点の空（このシーンの昼）が使われる
+        //-------------------------------------------------------------
+        RequestAmbientRecapture(context);
     }
 
     //-------------------------------------------------------------

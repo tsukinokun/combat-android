@@ -4,6 +4,7 @@
 //! @author  山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/Enemy/EnemySpawnDirectorSystem.hpp>
+#include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
 
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
@@ -98,8 +99,8 @@ namespace CombatAndroid::ECS {
         const float rampT = std::clamp(elapsedSeconds / kIntervalRampSeconds, 0.0f, 1.0f);
         m_spawnTimer       = kIntervalStart + (kIntervalEnd - kIntervalStart) * rampT;
 
-        // クリア前のラスト1分は、詰めきった間隔をさらに縮めて山場にする
-        if(elapsedSeconds >= kRunClearSeconds - kRunFinalStretchSeconds)
+        // ボス戦の間は、詰めきった間隔をさらに縮めて山場にする（ボスの周りに雑魚を絶やさない）
+        if(IsBossBattleActive(registry))
             m_spawnTimer *= kFinalStretchIntervalScale;
 
         //---------------------------------------------------------
@@ -168,7 +169,7 @@ namespace CombatAndroid::ECS {
         // エリート（強化個体）の抽選。危険度の補正の上から掛けるので、
         // 後半のエリートほど硬く強くなる
         //-----------------------------------------------------
-        const bool isFinalStretch = elapsedSeconds >= kRunClearSeconds - kRunFinalStretchSeconds;
+        const bool isFinalStretch = IsBossBattleActive(registry);
         const bool isElite        = RollElite(m_rng, dangerRank, isFinalStretch, CountLiveElites(registry));
         if(isElite)
             ApplyEliteModifiers(config);

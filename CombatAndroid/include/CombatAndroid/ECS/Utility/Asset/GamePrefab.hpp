@@ -54,7 +54,8 @@ namespace CombatAndroid::ECS {
     //! @param  registry  [in,out] ECSレジストリ
     //! @param  context   [in]     エンジンコンテキスト
     //! @param  sceneName [in]     "Combat" または "Title"（Assets/Prefabs/Environment/<sceneName>/ を読む）
-    //! @note   空だけは両シーン共通（Assets/Prefabs/Environment/Sky）
+    //! @note   空だけは両シーン共通（Assets/Prefabs/Environment/Sky）。
+    //!         併せて環境光（IBL）の焼き直しを頼む（前のシーンの空、例えばボス戦の夜で焼いたものを持ち越さないため）
     //-------------------------------------------------------------
     void InstantiateEnvironment(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, const char* sceneName);
 

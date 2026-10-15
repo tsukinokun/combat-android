@@ -23,6 +23,8 @@ namespace CombatAndroid::ECS {
         DangerRankUp,          //!< 危険度ランクの上昇（時間経過で敵が強くなった）
         WeaponEvolved,         //!< 武器の進化（最大レベル＋対応スキル）
         EliteAppeared,         //!< エリート敵の出現
+        BossAppeared,          //!< ボス（中ボス・ラスボス）の出現
+        BossDefeated,          //!< ボスの撃破
         Count,
     };
 

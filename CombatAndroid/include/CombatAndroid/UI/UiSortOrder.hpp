@@ -59,6 +59,10 @@ namespace CombatAndroid::UI {
     //! 全画面演出
     constexpr int kScreenDamageFlash = 300;    //!< 被弾時の赤フラッシュ。HUDより手前に掛けて画面全体を染める
 
+    //! ボス出現の告知（画面中央の帯と文字）。HUDと赤フラッシュより手前、メニューより奥
+    constexpr int kBossAnnounceBand = 310;
+    constexpr int kBossAnnounceText = 315;
+
     //! モーダル：スキル選択（レベルアップ）
     constexpr int kSkillSelectBackdrop  = 400;    //!< 画面全体の暗転板。ここより奥は全て沈む
     constexpr int kSkillSelectBand      = 405;    //!< 「LEVEL UP!」の後ろの斜めの帯

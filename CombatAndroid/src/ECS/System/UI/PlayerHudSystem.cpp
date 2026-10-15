@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/UI/PlayerHudComponent.hpp>
+#include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerExperienceComponent.hpp>
@@ -76,7 +77,6 @@ namespace CombatAndroid::ECS {
             float          expFillSpeed     = 9.0f;     //!< EXPバーが実際の量へ追いつく速さ（Damp）
             float          hpPunchStrength  = 1.6f;     //!< 被弾したときにHPの数値を弾ませる強さ（UiMotionの既定の倍率）
             float          levelPunchStrength = 2.0f;   //!< レベルアップでLvの数値を弾ませる強さ
-            float          lastMinuteSeconds = 60.0f;   //!< クリアまでの残りがこの秒数を切ったら、生存時間を呼吸させる
         };
 
         template <class Archive>
@@ -100,7 +100,6 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "expFillSpeed", params.expFillSpeed);
             LoadField(archive, "hpPunchStrength", params.hpPunchStrength);
             LoadField(archive, "levelPunchStrength", params.levelPunchStrength);
-            LoadField(archive, "lastMinuteSeconds", params.lastMinuteSeconds);
         }
 
         //-------------------------------------------------------------
@@ -246,8 +245,8 @@ namespace CombatAndroid::ECS {
                 UiPunch(registry, hud.expTextEntity, params.levelPunchStrength);
             hud.lastLevel = exp.level;
 
-            // クリアまで残り僅かになったら、生存時間をゆっくり呼吸させて終わりが近いことを知らせる
-            if(clock.elapsedSeconds >= kRunClearSeconds - params.lastMinuteSeconds)
+            // ボス戦の間は、生存時間（次の目標）をゆっくり呼吸させて山場であることを知らせる
+            if(IsBossBattleActive(registry))
                 UiPulse(registry, hud.survivalTimeTextEntity, 1.5f);
 
             //-------------------------------------------------------------
@@ -280,7 +279,7 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 生存時間：「経過 / クリア目標」を分:秒で画面上部中央に表示する。
+            // 生存時間：「経過　次の目標」を画面上部中央に表示する。
             // 加算はRunClockSystemが行うため、ここは表示だけを受け持つ
             //-------------------------------------------------------------
             if(hud.survivalTimeTextEntity != entt::null) {
@@ -294,9 +293,9 @@ namespace CombatAndroid::ECS {
                     if(secondsText.size() < 2)
                         secondsText.insert(0, L"0");
 
-                    // クリアまでの目標も並べて、あとどれだけ生き延びればよいかを見せる
-                    survivalTimeFont->text = minutesText + L":" + secondsText + L" / "
-                                             + std::to_wstring(static_cast<int>(kRunClearSeconds) / 60) + L":00";
+                    // 次の目標（ボスまでの残り・ボス戦）も並べて、何を目指せばよいかを見せる
+                    const std::wstring objective = GetBossObjectiveText(registry);
+                    survivalTimeFont->text       = minutesText + L":" + secondsText + (objective.empty() ? L"" : L"　" + objective);
                 }
             }
 

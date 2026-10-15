@@ -89,6 +89,9 @@
 #include <Tsukino/BuiltIn/ECS/Component/DirectionalLightComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/SkyAtmosphereComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/FogComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/SphereColorGradeComponent.hpp>
+#include <CombatAndroid/ECS/Component/Progression/BossProgressComponent.hpp>
+#include <CombatAndroid/ECS/Component/World/NightTransitionComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/GrassFieldComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AmbientParticleComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/MotionBlurComponent.hpp>
@@ -196,6 +199,16 @@ namespace CombatAndroid {
         // 環境（地面・光・空・フォグ・環境パーティクル・草・木）。値は Assets/Prefabs/Environment/ 以下のPrefab JSON（README参照）
         //--------------------------------------------------------------
         CombatAndroid::ECS::InstantiateEnvironment(registry, *context, "Combat");
+
+        //--------------------------------------------------------------
+        // ボス戦の夜。球形の色調補正（エンジン）とその進め方（NightTransitionSystem）を1つのエンティティに持たせる。
+        // 昼の間は半径0なので何も描かない
+        //--------------------------------------------------------------
+        {
+            Tsukino::ECS::Entity nightEntity = registry.CreateEntity();
+            registry.AddComponent<Tsukino::BuiltIn::ECS::SphereColorGradeComponent>(nightEntity);
+            registry.AddComponent<CombatAndroid::ECS::NightTransitionComponent>(nightEntity);
+        }
 
         //--------------------------------------------------------------
         // プレイヤーエンティティ生成（Prefab: Player）。
@@ -367,6 +380,18 @@ namespace CombatAndroid {
             // 走行の経過時間と危険度ランク。RunClockSystemだけが書き込み、
             // PlayerHudSystem（表示）とEnemySpawnDirectorSystem（敵の強化）が読む
             registry.AddComponent<CombatAndroid::ECS::RunClockComponent>(playerEntity);
+
+            // 中ボス → ラスボス → クリアの進行。BossDirectorSystemだけが書き込み、
+            // RunResultSystem（クリア判定）とPlayerHudSystem（次の目標）が読む。告知の帯と文字は非表示で作っておく
+            {
+                CombatAndroid::ECS::BossProgressComponent& bossProgress =
+                    registry.AddComponent<CombatAndroid::ECS::BossProgressComponent>(playerEntity);
+                bossProgress.announceBandEntity = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kBossAnnounceBand);
+                bossProgress.announceTitleEntity = CombatAndroid::ECS::CreateUiTextEntity(
+                    registry, CombatAndroid::UI::kBossAnnounceText, CombatAndroid::ECS::UiTextAlign::Center, CombatAndroid::ECS::UiTextFont::Heading);
+                bossProgress.announceSubtitleEntity =
+                    CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kBossAnnounceText, CombatAndroid::ECS::UiTextAlign::Center);
+            }
 
             CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);
             hud.hpBarBackgroundEntity                    = makeBarSprite(CombatAndroid::UI::kHudBarBackground);
