@@ -28,6 +28,7 @@ namespace CombatAndroid::ECS {
 
         Tsukino::ECS::Entity backdropEntity = entt::null;    //!< 画面全体を暗くする板（Sprite）
         Tsukino::ECS::Entity titleEntity    = entt::null;    //!< 「PAUSE」の見出し（Font）
+        Tsukino::ECS::Entity bandEntity     = entt::null;    //!< 見出しの後ろの斜めの帯（Sprite）
         GameMenuWidget       menu;                           //!< 再開／オプション／リトライ／タイトルへ
 
         OptionsMenuState options;    //!< オプション画面（開いている間は「PAUSE」とメニューを隠す）

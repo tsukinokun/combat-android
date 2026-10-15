@@ -61,7 +61,8 @@ namespace CombatAndroid::UI {
 
     //! モーダル：スキル選択（レベルアップ）
     constexpr int kSkillSelectBackdrop  = 400;    //!< 画面全体の暗転板。ここより奥は全て沈む
-    constexpr int kSkillSelectHighlight = 410;    //!< 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
+    constexpr int kSkillSelectBand      = 405;    //!< 「LEVEL UP!」の後ろの斜めの帯
+    constexpr int kSkillSelectHighlight = 410;    //!< 選択中カードの後ろに右下へずらして敷く差し色の板
     constexpr int kSkillSelectCard      = 420;    //!< カードの背景パネル
     constexpr int kSkillSelectText      = 430;    //!< タイトル・スキル名・説明文
     constexpr int kSkillSelectHit       = 435;    //!< カードのマウス当たり判定（透明）。マウスは最前面にしか反応しないのでカードの一番手前
@@ -74,12 +75,14 @@ namespace CombatAndroid::UI {
     //! スキル選択より手前に置く。レベルアップの予約と走行の終わりが同じフレームに重なっても、
     //! リザルトが暗転板の下に沈んで「操作が効かないのに理由が分からない」状態にならないようにする
     constexpr int kRunResultBackdrop = 500;    //!< 画面全体の暗転板
+    constexpr int kRunResultBand     = 505;    //!< 見出しの後ろの斜めの帯
     constexpr int kRunResultText     = 510;    //!< 見出し・成績・ベスト記録
     constexpr int kRunResultMenuBase = 520;    //!< リトライ／タイトルへ（GameMenuWidgetが+0〜+25を使う）
 
     //! モーダル：ポーズ。走行中にしか開けないのでリザルトとは重ならないが、
     //! 念のため全てのモーダルより手前に置く
     constexpr int kPauseBackdrop = 600;    //!< 画面全体の暗転板
+    constexpr int kPauseBand     = 605;    //!< 「PAUSE」の後ろの斜めの帯
     constexpr int kPauseText     = 610;    //!< 「PAUSE」の見出し
     constexpr int kPauseMenuBase = 620;    //!< 再開／オプション／リトライ／タイトルへ（GameMenuWidgetが+0〜+25を使う）
     constexpr int kPauseOptionsBase = 700;    //!< ポーズから開くオプション画面（OptionsMenuが+0〜+44を使う）。ポーズの暗転板より手前
@@ -91,6 +94,7 @@ namespace CombatAndroid::UI {
 
     //! タイトル画面（TitleScene。戦闘シーンとは別のシーンなので上の帯とは衝突しない）
     constexpr int kTitleBackdrop      = 100;    //!< 背景の板
+    constexpr int kTitleBand          = 105;    //!< ゲーム名の後ろの斜めの帯
     constexpr int kTitleText          = 110;    //!< タイトル・副題・ベスト記録
     constexpr int kTitleMenuBase      = 120;    //!< はじめる／操作説明／終了（GameMenuWidgetが+0〜+25を使う）
     constexpr int kTitleControlsPanel = 200;    //!< 操作説明の板

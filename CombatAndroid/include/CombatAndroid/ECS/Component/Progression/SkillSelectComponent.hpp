@@ -18,6 +18,7 @@ namespace CombatAndroid::ECS {
     struct SkillSelectCardEntities {
         Tsukino::ECS::Entity panelEntity = entt::null;    //!< 背景パネル（Sprite）
         Tsukino::ECS::Entity nameEntity  = entt::null;    //!< スキル名（Font）
+        Tsukino::ECS::Entity levelEntity = entt::null;    //!< 取得段階と進化の案内（Font）
         Tsukino::ECS::Entity descEntity  = entt::null;    //!< 効果の説明文（Font）
         Tsukino::ECS::Entity hitEntity   = entt::null;    //!< マウスの当たり判定（透明な矩形＋PointerTargetComponent）
     };
@@ -47,7 +48,8 @@ namespace CombatAndroid::ECS {
         int closingBlockFrames = 0;
 
         Tsukino::ECS::Entity backdropEntity  = entt::null;    //!< 画面全体を暗くする板（Sprite）
-        Tsukino::ECS::Entity highlightEntity = entt::null;    //!< 選択中カードの強調枠（Sprite）
+        Tsukino::ECS::Entity highlightEntity = entt::null;    //!< 選択中カードの後ろに敷く差し色の板（Sprite）
+        Tsukino::ECS::Entity bandEntity      = entt::null;    //!< 「LEVEL UP!」の後ろの斜めの帯（Sprite）
         Tsukino::ECS::Entity titleEntity     = entt::null;    //!< 「LEVEL UP!」テキスト（Font）
 
         std::array<SkillSelectCardEntities, kSkillChoiceMax> cards{};    //!< カード3枚ぶんのエンティティ

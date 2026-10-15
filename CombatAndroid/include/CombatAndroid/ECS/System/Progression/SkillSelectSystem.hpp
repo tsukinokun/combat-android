@@ -26,12 +26,23 @@ namespace CombatAndroid::ECS {
     bool IsSkillSelectActive(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
-    //! @brief  スキルカードの幅（ピクセル）を得る
-    //! @return Assets/Tables/Systems/SkillSelect.json の cardWidth
-    //! @note   カードの横に操作の案内を並べるInputPromptSystemが使う
+    //! @struct SkillSelectFanExtent
+    //! @brief  横に並べたカード全体の広がり（画面ピクセル）
+    //-------------------------------------------------------------
+    struct SkillSelectFanExtent {
+        float halfWidth     = 0.0f;    //!< 画面中心から、端のカードの外側の辺までの横の距離
+        float centerOffsetY = 0.0f;    //!< 画面中心から見た、真ん中のカードの中心Y
+        float bottomOffsetY = 0.0f;    //!< 画面中心から見た、カードの下端のY（扇で下がった端のカードも含む）
+    };
+
+    //-------------------------------------------------------------
+    //! @brief  今提示しているカード全体の広がりを得る
+    //! @param  registry [in] ECSレジストリ
+    //! @return 枚数とAssets/Tables/Systems/SkillSelect.json の寸法から求めた広がり
+    //! @note   カードの左右・下に操作の案内を並べるInputPromptSystemが使う
     //-------------------------------------------------------------
     [[nodiscard]]
-    float GetSkillSelectCardWidth();
+    SkillSelectFanExtent GetSkillSelectFanExtent(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
     //! @class  SkillSelectSystem

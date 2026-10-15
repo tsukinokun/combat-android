@@ -19,7 +19,10 @@
 
 #include <entt/entt.hpp>
 
+#include <algorithm>
+
 #include <memory>
+#include <numbers>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -87,6 +90,18 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
+    //! @brief 画面の左端の外から伸びる斜めの帯を置く
+    //-------------------------------------------------------------
+    void PlaceUiBandFromLeft(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, Tsukino::ECS::Entity entity,
+                             float endX, float centerY, float height, float rollDegrees, const hlslpp::float4& tintColor) {
+        // 傾けても左端が画面内に覗かないよう、高さぶん余計に外へ出しておく
+        const float startX = -height * 2.0f;
+        const float width  = std::max(endX - startX, 1.0f);
+        StretchSpriteRotated(registry, context, entity, startX + width * 0.5f, centerY, width, height,
+                             rollDegrees * std::numbers::pi_v<float> / 180.0f, tintColor);
+    }
+
+    //-------------------------------------------------------------
     //! @brief 文字エンティティの位置・大きさ・内容を書く
     //-------------------------------------------------------------
     void PlaceUiText(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float x, float y, float fontScale,
@@ -114,6 +129,17 @@ namespace CombatAndroid::ECS {
                                             int sortOrder) {
         // Prefab（UI/Rect）：スケール0（面積ゼロの間は描画されない）の白い1ピクセル。描画順だけ個体ごとに変える
         Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, "UI/Rect");
+        registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity).sortOrder = sortOrder;
+        return entity;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 画面固定の「斜めに切った板」エンティティを非表示で作る
+    //-------------------------------------------------------------
+    Tsukino::ECS::Entity CreateUiSlashEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                             int sortOrder) {
+        // Prefab（UI/SlashPlate）：スケール0の白い平行四辺形。描画順だけ個体ごとに変える
+        Tsukino::ECS::Entity entity = InstantiatePrefab(registry, context, "UI/SlashPlate");
         registry.GetComponent<Tsukino::BuiltIn::ECS::SpriteComponent>(entity).sortOrder = sortOrder;
         return entity;
     }

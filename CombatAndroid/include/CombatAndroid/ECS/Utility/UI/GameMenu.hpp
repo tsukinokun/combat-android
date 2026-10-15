@@ -37,7 +37,8 @@ namespace CombatAndroid::ECS {
     //! @brief  メニュー1つぶんのエンティティ束。生成直後は全て非表示
     //-------------------------------------------------------------
     struct GameMenuWidget {
-        Tsukino::ECS::Entity                                  highlightEntity = entt::null;    //!< 選択中の選択肢の後ろに敷く帯（Sprite）
+        Tsukino::ECS::Entity                                  highlightEntity = entt::null;    //!< 選択中の選択肢の後ろに敷く斜めの帯（Sprite）
+        Tsukino::ECS::Entity                                  shadowEntity    = entt::null;    //!< 強調帯の右下にずらして敷く影の帯（Sprite）。帯に追従する
         std::array<Tsukino::ECS::Entity, kGameMenuMaxItems>   itemEntities{};                  //!< 選択肢の文字（Font）
         InputPromptWidget                                     upPrompt;                        //!< [W] カーソル上
         InputPromptWidget                                     downPrompt;                      //!< [S] カーソル下
@@ -51,6 +52,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         mutable bool  shown       = false;    //!< 前回の呼び出しで表示していたか（HideGameMenuで倒す）
         mutable int   lastCursor  = -1;       //!< 前回選んでいた選択肢
+        mutable float lastCursorX = 0.0f;     //!< 前回の強調帯のX（行ごとに斜めへずらすので横にも動く）
         mutable float lastCursorY = 0.0f;     //!< 前回の強調帯のY
     };
 

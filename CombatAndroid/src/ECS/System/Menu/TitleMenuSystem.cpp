@@ -100,7 +100,15 @@ namespace CombatAndroid::ECS {
             //! 列の中心（leftColumnRatio）から左右に半分ずつ取っても、暗い板（backdropWidthRatio）の内側に収まる値にする
             float titleMaxWidthRatio = 0.30f;
             float menuTopOffsetY = -20.0f;
-            float bestOffsetY = 280.0f;
+
+            //! ベスト記録は画面の右下の角に寄せる（右端・下端からの距離）
+            float bestMarginRight = 260.0f;
+            float bestMarginBottom = 56.0f;
+
+            //! 見出しの後ろに敷く斜めの帯。画面の左端の外から伸ばし、見出しの右 bandTailX の所で斜めに切る
+            float bandTailX = 380.0f;
+            float bandHeight = 150.0f;
+            float bandRollDegrees = -6.0f;
 
 
             float controlsPanelWidth = 980.0f;
@@ -119,6 +127,7 @@ namespace CombatAndroid::ECS {
             hlslpp::float4 fullBackdropColor = hlslpp::float4(0.02f, 0.03f, 0.05f, 0.92f);
             hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
             hlslpp::float4 bestColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
+            hlslpp::float4 bandColor = hlslpp::float4(0.78f, 0.06f, 0.1f, 1.0f);
             hlslpp::float4 controlsPanelColor = hlslpp::float4(0.09f, 0.10f, 0.15f, 1.0f);
             hlslpp::float4 controlsActionColor = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
             hlslpp::float4 controlsKeyColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -133,7 +142,12 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
             LoadField(archive, "titleMaxWidthRatio", params.titleMaxWidthRatio);
             LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
-            LoadField(archive, "bestOffsetY", params.bestOffsetY);
+            LoadField(archive, "bestMarginRight", params.bestMarginRight);
+            LoadField(archive, "bestMarginBottom", params.bestMarginBottom);
+            LoadField(archive, "bandTailX", params.bandTailX);
+            LoadField(archive, "bandHeight", params.bandHeight);
+            LoadField(archive, "bandRollDegrees", params.bandRollDegrees);
+            LoadField(archive, "bandColor", params.bandColor);
             LoadField(archive, "controlsPanelWidth", params.controlsPanelWidth);
             LoadField(archive, "controlsPanelHeight", params.controlsPanelHeight);
             LoadField(archive, "controlsHeaderOffsetY", params.controlsHeaderOffsetY);
@@ -257,6 +271,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(title.options.isOpen) {
                 HideUiText(registry, title.titleEntity);
+                HideUiSprite(registry, title.bandEntity);
                 HideUiText(registry, title.bestEntity);
                 HideGameMenu(registry, title.menu);
                 return;
@@ -269,15 +284,18 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 if(!title.menu.shown) {
                     const UiMotionParams& motion = GetUiMotionParams();
+                    UiAppear(registry, title.bandEntity, UiAppearDesc{.slideX = -motion.appearSlide * 6.0f, .unscaledTime = true});
                     UiAppear(registry, title.titleEntity,
                              UiAppearDesc{.slideX = -motion.appearSlide * 2.0f, .duration = motion.appearDuration * 1.8f, .unscaledTime = true});
                     UiAppearFromSide(registry, title.bestEntity, static_cast<int>(std::size(kMenuLabels)) + 1, true);
                 }
 
+                PlaceUiBandFromLeft(registry, context, title.bandEntity, columnX + params.bandTailX, screenCenterY + params.titleOffsetY, params.bandHeight,
+                                    params.bandRollDegrees, params.bandColor);
                 PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display), L"人造人間0号機", params.titleColor);
                 if(auto* titleFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(title.titleEntity))
                     titleFont->maxWidth = screenWidth * params.titleMaxWidthRatio;
-                PlaceUiText(registry, title.bestEntity, columnX, screenCenterY + params.bestOffsetY, GetUiTextScale(UiTextSize::Small), FormatBestRecord(), params.bestColor);
+                PlaceUiText(registry, title.bestEntity, screenWidth - params.bestMarginRight, screenHeight - params.bestMarginBottom, GetUiTextScale(UiTextSize::Small), FormatBestRecord(), params.bestColor);
 
                 // 強調帯を既定（440）より細くして、その右に並ぶキーの案内を武器へ被せない
                 ShowGameMenu(registry, context, title.menu, columnX, screenCenterY + params.menuTopOffsetY, kMenuLabels, title.cursorIndex,
@@ -295,6 +313,7 @@ namespace CombatAndroid::ECS {
 
             // 操作説明の板と文字が重なって読みにくくならないよう、タイトル側の文字は隠す
             HideUiText(registry, title.titleEntity);
+            HideUiSprite(registry, title.bandEntity);
             HideUiText(registry, title.bestEntity);
             HideGameMenu(registry, title.menu);
 

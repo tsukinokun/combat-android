@@ -139,6 +139,7 @@ namespace CombatAndroid {
         CombatAndroid::ECS::TitleMenuComponent title;
 
         title.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleBackdrop);
+        title.bandEntity     = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kTitleBand);
         for(Tsukino::ECS::Entity& fadeEntity : title.backdropFadeEntities)
             fadeEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kTitleBackdrop);
         title.titleEntity    = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kTitleText, CombatAndroid::ECS::UiTextAlign::Center,

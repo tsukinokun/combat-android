@@ -43,6 +43,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <string>
 #include <vector>
 // 名前空間 : CombatAndroid::ECS
@@ -55,25 +56,38 @@ namespace CombatAndroid::ECS {
         struct SkillSelectParams {
             //-------------------------------------------------------------
             // カードの見た目のチューニング値（全て画面ピクセル単位）。
-            // 位置はメニューを開くたびにウィンドウサイズから計算し直す
+            // 位置はメニューを開くたびにウィンドウサイズから計算し直す。
+            // 縦長のカードを横に扇状に並べ、選んだカードだけまっすぐ起こして持ち上げる
             //-------------------------------------------------------------
-            float cardWidth = 760.0f;
-            float cardHeight = 150.0f;
-            float cardGap = 24.0f;                     //!< カード同士の縦の隙間（カード1枚ぶんの送りは cardHeight + cardGap）
-            float highlightInflate = 8.0f;                      //!< 選択中カードの強調枠が四辺へはみ出す量
-            float textInsetX = 32.0f;                     //!< カード左端からテキストまでの余白
-            float nameOffsetY = -26.0f;                    //!< カード中心から見たスキル名のY
-            float descOffsetY = 30.0f;                     //!< カード中心から見た説明文のY
-            float titleOffsetY = -310.0f;                   //!< 画面中心から見た「LEVEL UP!」のY
+            float cardWidth = 340.0f;
+            float cardHeight = 460.0f;
+            float cardGap = 48.0f;                     //!< カード同士の横の隙間（カード1枚ぶんの送りは cardWidth + cardGap）
+            float cardCenterOffsetY = 40.0f;           //!< 画面中心から見た、真ん中のカードの中心Y
+            float fanRollDegrees = 6.0f;               //!< 中央から1枚離れるごとの傾き（度。右のカードほど時計回り）
+            float fanDropY = 28.0f;                    //!< 中央から1枚離れるごとに下げる量
+            float selectedLiftY = 36.0f;               //!< 選んだカードを持ち上げる量
+            float selectedScale = 1.06f;               //!< 選んだカードの大きさ
+            float unselectedScale = 0.94f;             //!< 選んでいないカードの大きさ
+            float unselectedDim = 0.5f;                //!< 選んでいないカードの明るさ（色に掛ける）
+            float accentOffsetX = 14.0f;               //!< 選んだカードの後ろに敷く差し色の板のずらしX（右下へ）
+            float accentOffsetY = 14.0f;               //!< 同じくY
+            float textInsetX = 24.0f;                  //!< カードの左右の端から文字までの余白（はみ出す文字は縮める）
+            float nameOffsetY = 48.0f;                 //!< カード中心から見たスキル名のY
+            float levelOffsetY = 106.0f;               //!< カード中心から見た段階（Lv）のY
+            float descOffsetY = 160.0f;                //!< カード中心から見た説明文のY
 
+            float titleOffsetX = -360.0f;              //!< 画面中心から見た「LEVEL UP!」のX（中央を外して左へ寄せる）
+            float titleOffsetY = -310.0f;              //!< 画面中心から見た「LEVEL UP!」のY
+            float bandHeight = 120.0f;                 //!< 見出しの後ろの斜めの帯の高さ（幅は画面からはみ出す長さ）
+            float bandRollDegrees = -5.0f;             //!< 帯の傾き（度。負で右上がり）
 
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.65f);      //!< 画面全体の暗転
-            hlslpp::float4 highlightColor = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.95f);    //!< 選択中カードの枠（黄色）
-            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 0.95f, 0.6f, 1.0f);
+            hlslpp::float4 highlightColor = hlslpp::float4(0.78f, 0.06f, 0.1f, 1.0f);    //!< 選んだカードの後ろの差し色の板
+            hlslpp::float4 bandColor = hlslpp::float4(0.78f, 0.06f, 0.1f, 1.0f);         //!< 見出しの帯
+            hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
             hlslpp::float4 nameColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 levelColor = hlslpp::float4(1.0f, 0.86f, 0.5f, 1.0f);
             hlslpp::float4 descColor = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
-
-            float unselectedPanelAlpha = 0.78f;    //!< 非選択カードは少し沈ませる
 
             //-------------------------------------------------------------
             // レベルアップ後無敵（PlayerComponent::levelUpInvincibleTimer）の間、
@@ -95,17 +109,30 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "cardWidth", params.cardWidth);
             LoadField(archive, "cardHeight", params.cardHeight);
             LoadField(archive, "cardGap", params.cardGap);
-            LoadField(archive, "highlightInflate", params.highlightInflate);
+            LoadField(archive, "cardCenterOffsetY", params.cardCenterOffsetY);
+            LoadField(archive, "fanRollDegrees", params.fanRollDegrees);
+            LoadField(archive, "fanDropY", params.fanDropY);
+            LoadField(archive, "selectedLiftY", params.selectedLiftY);
+            LoadField(archive, "selectedScale", params.selectedScale);
+            LoadField(archive, "unselectedScale", params.unselectedScale);
+            LoadField(archive, "unselectedDim", params.unselectedDim);
+            LoadField(archive, "accentOffsetX", params.accentOffsetX);
+            LoadField(archive, "accentOffsetY", params.accentOffsetY);
             LoadField(archive, "textInsetX", params.textInsetX);
             LoadField(archive, "nameOffsetY", params.nameOffsetY);
+            LoadField(archive, "levelOffsetY", params.levelOffsetY);
             LoadField(archive, "descOffsetY", params.descOffsetY);
+            LoadField(archive, "titleOffsetX", params.titleOffsetX);
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
+            LoadField(archive, "bandHeight", params.bandHeight);
+            LoadField(archive, "bandRollDegrees", params.bandRollDegrees);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "highlightColor", params.highlightColor);
+            LoadField(archive, "bandColor", params.bandColor);
             LoadField(archive, "titleColor", params.titleColor);
             LoadField(archive, "nameColor", params.nameColor);
+            LoadField(archive, "levelColor", params.levelColor);
             LoadField(archive, "descColor", params.descColor);
-            LoadField(archive, "unselectedPanelAlpha", params.unselectedPanelAlpha);
             LoadField(archive, "levelUpInvincibleFadeOutDuration", params.levelUpInvincibleFadeOutDuration);
             LoadField(archive, "levelUpInvinciblePulseSpeed", params.levelUpInvinciblePulseSpeed);
             LoadField(archive, "levelUpInvincibleRimColor", params.levelUpInvincibleRimColor);
@@ -184,18 +211,67 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  index枚目のカードの中心Yを求める関数
+        //! @struct CardPlacement
+        //! @brief  カード1枚の置き方（中心・傾き・大きさ）
+        //-------------------------------------------------------------
+        struct CardPlacement {
+            float x     = 0.0f;    //!< 中心のスクリーンX
+            float y     = 0.0f;    //!< 中心のスクリーンY
+            float roll  = 0.0f;    //!< 傾き（ラジアン。時計回りが正）
+            float scale = 1.0f;    //!< 大きさ
+        };
+
+        //-------------------------------------------------------------
+        //! @brief  index枚目のカードの置き方を求める関数
+        //! @param  screenCenterX  [in] 画面中央のX
         //! @param  screenCenterY  [in] 画面中央のY
         //! @param  index          [in] 何枚目か（0始まり）
         //! @param  candidateCount [in] 今回並べるカードの枚数
-        //! @return カード中心のスクリーンY
-        //! @note   枚数が1〜3のどれでも画面中央に対して対称に並ぶ1本の式にしてある
+        //! @param  selected       [in] 選ばれているカードか
+        //! @return カードの置き方
+        //! @note   枚数が1〜3のどれでも画面中央に対して対称に、扇を開いたように並ぶ。
+        //!         中央から離れるほど傾けて下げ、選んだカードだけまっすぐ起こして持ち上げる
         //-------------------------------------------------------------
         [[nodiscard]]
-        float CalculateCardCenterY(float screenCenterY, int index, int candidateCount) {
+        CardPlacement CalculateCardPlacement(float screenCenterX, float screenCenterY, int index, int candidateCount, bool selected) {
             const SkillSelectParams& params = GetParams();
 
-            return screenCenterY + (static_cast<float>(index) - static_cast<float>(candidateCount - 1) * 0.5f) * (params.cardHeight + params.cardGap);
+            const float fromCenter = static_cast<float>(index) - static_cast<float>(candidateCount - 1) * 0.5f;
+
+            CardPlacement placement;
+            placement.x     = screenCenterX + fromCenter * (params.cardWidth + params.cardGap);
+            placement.y     = screenCenterY + params.cardCenterOffsetY + std::abs(fromCenter) * params.fanDropY;
+            placement.roll  = fromCenter * params.fanRollDegrees * std::numbers::pi_v<float> / 180.0f;
+            placement.scale = params.unselectedScale;
+
+            if(selected) {
+                placement.y -= params.selectedLiftY;
+                placement.roll  = 0.0f;
+                placement.scale = params.selectedScale;
+            }
+            return placement;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  カードの中心から見た位置（カードと一緒に傾ける）をスクリーン座標へ直す関数
+        //! @param  card    [in] カードの置き方
+        //! @param  offsetY [in] カード中心から下へ向かう距離（傾けて大きさを掛ける前）
+        //! @param  x       [out] スクリーンX
+        //! @param  y       [out] スクリーンY
+        //! @note   文字は回せないので、位置だけカードの傾きに沿わせる
+        //-------------------------------------------------------------
+        void CardLocalToScreen(const CardPlacement& card, float offsetY, float& x, float& y) {
+            const float scaled = offsetY * card.scale;
+            x = card.x - scaled * std::sin(card.roll);
+            y = card.y + scaled * std::cos(card.roll);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  文字の描画幅の上限を書く関数（収まらない文字は縮めて収める）
+        //-------------------------------------------------------------
+        void SetTextMaxWidth(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float maxWidth) {
+            if(auto* font = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(entity))
+                font->maxWidth = maxWidth;
         }
 
         //-------------------------------------------------------------
@@ -243,25 +319,22 @@ namespace CombatAndroid::ECS {
             const float screenCenterY = screenHeight * 0.5f;
 
             //-------------------------------------------------------------
-            // 画面全体の暗転とタイトル
+            // 画面全体の暗転と、見出しを載せる斜めの帯。帯は画面の左右へはみ出させ、
+            // 見出しは中央を外して左へ寄せる（全部を中央の縦軸に揃えると単調になる）
             //-------------------------------------------------------------
             StretchSprite(registry, context, select.backdropEntity, screenCenterX, screenCenterY, screenWidth, screenHeight, params.backdropColor);
-            PlaceUiText(registry, select.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title), L"LEVEL UP!", params.titleColor);
 
-            //-------------------------------------------------------------
-            // 選択中カードの強調枠。カード矩形を四辺へ少しはみ出させた板を1枚、
-            // カードより奥（UiSortOrder::kSkillSelectHighlight < kSkillSelectCard）に敷いて縁のように見せている
-            //-------------------------------------------------------------
+            const float titleX = screenCenterX + params.titleOffsetX;
+            const float titleY = screenCenterY + params.titleOffsetY;
+            StretchSpriteRotated(registry, context, select.bandEntity, screenCenterX, titleY, screenWidth * 1.4f, params.bandHeight,
+                                 params.bandRollDegrees * std::numbers::pi_v<float> / 180.0f, params.bandColor);
+            PlaceUiText(registry, select.titleEntity, titleX, titleY, GetUiTextScale(UiTextSize::Display), L"LEVEL UP!", params.titleColor);
+
             const int cursorIndex = std::clamp(select.cursorIndex, 0, std::max(select.candidateCount - 1, 0));
-            StretchSprite(registry, context, select.highlightEntity, screenCenterX,
-                          CalculateCardCenterY(screenCenterY, cursorIndex, select.candidateCount), params.cardWidth + params.highlightInflate * 2.0f,
-                          params.cardHeight + params.highlightInflate * 2.0f, params.highlightColor);
 
             //-------------------------------------------------------------
             // カード本体
             //-------------------------------------------------------------
-            const float textLeftX = screenCenterX - params.cardWidth * 0.5f + params.textInsetX;
-
             for(int i = 0; i < kSkillChoiceMax; ++i) {
                 SkillSelectCardEntities& card = select.cards[static_cast<size_t>(i)];
 
@@ -269,57 +342,90 @@ namespace CombatAndroid::ECS {
                     // カンストで選択肢が3つに満たない回。余ったカードは消しておく
                     HideEntity(registry, card.panelEntity);
                     HideEntity(registry, card.nameEntity);
+                    HideEntity(registry, card.levelEntity);
                     HideEntity(registry, card.descEntity);
                     HideEntity(registry, card.hitEntity);
                     continue;
                 }
 
-                const SkillId          id       = select.candidates[static_cast<size_t>(i)];
-                const SkillTableEntry& entry    = GetSkillEntry(id);
-                const int              level    = skills.levels[static_cast<size_t>(id)];
-                const float            centerY  = CalculateCardCenterY(screenCenterY, i, select.candidateCount);
-                const bool             selected = (i == cursorIndex);
+                const SkillId          id        = select.candidates[static_cast<size_t>(i)];
+                const SkillTableEntry& entry     = GetSkillEntry(id);
+                const int              level     = skills.levels[static_cast<size_t>(id)];
+                const bool             selected  = (i == cursorIndex);
+                const CardPlacement    placement = CalculateCardPlacement(screenCenterX, screenCenterY, i, select.candidateCount, selected);
+                const float            width     = params.cardWidth * placement.scale;
+                const float            height    = params.cardHeight * placement.scale;
 
                 //-------------------------------------------------------------
                 // 背景。テクスチャはテーブルのパスから引く（AssetManagerがパスで
                 // キャッシュするため、開くたびにLoadを呼んでも実際の読み込みは1回きり）
                 //-------------------------------------------------------------
-                if(card.panelEntity != entt::null && context.assetManager) {
+                Tsukino::Asset::AssetHandle cardTexture{};
+                if(context.assetManager) {
+                    cardTexture = context.assetManager->Load(Tsukino::Core::Path(entry.backgroundTexturePath));
                     if(auto* panelSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(card.panelEntity))
-                        panelSprite->textureHandle = context.assetManager->Load(Tsukino::Core::Path(entry.backgroundTexturePath));
+                        panelSprite->textureHandle = cardTexture;
                 }
 
-                // 非選択のカードはアルファだけ下げて沈ませる（PlayerDamageEffectSystemと同じ組み立て方）
-                const float          panelAlpha = selected ? entry.panelColor.w : entry.panelColor.w * params.unselectedPanelAlpha;
-                const hlslpp::float4 panelColor =
-                    hlslpp::float4(entry.panelColor.x, entry.panelColor.y, entry.panelColor.z, panelAlpha);
+                // 非選択のカードは暗くして沈ませる
+                const float          dim        = selected ? 1.0f : params.unselectedDim;
+                const hlslpp::float4 panelColor = hlslpp::float4(entry.panelColor.x * dim, entry.panelColor.y * dim, entry.panelColor.z * dim, entry.panelColor.w);
 
-                StretchSprite(registry, context, card.panelEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight, panelColor);
+                StretchSpriteRotated(registry, context, card.panelEntity, placement.x, placement.y, width, height, placement.roll, panelColor);
 
-                // マウスの当たり判定はカードと同じ矩形。透明なので見た目には出ない
-                StretchSprite(registry, context, card.hitEntity, screenCenterX, centerY, params.cardWidth, params.cardHeight,
+                //-------------------------------------------------------------
+                // 選んだカードの後ろに、同じ形（カードの絵のアルファ）の差し色の板を右下へずらして敷く。
+                // 四角い枠で囲むより、カードが浮き上がって見える
+                //-------------------------------------------------------------
+                if(selected) {
+                    if(auto* highlightSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(select.highlightEntity))
+                        highlightSprite->textureHandle = cardTexture;
+                    StretchSpriteRotated(registry, context, select.highlightEntity, placement.x + params.accentOffsetX,
+                                         placement.y + params.accentOffsetY, width, height, placement.roll, params.highlightColor);
+                }
+
+                // マウスの当たり判定は回らない矩形なので、傾いたカードからはみ出さないよう一回り小さくする
+                StretchSprite(registry, context, card.hitEntity, placement.x, placement.y, width * 0.9f, height * 0.9f,
                               hlslpp::float4(0.0f, 0.0f, 0.0f, 0.0f));
 
                 //-------------------------------------------------------------
-                // 文言。levelは取得済みの段階数なので、今回取ると level+1 段階目になる
+                // 文言。levelは取得済みの段階数なので、今回取ると level+1 段階目になる。
+                // 名前を大きく、段階と説明を小さくして、文字にも大小の差を付ける
                 //-------------------------------------------------------------
-                std::wstring nameText = entry.displayName;
-                nameText += L"   Lv.";
-                nameText += std::to_wstring(level + 1);
-                nameText += L" / ";
-                nameText += std::to_wstring(kMaxSkillLevel);
+                std::wstring levelText = L"Lv.";
+                levelText += std::to_wstring(level + 1);
+                levelText += L" / ";
+                levelText += std::to_wstring(kMaxSkillLevel);
 
                 // 持っている武器の進化条件になっているスキルなら、進化先を添えて気付かせる
                 const std::wstring evolutionHint = FindEvolutionHint(registry, player, id);
                 if(!evolutionHint.empty()) {
-                    nameText += L"   [進化: ";
-                    nameText += evolutionHint;
-                    nameText += L"]";
+                    levelText += L"   進化: ";
+                    levelText += evolutionHint;
                 }
 
-                PlaceUiText(registry, card.nameEntity, textLeftX, centerY + params.nameOffsetY, GetUiTextScale(UiTextSize::Large), nameText, params.nameColor);
-                PlaceUiText(registry, card.descEntity, textLeftX, centerY + params.descOffsetY, GetUiTextScale(UiTextSize::Body),
-                          entry.levels[static_cast<size_t>(level)].description, params.descColor);
+                const float textMaxWidth = (params.cardWidth - params.textInsetX * 2.0f) * placement.scale;
+                const float textAlpha    = selected ? 1.0f : 0.7f;
+                auto        fade         = [textAlpha](const hlslpp::float4& color) {
+                    return hlslpp::float4(color.x, color.y, color.z, color.w * textAlpha);
+                };
+
+                float textX = 0.0f;
+                float textY = 0.0f;
+                CardLocalToScreen(placement, params.nameOffsetY, textX, textY);
+                SetTextMaxWidth(registry, card.nameEntity, textMaxWidth);
+                PlaceUiText(registry, card.nameEntity, textX, textY, GetUiTextScale(UiTextSize::Title) * placement.scale, entry.displayName,
+                            fade(params.nameColor));
+
+                CardLocalToScreen(placement, params.levelOffsetY, textX, textY);
+                SetTextMaxWidth(registry, card.levelEntity, textMaxWidth);
+                PlaceUiText(registry, card.levelEntity, textX, textY, GetUiTextScale(UiTextSize::Body) * placement.scale, levelText,
+                            fade(params.levelColor));
+
+                CardLocalToScreen(placement, params.descOffsetY, textX, textY);
+                SetTextMaxWidth(registry, card.descEntity, textMaxWidth);
+                PlaceUiText(registry, card.descEntity, textX, textY, GetUiTextScale(UiTextSize::Body) * placement.scale,
+                            entry.levels[static_cast<size_t>(level)].description, fade(params.descColor));
             }
         }
 
@@ -329,33 +435,41 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void StartOpenMotion(Tsukino::ECS::Registry& registry, SkillSelectComponent& select) {
             UiAppear(registry, select.backdropEntity, UiAppearDesc{.unscaledTime = true});
-            UiPopIn(registry, select.titleEntity, 0.0f, true);
+            UiAppear(registry, select.bandEntity, UiAppearDesc{.slideX = -240.0f, .unscaledTime = true});
+            UiPopIn(registry, select.titleEntity, 0.08f, true);
 
+            // カードは画面の下から1枚ずつ跳ね上がる
+            constexpr float kCardSlideY  = 180.0f;
+            constexpr float kCardStagger = 0.07f;
             for(int i = 0; i < select.candidateCount; ++i) {
                 SkillSelectCardEntities& card = select.cards[static_cast<size_t>(i)];
                 // カードの文字は板と一緒に動かす（一度付ければ以後ずっと追従する）
                 UiFollow(registry, card.nameEntity, card.panelEntity);
+                UiFollow(registry, card.levelEntity, card.panelEntity);
                 UiFollow(registry, card.descEntity, card.panelEntity);
-                UiAppearFromSide(registry, card.panelEntity, i + 1, true);    // 見出しの後から順に
+                UiAppear(registry, card.panelEntity,
+                         UiAppearDesc{.slideY = kCardSlideY, .delay = kCardStagger * static_cast<float>(i + 1), .unscaledTime = true});
             }
 
-            // 強調枠は選んでいるカードと一緒に出し、ゆっくり呼吸させて「選べる」ことを見せる
-            UiAppearFromSide(registry, select.highlightEntity, select.cursorIndex + 1, true);
+            // 差し色の板は選んでいるカードと一緒に出し、ゆっくり呼吸させて「選べる」ことを見せる
+            UiAppear(registry, select.highlightEntity,
+                     UiAppearDesc{.slideY = kCardSlideY, .delay = kCardStagger * static_cast<float>(select.cursorIndex + 1), .unscaledTime = true});
             UiStopPulse(registry, select.highlightEntity);
             UiPulse(registry, select.highlightEntity, 0.35f, true);
         }
 
         //-------------------------------------------------------------
-        //! @brief  カーソルが動いたときの動き（強調枠が前のカードから滑って移り、選んだカードが軽く弾む）
+        //! @brief  カーソルが動いたときの動き（差し色の板が前のカードから滑って移り、選んだカードが軽く弾む）
         //-------------------------------------------------------------
         void StartCursorMotion(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, SkillSelectComponent& select,
                                int previousIndex) {
-            const float screenHeight  = context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f;
-            const float screenCenterY = screenHeight * 0.5f;
-            const float fromY         = CalculateCardCenterY(screenCenterY, previousIndex, select.candidateCount)
-                                - CalculateCardCenterY(screenCenterY, select.cursorIndex, select.candidateCount);
+            const float screenCenterX = (context.window ? static_cast<float>(context.window->GetWidth()) : 1700.0f) * 0.5f;
+            const float screenCenterY = (context.window ? static_cast<float>(context.window->GetHeight()) : 1000.0f) * 0.5f;
 
-            UiSlideFrom(registry, select.highlightEntity, 0.0f, fromY, true);
+            const CardPlacement from = CalculateCardPlacement(screenCenterX, screenCenterY, previousIndex, select.candidateCount, true);
+            const CardPlacement to   = CalculateCardPlacement(screenCenterX, screenCenterY, select.cursorIndex, select.candidateCount, true);
+
+            UiSlideFrom(registry, select.highlightEntity, from.x - to.x, from.y - to.y, true);
             UiPunch(registry, select.cards[static_cast<size_t>(select.cursorIndex)].panelEntity, 0.4f, true);
         }
 
@@ -367,12 +481,14 @@ namespace CombatAndroid::ECS {
         void HideUi(Tsukino::ECS::Registry& registry, SkillSelectComponent& select) {
             HideEntity(registry, select.backdropEntity);
             HideEntity(registry, select.highlightEntity);
+            HideEntity(registry, select.bandEntity);
             HideEntity(registry, select.titleEntity);
             UiStopPulse(registry, select.highlightEntity);    // 隠している間まで呼吸を回し続けない
 
             for(SkillSelectCardEntities& card : select.cards) {
                 HideEntity(registry, card.panelEntity);
                 HideEntity(registry, card.nameEntity);
+                HideEntity(registry, card.levelEntity);
                 HideEntity(registry, card.descEntity);
                 HideEntity(registry, card.hitEntity);    // 閉じている間はマウスに反応させない
             }
@@ -380,10 +496,24 @@ namespace CombatAndroid::ECS {
     }    // namespace
 
     //-------------------------------------------------------------
-    //! @brief スキルカードの幅を得る
+    //! @brief 並べたカード全体の広がりを得る
     //-------------------------------------------------------------
-    float GetSkillSelectCardWidth() {
-        return GetParams().cardWidth;
+    SkillSelectFanExtent GetSkillSelectFanExtent(Tsukino::ECS::Registry& registry) {
+        const SkillSelectParams& params = GetParams();
+
+        int candidateCount = 1;
+        auto view = registry.View<SkillSelectComponent>();
+        for(entt::entity entity : view) {
+            candidateCount = std::max(view.get<SkillSelectComponent>(entity).candidateCount, 1);
+            break;
+        }
+
+        SkillSelectFanExtent extent;
+        extent.halfWidth     = (static_cast<float>(candidateCount) * params.cardWidth + static_cast<float>(candidateCount - 1) * params.cardGap) * 0.5f;
+        extent.centerOffsetY = params.cardCenterOffsetY;
+        extent.bottomOffsetY = params.cardCenterOffsetY + params.cardHeight * 0.5f
+                               + static_cast<float>(candidateCount - 1) * 0.5f * params.fanDropY;
+        return extent;
     }
 
     //-------------------------------------------------------------
@@ -494,20 +624,24 @@ namespace CombatAndroid::ECS {
                 continue;
 
             //-------------------------------------------------------------
-            // カーソルの上下移動。W/Sの押し込みとマウスホイールを同じ「1段ぶん」として扱う
-            //（ホイールは1ノッチ=±1.0。上へ回す＝上のカードへ＝インデックスは減る）
+            // カーソルの左右移動。A/D・矢印キー・W/S・マウスホイールを同じ「1枚ぶん」として扱う
+            //（ホイールは1ノッチ=±1.0。上へ回す＝左のカードへ＝インデックスは減る）
             //-------------------------------------------------------------
+            const Tsukino::Input::InputSystem& input = *ctx->inputSystem;
             int step = 0;
-            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::W))
+            if(input.IsKeyPressed(Tsukino::Input::KeyCode::A) || input.IsKeyPressed(Tsukino::Input::KeyCode::Left)
+               || input.IsKeyPressed(Tsukino::Input::KeyCode::W))
                 --step;
-            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::S))
+            if(input.IsKeyPressed(Tsukino::Input::KeyCode::D) || input.IsKeyPressed(Tsukino::Input::KeyCode::Right)
+               || input.IsKeyPressed(Tsukino::Input::KeyCode::S))
                 ++step;
 
-            const float wheelDelta = ctx->inputSystem->GetWheelDelta();
+            const float wheelDelta = input.GetWheelDelta();
             if(wheelDelta > 0.0f)
                 --step;
             else if(wheelDelta < 0.0f)
                 ++step;
+            step = std::clamp(step, -1, 1);
 
             //-------------------------------------------------------------
             // マウス。カードに乗せたらそのカードへ合わせ、クリックで決定する。

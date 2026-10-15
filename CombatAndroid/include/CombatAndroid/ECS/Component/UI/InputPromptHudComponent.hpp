@@ -20,10 +20,10 @@ namespace CombatAndroid::ECS {
         //! 溜めに対応する武器（battleaxe）を持っているときだけ出番がある
         InputPromptWidget chargePrompt;
 
-        //! スキル選択：カーソル上移動の[W]。以下3つは画面固定でモーダルの上に出す
+        //! スキル選択：左のカードへ移る[A]。以下3つは画面固定でモーダルの上に出す
         InputPromptWidget skillUpPrompt;
 
-        //! スキル選択：カーソル下移動の[S]
+        //! スキル選択：右のカードへ移る[D]
         InputPromptWidget skillDownPrompt;
 
         //! スキル選択：決定の[F]

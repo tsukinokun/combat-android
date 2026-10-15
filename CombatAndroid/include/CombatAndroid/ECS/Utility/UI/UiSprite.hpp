@@ -54,6 +54,19 @@ namespace CombatAndroid::ECS {
                                             int sortOrder);
 
     //-------------------------------------------------------------
+    //! @brief  画面固定の「斜めに切った板」（SlashPlate.pngを着色する）エンティティを非表示で作る
+    //! @param  registry  [in] ECSレジストリ
+    //! @param  context   [in] エンジンコンテキスト
+    //! @param  sortOrder [in] 描画層（CombatAndroid/UI/UiSortOrder.hpp）
+    //! @return 作ったエンティティ。表示はStretchSprite / StretchSpriteRotatedで行う
+    //! @note   左右の辺が斜めの平行四辺形。矩形の帯が等間隔に並ぶ単調さを崩すために、
+    //!         メニューの強調帯や見出しの帯に使う（形はテクスチャのアルファで作っている）
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    Tsukino::ECS::Entity CreateUiSlashEntity(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
+                                             int sortOrder);
+
+    //-------------------------------------------------------------
     //! @brief  画面固定の文字エンティティを非表示（空文字）で作る
     //! @param  registry  [in] ECSレジストリ
     //! @param  sortOrder [in] 描画層（CombatAndroid/UI/UiSortOrder.hpp）
@@ -100,6 +113,21 @@ namespace CombatAndroid::ECS {
     void StretchSpriteRotated(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
                               Tsukino::ECS::Entity entity, float centerX, float centerY, float width, float height, float rollRadians,
                               const hlslpp::float4& tintColor);
+
+    //-------------------------------------------------------------
+    //! @brief  画面の左端の外から伸びる斜めの帯を置く（見出しの下に敷く）
+    //! @param  registry    [in] ECSレジストリ
+    //! @param  context     [in] エンジンコンテキスト
+    //! @param  entity      [in] 対象のエンティティ（CreateUiSlashEntityで作ったもの）
+    //! @param  endX        [in] 帯の右端のスクリーンX
+    //! @param  centerY     [in] 帯の中心のスクリーンY
+    //! @param  height      [in] 帯の高さ（ピクセル）
+    //! @param  rollDegrees [in] 傾き（度。負で右上がり）
+    //! @param  tintColor   [in] 帯の色
+    //! @note   左端は画面の外まで伸ばし、画面の中に閉じた箱に見えないようにする
+    //-------------------------------------------------------------
+    void PlaceUiBandFromLeft(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, Tsukino::ECS::Entity entity,
+                             float endX, float centerY, float height, float rollDegrees, const hlslpp::float4& tintColor);
 
     //-------------------------------------------------------------
     //! @brief  文字エンティティの位置・大きさ・内容を書く

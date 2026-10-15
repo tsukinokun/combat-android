@@ -6,6 +6,9 @@
 #include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
+#include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -14,28 +17,80 @@
 #include <Tsukino/Core/Input/InputSystem.hpp>
 
 #include <algorithm>
+#include <numbers>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
         //-------------------------------------------------------------
-        // 見た目のチューニング値（全て画面ピクセル単位）
+        //! @struct GameMenuParams
+        //! @brief  見た目のチューニング値（Assets/Tables/Systems/GameMenu.json。ここの初期値はJSONにキーが無いときの既定値）
+        //! @note   全て画面ピクセル単位。選択肢を縦一直線・同じ大きさで並べると単調になるので、
+        //!         行ごとに右へずらして斜めの段にし、選択中の行だけ大きく・帯付きで見せる
         //-------------------------------------------------------------
-        constexpr float kItemPitch      = 72.0f;     //!< 選択肢1つぶんの縦の送り
-        constexpr float kHighlightHeight = 56.0f;    //!< 強調帯の高さ
+        struct GameMenuParams {
+            float itemPitch            = 72.0f;    //!< 選択肢1つぶんの縦の送り
+            float itemStepX            = 26.0f;    //!< 選択肢1つぶんの横のずらし（下の行ほど右へ。列全体の中心はcenterXのまま）
+            float highlightHeight      = 60.0f;    //!< 強調帯の高さ
+            float highlightRollDegrees = -4.0f;    //!< 強調帯の傾き（度。負で右上がり）
+            float shadowOffsetX        = 10.0f;    //!< 影の帯のずらしX（強調帯から右下へ）
+            float shadowOffsetY        = 8.0f;     //!< 同じくY
 
-        constexpr float kPromptGapX        = 80.0f;     //!< 強調帯の右端からプロンプトの列までの距離
-        constexpr float kPromptUpOffsetY   = -40.0f;    //!< 選択中の選択肢から見た[W]のY
-        constexpr float kPromptDownOffsetY = 40.0f;     //!< 同じく[S]のY
-        constexpr float kPromptConfirmGapX = 120.0f;    //!< [W][S]の列から[F]までの横の距離
-        constexpr float kPromptScale       = 1.0f;
+            float selectedTextScale   = 1.3f;     //!< 選択中の文字の大きさ（Largeに掛ける倍率）
+            float unselectedTextScale = 0.95f;    //!< 非選択の文字の大きさ
 
-        const hlslpp::float4 kHighlightColor    = hlslpp::float4(1.0f, 0.92f, 0.35f, 0.92f);    //!< スキル選択の強調枠と同じ黄色
-        const hlslpp::float4 kSelectedTextColor = hlslpp::float4(0.08f, 0.08f, 0.10f, 1.0f);    //!< 黄色の帯の上なので濃い色
-        const hlslpp::float4 kItemTextColor     = hlslpp::float4(0.95f, 0.95f, 0.95f, 1.0f);
+            float promptGapX        = 80.0f;     //!< 強調帯の右端からプロンプトの列までの距離
+            float promptUpOffsetY   = -40.0f;    //!< 選択中の選択肢から見た[W]のY
+            float promptDownOffsetY = 40.0f;     //!< 同じく[S]のY
+            float promptConfirmGapX = 120.0f;    //!< [W][S]の列から[F]までの横の距離
+            float promptScale       = 1.0f;
+
+            hlslpp::float4 highlightColor    = hlslpp::float4(0.78f, 0.06f, 0.10f, 1.0f);    //!< 強調帯（差し色の赤）
+            hlslpp::float4 shadowColor       = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.85f);       //!< 影の帯
+            hlslpp::float4 selectedTextColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 itemTextColor     = hlslpp::float4(0.85f, 0.85f, 0.88f, 0.6f);     //!< 非選択は沈ませる
+        };
+
+        template <class Archive>
+        void load(Archive& archive, GameMenuParams& params) {
+            LoadField(archive, "itemPitch", params.itemPitch);
+            LoadField(archive, "itemStepX", params.itemStepX);
+            LoadField(archive, "highlightHeight", params.highlightHeight);
+            LoadField(archive, "highlightRollDegrees", params.highlightRollDegrees);
+            LoadField(archive, "shadowOffsetX", params.shadowOffsetX);
+            LoadField(archive, "shadowOffsetY", params.shadowOffsetY);
+            LoadField(archive, "selectedTextScale", params.selectedTextScale);
+            LoadField(archive, "unselectedTextScale", params.unselectedTextScale);
+            LoadField(archive, "promptGapX", params.promptGapX);
+            LoadField(archive, "promptUpOffsetY", params.promptUpOffsetY);
+            LoadField(archive, "promptDownOffsetY", params.promptDownOffsetY);
+            LoadField(archive, "promptConfirmGapX", params.promptConfirmGapX);
+            LoadField(archive, "promptScale", params.promptScale);
+            LoadField(archive, "highlightColor", params.highlightColor);
+            LoadField(archive, "shadowColor", params.shadowColor);
+            LoadField(archive, "selectedTextColor", params.selectedTextColor);
+            LoadField(archive, "itemTextColor", params.itemTextColor);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //-------------------------------------------------------------
+        const GameMenuParams& GetParams() {
+            static const GameMenuParams s_params = LoadSystemParams<GameMenuParams>("GameMenu");
+            return s_params;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  i番目の選択肢の中心X（下の行ほど右へずらし、列全体の中心をcenterXに合わせる）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        float CalculateItemX(float centerX, int index, int count) {
+            return centerX + (static_cast<float>(index) - static_cast<float>(count - 1) * 0.5f) * GetParams().itemStepX;
+        }
 
         //! 帯・文字・プロンプトが基準から使う層のずらし量
-        constexpr int kHighlightLayer = 0;
+        constexpr int kShadowLayer    = 0;
+        constexpr int kHighlightLayer = 5;
         constexpr int kItemLayer      = 10;
         constexpr int kPromptLayer    = 20;
         constexpr int kHitLayer       = 25;    //!< マウスの当たり判定。最前面のスプライトにしか反応しないので一番手前に置く
@@ -70,7 +125,11 @@ namespace CombatAndroid::ECS {
                                         int sortOrderBase) {
         GameMenuWidget widget;
 
-        widget.highlightEntity = CreateUiRectEntity(registry, context, sortOrderBase + kHighlightLayer);
+        widget.shadowEntity    = CreateUiSlashEntity(registry, context, sortOrderBase + kShadowLayer);
+        widget.highlightEntity = CreateUiSlashEntity(registry, context, sortOrderBase + kHighlightLayer);
+
+        // 影は強調帯の動き（出現・行の移動・決定の弾み）にそのまま付いて回る
+        UiFollow(registry, widget.shadowEntity, widget.highlightEntity);
 
         for(Tsukino::ECS::Entity& item : widget.itemEntities)
             item = CreateUiTextEntity(registry, sortOrderBase + kItemLayer, UiTextAlign::Center, UiTextFont::Heading);
@@ -104,6 +163,8 @@ namespace CombatAndroid::ECS {
 
         cursor = std::clamp(cursor, 0, count - 1);
 
+        const GameMenuParams& params = GetParams();
+
         for(int i = 0; i < kGameMenuMaxItems; ++i) {
             if(i >= count) {
                 HideUiText(registry, widget.itemEntities[i]);
@@ -111,34 +172,45 @@ namespace CombatAndroid::ECS {
                 continue;
             }
 
-            const float itemY = topY + kItemPitch * static_cast<float>(i);
-            PlaceUiText(registry, widget.itemEntities[i], centerX, itemY, GetUiTextScale(UiTextSize::Large), labels[i],
-                        (i == cursor) ? kSelectedTextColor : kItemTextColor);
+            const bool  selected = (i == cursor);
+            const float itemX    = CalculateItemX(centerX, i, count);
+            const float itemY    = topY + params.itemPitch * static_cast<float>(i);
+            const float scale    = GetUiTextScale(UiTextSize::Large) * (selected ? params.selectedTextScale : params.unselectedTextScale);
+            PlaceUiText(registry, widget.itemEntities[i], itemX, itemY, scale, labels[i],
+                        selected ? params.selectedTextColor : params.itemTextColor);
 
             // マウスの当たり判定は強調帯の幅×1段の送り。上下の行と隙間なく接するので、行の間で途切れない
-            StretchSprite(registry, context, widget.hitEntities[i], centerX, itemY, highlightWidth, kItemPitch, kHitRectColor);
+            StretchSprite(registry, context, widget.hitEntities[i], itemX, itemY, highlightWidth, params.itemPitch, kHitRectColor);
         }
 
-        const float cursorY = topY + kItemPitch * static_cast<float>(cursor);
-        StretchSprite(registry, context, widget.highlightEntity, centerX, cursorY, highlightWidth, kHighlightHeight, kHighlightColor);
+        //-------------------------------------------------------------
+        // 強調帯は少し傾けた斜めの板にし、その右下へ黒い影の帯をずらして重ねる
+        //-------------------------------------------------------------
+        const float cursorX = CalculateItemX(centerX, cursor, count);
+        const float cursorY = topY + params.itemPitch * static_cast<float>(cursor);
+        const float roll    = params.highlightRollDegrees * std::numbers::pi_v<float> / 180.0f;
+        StretchSpriteRotated(registry, context, widget.highlightEntity, cursorX, cursorY, highlightWidth, params.highlightHeight, roll,
+                             params.highlightColor);
+        StretchSpriteRotated(registry, context, widget.shadowEntity, cursorX + params.shadowOffsetX, cursorY + params.shadowOffsetY,
+                             highlightWidth, params.highlightHeight, roll, params.shadowColor);
 
         //-------------------------------------------------------------
         // [W][S] は選択中の選択肢の右に縦に並べ、[F] はさらにその右に置く。
         // 選択肢が1つしか無いときは動かす先が無いので [W][S] を出さない
         //-------------------------------------------------------------
         InputPromptStyle style;
-        style.scale = kPromptScale;
+        style.scale = params.promptScale;
 
-        const float promptX = centerX + highlightWidth * 0.5f + kPromptGapX;
+        const float promptX = cursorX + highlightWidth * 0.5f + params.promptGapX;
         if(count > 1) {
-            ShowInputPromptAtScreen(registry, context, widget.upPrompt, promptX, cursorY + kPromptUpOffsetY, style);
-            ShowInputPromptAtScreen(registry, context, widget.downPrompt, promptX, cursorY + kPromptDownOffsetY, style);
+            ShowInputPromptAtScreen(registry, context, widget.upPrompt, promptX, cursorY + params.promptUpOffsetY, style);
+            ShowInputPromptAtScreen(registry, context, widget.downPrompt, promptX, cursorY + params.promptDownOffsetY, style);
         } else {
             HideInputPrompt(registry, widget.upPrompt);
             HideInputPrompt(registry, widget.downPrompt);
         }
         if(showConfirmPrompt)
-            ShowInputPromptAtScreen(registry, context, widget.confirmPrompt, promptX + kPromptConfirmGapX, cursorY, style);
+            ShowInputPromptAtScreen(registry, context, widget.confirmPrompt, promptX + params.promptConfirmGapX, cursorY, style);
         else
             HideInputPrompt(registry, widget.confirmPrompt);
 
@@ -151,13 +223,14 @@ namespace CombatAndroid::ECS {
                 UiAppearFromSide(registry, widget.itemEntities[i], i, true);
             UiAppearFromSide(registry, widget.highlightEntity, cursor, true);
         } else if(cursor != widget.lastCursor) {
-            // カーソルが動いた：帯（と付いて回る[W][S][F]）を前の行から滑らせ、選んだ行の文字を軽く弾ませる
-            UiSlideFrom(registry, widget.highlightEntity, 0.0f, widget.lastCursorY - cursorY, true);
+            // カーソルが動いた：帯（と付いて回る影・[W][S][F]）を前の行から斜めに滑らせ、選んだ行の文字を軽く弾ませる
+            UiSlideFrom(registry, widget.highlightEntity, widget.lastCursorX - cursorX, widget.lastCursorY - cursorY, true);
             UiPunch(registry, widget.itemEntities[cursor], 0.5f, true);
         }
 
         widget.shown       = true;
         widget.lastCursor  = cursor;
+        widget.lastCursorX = cursorX;
         widget.lastCursorY = cursorY;
     }
 
@@ -176,6 +249,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void HideGameMenu(Tsukino::ECS::Registry& registry, const GameMenuWidget& widget) {
         HideUiSprite(registry, widget.highlightEntity);
+        HideUiSprite(registry, widget.shadowEntity);
 
         for(Tsukino::ECS::Entity item : widget.itemEntities)
             HideUiText(registry, item);

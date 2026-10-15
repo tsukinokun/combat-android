@@ -1,0 +1,21 @@
+{
+    "GameMenu": {
+        "itemPitch": 72.0,
+        "itemStepX": 26.0,
+        "highlightHeight": 60.0,
+        "highlightRollDegrees": -4.0,
+        "shadowOffsetX": 10.0,
+        "shadowOffsetY": 8.0,
+        "selectedTextScale": 1.3,
+        "unselectedTextScale": 0.95,
+        "promptGapX": 80.0,
+        "promptUpOffsetY": -40.0,
+        "promptDownOffsetY": 40.0,
+        "promptConfirmGapX": 120.0,
+        "promptScale": 1.0,
+        "highlightColor": { "x": 0.78, "y": 0.06, "z": 0.1, "w": 1.0 },
+        "shadowColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 0.85 },
+        "selectedTextColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "itemTextColor": { "x": 0.85, "y": 0.85, "z": 0.88, "w": 0.6 }
+    }
+}

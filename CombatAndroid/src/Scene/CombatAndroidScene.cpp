@@ -290,17 +290,18 @@ namespace CombatAndroid {
             inputPromptHud.chargePrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, chargeDesc);
 
             //--------------------------------------------------------------
-            // 以下3つはスキル選択メニューの上に重ねるので画面固定＋モーダル用の層を使う
+            // 以下3つはスキル選択メニューの上に重ねるので画面固定＋モーダル用の層を使う。
+            // カードは横に並ぶので、左右の移動は[A][D]で案内する
             //--------------------------------------------------------------
             CombatAndroid::ECS::InputPromptDesc skillUpDesc;
-            skillUpDesc.keyLabel      = L"W";
-            skillUpDesc.chevron       = CombatAndroid::ECS::PromptChevron::Up;
+            skillUpDesc.keyLabel      = L"A";
+            skillUpDesc.chevron       = CombatAndroid::ECS::PromptChevron::Left;
             skillUpDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillUpPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillUpDesc);
 
             CombatAndroid::ECS::InputPromptDesc skillDownDesc;
-            skillDownDesc.keyLabel      = L"S";
-            skillDownDesc.chevron       = CombatAndroid::ECS::PromptChevron::Down;
+            skillDownDesc.keyLabel      = L"D";
+            skillDownDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
             skillDownDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillDownPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillDownDesc);
 
@@ -476,6 +477,7 @@ namespace CombatAndroid {
             //-------------------------------------------------------------
             CombatAndroid::ECS::RunResultComponent& runResult = registry.AddComponent<CombatAndroid::ECS::RunResultComponent>(playerEntity);
             runResult.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kRunResultBackdrop);
+            runResult.bandEntity     = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kRunResultBand);
             runResult.titleEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kRunResultText, CombatAndroid::ECS::UiTextAlign::Center,
                                                                            CombatAndroid::ECS::UiTextFont::Heading);
             for(CombatAndroid::ECS::RunResultStatRow& row : runResult.statRows) {
@@ -494,6 +496,7 @@ namespace CombatAndroid {
 
             CombatAndroid::ECS::PauseMenuComponent& pauseMenu = registry.AddComponent<CombatAndroid::ECS::PauseMenuComponent>(playerEntity);
             pauseMenu.backdropEntity = CombatAndroid::ECS::CreateUiRectEntity(registry, *context, CombatAndroid::UI::kPauseBackdrop);
+            pauseMenu.bandEntity     = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kPauseBand);
             pauseMenu.titleEntity = CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kPauseText, CombatAndroid::ECS::UiTextAlign::Center,
                                                                            CombatAndroid::ECS::UiTextFont::Heading);
             pauseMenu.menu = CombatAndroid::ECS::CreateGameMenuWidget(registry, *context, CombatAndroid::UI::kPauseMenuBase);
@@ -542,13 +545,15 @@ namespace CombatAndroid {
             CombatAndroid::ECS::SkillSelectComponent& skillSelect =
                 registry.AddComponent<CombatAndroid::ECS::SkillSelectComponent>(playerEntity);
             skillSelect.backdropEntity  = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectBackdrop);     // 画面全体の暗転
-            skillSelect.highlightEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectHighlight);    // 選択中カードの強調枠（カードの奥に敷いて縁に見せる）
+            skillSelect.highlightEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectHighlight);    // 選択中カードの後ろの差し色の板
+            skillSelect.bandEntity      = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kSkillSelectBand);
             skillSelect.titleEntity     = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f, "UI/SkillHeadingText");
 
             for(CombatAndroid::ECS::SkillSelectCardEntities& card : skillSelect.cards) {
                 card.panelEntity = makeSkillPanelSprite(CombatAndroid::UI::kSkillSelectCard);
-                card.nameEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 3.0f);
-                card.descEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Left, 2.0f);
+                card.nameEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 3.0f, "UI/SkillHeadingText");
+                card.levelEntity = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 2.0f);
+                card.descEntity  = makeSkillText(Tsukino::BuiltIn::ECS::HorizontalAlign::Center, 2.0f);
 
                 // マウスで選ぶための透明な当たり判定。マウスは最前面のスプライトにしか反応しないので、
                 // カードの文字より手前の層に置く

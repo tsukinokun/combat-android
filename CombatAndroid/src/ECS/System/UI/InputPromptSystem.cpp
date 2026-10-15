@@ -39,12 +39,10 @@ namespace CombatAndroid::ECS {
             //! かつ画面上端に逃げない高さ。1ユニット≒1cm規約
             float chargePromptWorldHeight = 250.0f;
 
-            //! スキル選択のカード（SkillSelect.json の cardWidth。画面中央に置く）の右端から、プロンプト列までの間隔
-            float skillPromptGapFromCard = 95.0f;
+            //! スキル選択のカード列（横に並べた全体）の左右の端から、[A]・[D]までの間隔
+            float skillPromptGapFromCard = 70.0f;
 
-            float skillPromptUpOffsetY = -75.0f;    //!< 画面中心から見た[W]のY
-            float skillPromptDownOffsetY = 20.0f;     //!< 同じく[S]のY
-            float skillPromptConfirmOffsetY = 165.0f;    //!< 同じく決定[F]のY
+            float skillPromptConfirmGapY = 60.0f;    //!< カード列の下端から決定[F]までの間隔
 
             float modalPromptScale = 1.15f;    //!< モーダル上のプロンプトは少し大きく見せる
         };
@@ -53,9 +51,7 @@ namespace CombatAndroid::ECS {
         void load(Archive& archive, InputPromptParams& params) {
             LoadField(archive, "chargePromptWorldHeight", params.chargePromptWorldHeight);
             LoadField(archive, "skillPromptGapFromCard", params.skillPromptGapFromCard);
-            LoadField(archive, "skillPromptUpOffsetY", params.skillPromptUpOffsetY);
-            LoadField(archive, "skillPromptDownOffsetY", params.skillPromptDownOffsetY);
-            LoadField(archive, "skillPromptConfirmOffsetY", params.skillPromptConfirmOffsetY);
+            LoadField(archive, "skillPromptConfirmGapY", params.skillPromptConfirmGapY);
             LoadField(archive, "modalPromptScale", params.modalPromptScale);
         }
 
@@ -131,17 +127,20 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // スキル選択：カードの右脇に [W] [S]（カーソル移動）と [F]（決定）を縦に並べる
+            // スキル選択：カード列の左右に [A] [D]（カーソル移動）、真下に [F]（決定）を置く
             //-------------------------------------------------------------
             if(skillSelectActive) {
-                const float promptX = screenCenterX + GetSkillSelectCardWidth() * 0.5f + params.skillPromptGapFromCard;
+                const SkillSelectFanExtent fan = GetSkillSelectFanExtent(registry);
+                const float sideOffsetX = fan.halfWidth + params.skillPromptGapFromCard;
+                const float sideY       = screenCenterY + fan.centerOffsetY;
 
                 InputPromptStyle style;
                 style.scale = params.modalPromptScale;
 
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillUpPrompt, promptX, screenCenterY + params.skillPromptUpOffsetY, style);
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillDownPrompt, promptX, screenCenterY + params.skillPromptDownOffsetY, style);
-                ShowInputPromptAtScreen(registry, *ctx, hud.skillConfirmPrompt, promptX, screenCenterY + params.skillPromptConfirmOffsetY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillUpPrompt, screenCenterX - sideOffsetX, sideY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillDownPrompt, screenCenterX + sideOffsetX, sideY, style);
+                ShowInputPromptAtScreen(registry, *ctx, hud.skillConfirmPrompt, screenCenterX,
+                                        screenCenterY + fan.bottomOffsetY + params.skillPromptConfirmGapY, style);
             } else {
                 HideInputPrompt(registry, hud.skillUpPrompt);
                 HideInputPrompt(registry, hud.skillDownPrompt);

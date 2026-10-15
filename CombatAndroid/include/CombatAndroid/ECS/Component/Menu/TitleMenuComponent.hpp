@@ -38,6 +38,7 @@ namespace CombatAndroid::ECS {
         //! 階段状の縞に見えるため、1段あたりの濃さの差が分からない枚数にしてある
         std::array<Tsukino::ECS::Entity, 40> backdropFadeEntities{};
         Tsukino::ECS::Entity titleEntity    = entt::null;    //!< ゲーム名（Font）
+        Tsukino::ECS::Entity bandEntity     = entt::null;    //!< ゲーム名の後ろの斜めの帯（Sprite）
         Tsukino::ECS::Entity bestEntity     = entt::null;    //!< ベスト記録（Font）
         GameMenuWidget       menu;                           //!< はじめる／操作説明／終了
 

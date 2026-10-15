@@ -76,6 +76,7 @@ namespace CombatAndroid::ECS {
             float titleOffsetY = -300.0f;
             float firstRowOffsetY = -170.0f;
             float rowPitch = 54.0f;
+            float rowStepX = 22.0f;          //!< 成績の行ごとの横のずらし（下の行ほど右へ。縦一直線に揃えない）
             float labelOffsetX = -250.0f;    //!< 項目名の左端
             float valueOffsetX = 30.0f;      //!< 値の左端
             float recordOffsetX = 210.0f;     //!< 「NEW RECORD」の左端
@@ -83,6 +84,10 @@ namespace CombatAndroid::ECS {
             float bestOffsetY = 108.0f;
             float menuTopOffsetY = 200.0f;
 
+            //! 見出しの後ろに敷く斜めの帯。画面の左端の外から伸ばし、見出し（画面中央）の右 bandTailX の所で斜めに切る
+            float bandTailX = 420.0f;
+            float bandHeight = 130.0f;
+            float bandRollDegrees = -4.0f;
 
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.72f);
             hlslpp::float4 deadTitleColor = hlslpp::float4(1.0f, 0.35f, 0.30f, 1.0f);
@@ -92,6 +97,8 @@ namespace CombatAndroid::ECS {
             hlslpp::float4 recordColor = hlslpp::float4(1.0f, 0.88f, 0.30f, 1.0f);
             hlslpp::float4 skillsColor = hlslpp::float4(0.92f, 0.92f, 0.92f, 1.0f);
             hlslpp::float4 bestColor = hlslpp::float4(0.70f, 0.70f, 0.74f, 1.0f);
+            hlslpp::float4 deadBandColor = hlslpp::float4(0.45f, 0.05f, 0.06f, 0.9f);     //!< GAME OVERの帯（暗い赤）
+            hlslpp::float4 clearBandColor = hlslpp::float4(0.55f, 0.42f, 0.08f, 0.9f);    //!< CLEARの帯（暗い金）
         };
 
         template <class Archive>
@@ -102,6 +109,12 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
             LoadField(archive, "firstRowOffsetY", params.firstRowOffsetY);
             LoadField(archive, "rowPitch", params.rowPitch);
+            LoadField(archive, "rowStepX", params.rowStepX);
+            LoadField(archive, "bandTailX", params.bandTailX);
+            LoadField(archive, "bandHeight", params.bandHeight);
+            LoadField(archive, "bandRollDegrees", params.bandRollDegrees);
+            LoadField(archive, "deadBandColor", params.deadBandColor);
+            LoadField(archive, "clearBandColor", params.clearBandColor);
             LoadField(archive, "labelOffsetX", params.labelOffsetX);
             LoadField(archive, "valueOffsetX", params.valueOffsetX);
             LoadField(archive, "recordOffsetX", params.recordOffsetX);
@@ -184,7 +197,8 @@ namespace CombatAndroid::ECS {
             const RunResultParams& params = GetParams();
 
             PlaceUiText(registry, row.labelEntity, centerX + params.labelOffsetX, y, GetUiTextScale(UiTextSize::Body), label, params.labelColor);
-            PlaceUiText(registry, row.valueEntity, centerX + params.valueOffsetX, y, GetUiTextScale(UiTextSize::Large), value, params.valueColor);
+            // 値を大きく、項目名を小さくして大小の差を付ける
+            PlaceUiText(registry, row.valueEntity, centerX + params.valueOffsetX, y, GetUiTextScale(UiTextSize::Heading), value, params.valueColor);
 
             if(newRecord)
                 PlaceUiText(registry, row.recordEntity, centerX + params.recordOffsetX, y, GetUiTextScale(UiTextSize::Small), L"NEW RECORD", params.recordColor);
@@ -228,6 +242,7 @@ namespace CombatAndroid::ECS {
             // リザルト中は時間が止まっているので実時間で進める
             //-------------------------------------------------------------
             if(!result.menu.shown) {
+                UiAppear(registry, result.bandEntity, UiAppearDesc{.slideX = -240.0f, .unscaledTime = true});
                 UiAppear(registry, result.titleEntity,
                          UiAppearDesc{.scaleFrom = 1.8f, .duration = GetUiMotionParams().popDuration * 1.4f, .unscaledTime = true});
 
@@ -243,13 +258,16 @@ namespace CombatAndroid::ECS {
                 UiAppearFromBelow(registry, result.bestEntity, GetUiMotionParams().appearStagger * (kRunResultStatRowCount + 3), true);
             }
 
-            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title),
+            PlaceUiBandFromLeft(registry, ctx, result.bandEntity, screenCenterX + params.bandTailX, screenCenterY + params.titleOffsetY, params.bandHeight,
+                                params.bandRollDegrees, result.cleared ? params.clearBandColor : params.deadBandColor);
+            PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display),
                         result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? params.clearTitleColor : params.deadTitleColor);
 
             const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
             for(int i = 0; i < kRunResultStatRowCount; ++i) {
                 const float rowY = screenCenterY + params.firstRowOffsetY + params.rowPitch * static_cast<float>(i);
-                PlaceStatRow(registry, result.statRows[i], screenCenterX, rowY, labels[i], result.statValues[i], result.statNewRecords[i]);
+                const float rowX = screenCenterX + (static_cast<float>(i) - static_cast<float>(kRunResultStatRowCount - 1) * 0.5f) * params.rowStepX;
+                PlaceStatRow(registry, result.statRows[i], rowX, rowY, labels[i], result.statValues[i], result.statNewRecords[i]);
             }
 
             if(!result.skillsText.empty())

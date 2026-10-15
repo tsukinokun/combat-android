@@ -54,6 +54,7 @@ namespace CombatAndroid::ECS {
 
         Tsukino::ECS::Entity backdropEntity = entt::null;    //!< 画面全体を暗くする板（Sprite）
         Tsukino::ECS::Entity titleEntity    = entt::null;    //!< 「GAME OVER」／「CLEAR」（Font）
+        Tsukino::ECS::Entity bandEntity     = entt::null;    //!< 見出しの後ろの斜めの帯（Sprite）
         Tsukino::ECS::Entity skillsEntity   = entt::null;    //!< 取ったスキルの一覧（Font）
         Tsukino::ECS::Entity bestEntity     = entt::null;    //!< ベスト記録の1行（Font）
 

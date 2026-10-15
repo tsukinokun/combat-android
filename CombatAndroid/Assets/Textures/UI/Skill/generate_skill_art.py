@@ -5,7 +5,7 @@
 # スキル（七つの大罪）のカード背景とHUDアイコンをプロシージャル生成し、
 # 同じディレクトリへ書き出す。
 #
-#   <Skill>Card.png … 760x150。スキル選択メニューのカード背景
+#   <Skill>Card.png … 340x460。スキル選択メニューの縦長カード背景（左上と右下の角を斜めに落とす）
 #   <Skill>Icon.png … 64x64。画面左上の取得済みスキル一覧のアイコン
 #
 # どちらも「白〜灰のグレースケール」で描く。スキルごとの色は
@@ -22,19 +22,27 @@ import os
 import struct
 import zlib
 
-CARD_WIDTH = 760
-CARD_HEIGHT = 150
+CARD_WIDTH = 340
+CARD_HEIGHT = 460
 ICON_SIZE = 64
 
-#! カードの明るさ。左端（紋章側）を明るく、右へ向かって暗くする
-CARD_LEFT_LEVEL = 0.62
-CARD_RIGHT_LEVEL = 0.20
+#! カードの明るさ。上端（紋章側）を明るく、下（文字が載る側）へ向かって暗くする
+CARD_TOP_LEVEL = 0.62
+CARD_BOTTOM_LEVEL = 0.16
+
+#! 左上と右下の角を斜めに落とす量（ピクセル）。四角いカードが並ぶ単調さを崩す
+CARD_CHAMFER = 44
+
+#! 内側の細い縁取り（カードの縁からの距離と太さ、明るさ）
+CARD_INNER_LINE_INSET = 10
+CARD_INNER_LINE_WIDTH = 2
+CARD_INNER_LINE_LEVEL = 0.85
 
 #! カード内での紋章の位置と大きさ（ピクセル）。
-#! 左側はスキル名と説明文が載るので、空いている右端へ置く。
-#! 地は右へ向かって暗くなるので、白い紋章はそこで最も目立つ
-CARD_EMBLEM_CENTER_X = 664
-CARD_EMBLEM_RADIUS = 52
+#! 下半分はスキル名・段階・説明文が載るので、上側の空いたところへ置く
+CARD_EMBLEM_CENTER_X = CARD_WIDTH // 2
+CARD_EMBLEM_CENTER_Y = 140
+CARD_EMBLEM_RADIUS = 78
 
 #! 紋章の明るさ（カードの地より明るくして浮かせる）
 EMBLEM_LEVEL = 1.0
@@ -134,26 +142,47 @@ def emblem_coverage(shape, px, py, center_x, center_y, radius):
     return covered / 4.0
 
 
+def chamfer_distance(x, y, inset):
+    """角を落としたカードの輪郭から内側へどれだけ入っているか（ピクセル。負なら外）"""
+    left = x - inset
+    right = (CARD_WIDTH - 1 - inset) - x
+    top = y - inset
+    bottom = (CARD_HEIGHT - 1 - inset) - y
+    # 斜めの辺（左上・右下）。45度の線からの距離
+    top_left = (x + y - (CARD_CHAMFER + inset * 1.414)) / 1.414
+    bottom_right = ((CARD_WIDTH - 1 + CARD_HEIGHT - 1) - (CARD_CHAMFER + inset * 1.414) - (x + y)) / 1.414
+    return min(left, right, top, bottom, top_left, bottom_right)
+
+
 def make_card(shape):
-    """カード背景（760x150）。左から右へ暗くなる地の上に紋章を置く"""
+    """カード背景（縦長）。上から下へ暗くなる地の上に紋章を置き、角を斜めに落とす"""
     pixels = []
 
     for y in range(CARD_HEIGHT):
         row = []
         for x in range(CARD_WIDTH):
-            # 地：横方向のグラデーション
-            t = x / (CARD_WIDTH - 1)
-            level = CARD_LEFT_LEVEL + (CARD_RIGHT_LEVEL - CARD_LEFT_LEVEL) * t
+            # 地：縦方向のグラデーション
+            t = y / (CARD_HEIGHT - 1)
+            level = CARD_TOP_LEVEL + (CARD_BOTTOM_LEVEL - CARD_TOP_LEVEL) * t
 
-            # 上下の端を少し暗くして、カードの縁を締める
-            edge = min(y, CARD_HEIGHT - 1 - y) / 12.0
-            level *= 0.55 + 0.45 * min(edge, 1.0)
+            inside = chamfer_distance(x, y, 0)
+
+            # 縁へ近いほど少し暗くして、カードの輪郭を締める
+            level *= 0.6 + 0.4 * min(max(inside, 0.0) / 14.0, 1.0)
+
+            # 内側の細い縁取り
+            line = chamfer_distance(x, y, CARD_INNER_LINE_INSET)
+            if -CARD_INNER_LINE_WIDTH <= line <= 0.0:
+                level = CARD_INNER_LINE_LEVEL
 
             # 紋章
-            coverage = emblem_coverage(shape, x, y, CARD_EMBLEM_CENTER_X, CARD_HEIGHT * 0.5, CARD_EMBLEM_RADIUS)
+            coverage = emblem_coverage(shape, x, y, CARD_EMBLEM_CENTER_X, CARD_EMBLEM_CENTER_Y, CARD_EMBLEM_RADIUS)
             level = level + (EMBLEM_LEVEL - level) * coverage
 
-            row.append(int(max(0.0, min(1.0, level)) * 255))
+            # 輪郭の外は透明。境目の1ピクセルだけ半透明にしてギザギザを均す
+            alpha = max(0.0, min(1.0, inside + 0.5))
+
+            row.append((int(max(0.0, min(1.0, level)) * 255), int(alpha * 255)))
         pixels.append(row)
 
     return pixels
@@ -179,14 +208,18 @@ def make_icon(shape):
 
 
 def write_png(path, pixels):
-    """RGBA 8bitのPNGを書く。灰色の値をRGBへ入れ、アルファは常に不透明"""
+    """RGBA 8bitのPNGを書く。灰色の値をRGBへ入れる。(灰色, アルファ) の組ならアルファも書く"""
     height = len(pixels)
     width = len(pixels[0])
 
     # 各行の先頭にフィルタ種別（0＝フィルタなし）を置くのがPNGの生データ形式。
     # グレースケールのまま書くと読み込み側の対応に依存するので、
     # 他のUI画像（WhitePixel.png）と同じRGBAへ展開しておく
-    raw = b"".join(b"\x00" + bytes(value for level in row for value in (level, level, level, 255)) for row in pixels)
+    def rgba(texel):
+        level, alpha = texel if isinstance(texel, tuple) else (texel, 255)
+        return (level, level, level, alpha)
+
+    raw = b"".join(b"\x00" + bytes(value for texel in row for value in rgba(texel)) for row in pixels)
 
     def chunk(tag, data):
         body = tag + data

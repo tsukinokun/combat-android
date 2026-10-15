@@ -60,19 +60,31 @@ namespace CombatAndroid::ECS {
         //! @brief  見た目と挙動のチューニング値（Assets/Tables/Systems/PauseMenu.json。ここの初期値はJSONにキーが無いときの既定値）
         //-------------------------------------------------------------
         struct PauseMenuParams {
+            float columnXRatio = 0.3f;         //!< 見出しとメニューの列の中心X（画面幅に対する割合）。中央を外して左へ寄せる
             float titleOffsetY = -170.0f;    //!< 画面中心から見た「PAUSE」のY
             float menuTopOffsetY = -40.0f;     //!< 画面中心から見た1つ目の項目のY
 
+            //! 見出しの後ろに敷く斜めの帯。画面の左端の外から伸ばし、見出しの右 bandTailX の所で斜めに切る
+            float bandTailX = 260.0f;
+            float bandHeight = 110.0f;
+            float bandRollDegrees = -5.0f;
+
             hlslpp::float4 backdropColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 0.6f);
             hlslpp::float4 titleColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
+            hlslpp::float4 bandColor = hlslpp::float4(0.78f, 0.06f, 0.1f, 1.0f);
         };
 
         template <class Archive>
         void load(Archive& archive, PauseMenuParams& params) {
+            LoadField(archive, "columnXRatio", params.columnXRatio);
             LoadField(archive, "titleOffsetY", params.titleOffsetY);
             LoadField(archive, "menuTopOffsetY", params.menuTopOffsetY);
+            LoadField(archive, "bandTailX", params.bandTailX);
+            LoadField(archive, "bandHeight", params.bandHeight);
+            LoadField(archive, "bandRollDegrees", params.bandRollDegrees);
             LoadField(archive, "backdropColor", params.backdropColor);
             LoadField(archive, "titleColor", params.titleColor);
+            LoadField(archive, "bandColor", params.bandColor);
         }
 
         //-------------------------------------------------------------
@@ -102,12 +114,18 @@ namespace CombatAndroid::ECS {
             // オプション画面を開いている間は暗転板だけ残し、見出しとメニューはオプションの板と重ならないよう隠す
             if(pause.options.isOpen) {
                 HideUiText(registry, pause.titleEntity);
+                HideUiSprite(registry, pause.bandEntity);
                 HideGameMenu(registry, pause.menu);
                 return;
             }
 
-            PlaceUiText(registry, pause.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Title), L"PAUSE", params.titleColor);
-            ShowGameMenu(registry, context, pause.menu, screenCenterX, screenCenterY + params.menuTopOffsetY, kMenuLabels, pause.cursorIndex);
+            // 見出しとメニューは中央を外して左の列に置き、見出しの下には画面の左端から斜めの帯を敷く
+            const float columnX = screenWidth * params.columnXRatio;
+            const float titleY  = screenCenterY + params.titleOffsetY;
+            PlaceUiBandFromLeft(registry, context, pause.bandEntity, columnX + params.bandTailX, titleY, params.bandHeight, params.bandRollDegrees,
+                                params.bandColor);
+            PlaceUiText(registry, pause.titleEntity, columnX, titleY, GetUiTextScale(UiTextSize::Display), L"PAUSE", params.titleColor);
+            ShowGameMenu(registry, context, pause.menu, columnX, screenCenterY + params.menuTopOffsetY, kMenuLabels, pause.cursorIndex);
         }
 
         //-------------------------------------------------------------
@@ -117,6 +135,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void HideUi(Tsukino::ECS::Registry& registry, const PauseMenuComponent& pause) {
             HideUiSprite(registry, pause.backdropEntity);
+            HideUiSprite(registry, pause.bandEntity);
             HideUiText(registry, pause.titleEntity);
             HideGameMenu(registry, pause.menu);
             HideOptionsMenu(registry, pause.options);
