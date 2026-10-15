@@ -53,7 +53,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         struct BossEntryParams {
             std::string  baseType       = "BigZombie";    //!< 元にする敵（EnemyTypeIdの綴り）
-            std::wstring displayName    = L"ボス";         //!< 告知とログに出す呼び名
+            std::wstring displayName    = L"巨躯の屍";     //!< 告知とログに出す呼び名（「ボス」のような種別名は出さない）
             float        sizeScale      = 1.8f;
             float        healthScale    = 25.0f;
             float        attackScale    = 1.5f;
@@ -113,7 +113,7 @@ namespace CombatAndroid::ECS {
             float detectRange           = 100000.0f; //!< ボスがプレイヤーを追い続ける距離（どこまでも追ってくる）
 
             BossEntryParams midBoss;
-            BossEntryParams finalBoss = {"Paladin", L"ラスボス", 2.2f, 60.0f, 2.0f, 1.0f, 30.0f};
+            BossEntryParams finalBoss = {"Paladin", L"夜の聖騎士", 2.2f, 60.0f, 2.0f, 1.0f, 30.0f};
 
             //-------------------------------------------------------------
             // 出現のカットシーン（遠景 → 寄り → プレイヤーへ戻す）
@@ -126,15 +126,13 @@ namespace CombatAndroid::ECS {
             // 告知（画面中央の帯と文字）。時間は実時間
             //-------------------------------------------------------------
             float          announceSeconds   = 3.2f;     //!< 出している時間
-            float          announceOffsetY   = -60.0f;   //!< 画面中心からの見出しのY
-            float          subtitleGapY      = 70.0f;    //!< 見出しから呼び名までのY
+            float          announceOffsetY   = -60.0f;   //!< 画面中心からの呼び名のY
             float          bandTailX         = 520.0f;   //!< 帯の右端（画面中心から）
             float          bandHeight        = 170.0f;
             float          bandRollDegrees   = -3.0f;
             hlslpp::float4 midBandColor      = hlslpp::float4(0.08f, 0.10f, 0.28f, 0.88f);
             hlslpp::float4 finalBandColor    = hlslpp::float4(0.30f, 0.04f, 0.10f, 0.88f);
             hlslpp::float4 titleColor        = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);
-            hlslpp::float4 subtitleColor     = hlslpp::float4(0.80f, 0.85f, 1.0f, 1.0f);
         };
 
         template <class Archive>
@@ -151,14 +149,12 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "returnShot", params.returnShot);
             LoadField(archive, "announceSeconds", params.announceSeconds);
             LoadField(archive, "announceOffsetY", params.announceOffsetY);
-            LoadField(archive, "subtitleGapY", params.subtitleGapY);
             LoadField(archive, "bandTailX", params.bandTailX);
             LoadField(archive, "bandHeight", params.bandHeight);
             LoadField(archive, "bandRollDegrees", params.bandRollDegrees);
             LoadField(archive, "midBandColor", params.midBandColor);
             LoadField(archive, "finalBandColor", params.finalBandColor);
             LoadField(archive, "titleColor", params.titleColor);
-            LoadField(archive, "subtitleColor", params.subtitleColor);
         }
 
         //-------------------------------------------------------------
@@ -177,17 +173,6 @@ namespace CombatAndroid::ECS {
             for(entt::entity entity : view)
                 return &view.get<BossProgressComponent>(entity);
             return nullptr;
-        }
-
-        //-------------------------------------------------------------
-        //! @brief  秒数を「分:秒」の文字列にする（例：「1:05」）
-        //-------------------------------------------------------------
-        std::wstring FormatMinutesSeconds(float seconds) {
-            const int    totalSeconds = std::max(static_cast<int>(std::ceil(seconds)), 0);
-            std::wstring secondsText  = std::to_wstring(totalSeconds % 60);
-            if(secondsText.size() < 2)
-                secondsText.insert(0, L"0");
-            return std::to_wstring(totalSeconds / 60) + L":" + secondsText;
         }
 
         //-------------------------------------------------------------
@@ -288,10 +273,10 @@ namespace CombatAndroid::ECS {
             shots.push_back(MakeShot(params.returnShot, playerEntity, baseYaw));
             PlayCutscene(registry, std::move(shots));
 
-            progress.announceElapsed  = 0.0f;
-            progress.announceTitle    = stage == BossStage::Final ? L"ラスボス出現" : L"中ボス出現";
-            progress.announceSubtitle = entry.displayName;
-            progress.announceFinal    = stage == BossStage::Final;
+            // 告知は呼び名だけを出す。「中ボス出現」のような種別名や残り時間はゲームの外の言葉に聞こえるので出さない
+            progress.announceElapsed = 0.0f;
+            progress.announceTitle   = entry.displayName;
+            progress.announceFinal   = stage == BossStage::Final;
 
             RequestNightfall(registry, bossPosition);
 
@@ -321,7 +306,6 @@ namespace CombatAndroid::ECS {
             if(progress.announceElapsed >= params.announceSeconds) {
                 UiDisappear(registry, progress.announceBandEntity, true);
                 UiDisappear(registry, progress.announceTitleEntity, true);
-                UiDisappear(registry, progress.announceSubtitleEntity, true);
                 progress.announceElapsed = -1.0f;
                 return;
             }
@@ -331,16 +315,12 @@ namespace CombatAndroid::ECS {
             const float screenCenterX = screenWidth * 0.5f;
             const float titleY        = screenHeight * 0.5f + params.announceOffsetY;
 
-            PlaceUiBandFromLeft(registry, ctx, progress.announceBandEntity, screenCenterX + params.bandTailX, titleY + params.subtitleGapY * 0.4f,
-                                params.bandHeight, params.bandRollDegrees, progress.announceFinal ? params.finalBandColor : params.midBandColor);
+            PlaceUiBandFromLeft(registry, ctx, progress.announceBandEntity, screenCenterX + params.bandTailX, titleY, params.bandHeight, params.bandRollDegrees, progress.announceFinal ? params.finalBandColor : params.midBandColor);
             PlaceUiText(registry, progress.announceTitleEntity, screenCenterX, titleY, GetUiTextScale(UiTextSize::Display), progress.announceTitle,
                         params.titleColor);
-            PlaceUiText(registry, progress.announceSubtitleEntity, screenCenterX, titleY + params.subtitleGapY, GetUiTextScale(UiTextSize::Heading),
-                        progress.announceSubtitle, params.subtitleColor);
 
             // 出始めだけ動きを付ける（カットシーン中は世界が止まっているので実時間で動かす）
             if(firstFrame) {
-                UiFollow(registry, progress.announceSubtitleEntity, progress.announceTitleEntity);
                 UiAppear(registry, progress.announceBandEntity, UiAppearDesc{.slideX = -300.0f, .unscaledTime = true});
                 UiAppear(registry, progress.announceTitleEntity,
                          UiAppearDesc{.scaleFrom = 1.8f, .duration = GetUiMotionParams().popDuration * 1.4f, .unscaledTime = true});
@@ -362,36 +342,6 @@ namespace CombatAndroid::ECS {
     bool IsFinalBossDefeated(Tsukino::ECS::Registry& registry) {
         const BossProgressComponent* progress = FindProgress(registry);
         return progress && progress->phase == BossPhase::FinalDefeated;
-    }
-
-    //-------------------------------------------------------------
-    //! @brief HUDに出す「次の目標」の文字を作る
-    //-------------------------------------------------------------
-    std::wstring GetBossObjectiveText(Tsukino::ECS::Registry& registry) {
-        const BossProgressComponent* progress = FindProgress(registry);
-        if(!progress)
-            return {};
-
-        const BossDirectorParams& params = GetParams();
-
-        float elapsed = 0.0f;
-        auto  view    = registry.View<BossProgressComponent, RunClockComponent>();
-        for(entt::entity entity : view)
-            elapsed = view.get<RunClockComponent>(entity).elapsedSeconds;
-
-        switch(progress->phase) {
-            case BossPhase::BeforeMid:
-                return L"中ボスまで " + FormatMinutesSeconds(params.midBossSeconds - elapsed);
-            case BossPhase::Interlude:
-                return L"ラスボスまで " + FormatMinutesSeconds(params.finalBossDelaySeconds - (elapsed - progress->interludeStartSeconds));
-            case BossPhase::MidActive:
-                return L"中ボスを倒せ";
-            case BossPhase::FinalActive:
-                return L"ラスボスを倒せ";
-            case BossPhase::FinalDefeated:
-                return {};
-        }
-        return {};
     }
 
     //-------------------------------------------------------------

@@ -51,8 +51,8 @@ namespace CombatAndroid::ECS {
             L"危険度上昇",
             L"武器進化",
             L"エリート出現",
-            L"ボス出現",
-            L"ボス撃破",
+            L"出現",
+            L"撃破",
         };
 
         //! JSONで種別の色を引くときのキー。並びはkGameLogLabelsと同じ

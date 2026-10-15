@@ -389,8 +389,6 @@ namespace CombatAndroid {
                 bossProgress.announceBandEntity = CombatAndroid::ECS::CreateUiSlashEntity(registry, *context, CombatAndroid::UI::kBossAnnounceBand);
                 bossProgress.announceTitleEntity = CombatAndroid::ECS::CreateUiTextEntity(
                     registry, CombatAndroid::UI::kBossAnnounceText, CombatAndroid::ECS::UiTextAlign::Center, CombatAndroid::ECS::UiTextFont::Heading);
-                bossProgress.announceSubtitleEntity =
-                    CombatAndroid::ECS::CreateUiTextEntity(registry, CombatAndroid::UI::kBossAnnounceText, CombatAndroid::ECS::UiTextAlign::Center);
             }
 
             CombatAndroid::ECS::PlayerHudComponent& hud = registry.AddComponent<CombatAndroid::ECS::PlayerHudComponent>(playerEntity);

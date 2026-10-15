@@ -279,7 +279,7 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 生存時間：「経過　次の目標」を画面上部中央に表示する。
+            // 生存時間：経過を分:秒で画面上部中央に表示する。
             // 加算はRunClockSystemが行うため、ここは表示だけを受け持つ
             //-------------------------------------------------------------
             if(hud.survivalTimeTextEntity != entt::null) {
@@ -293,9 +293,8 @@ namespace CombatAndroid::ECS {
                     if(secondsText.size() < 2)
                         secondsText.insert(0, L"0");
 
-                    // 次の目標（ボスまでの残り・ボス戦）も並べて、何を目指せばよいかを見せる
-                    const std::wstring objective = GetBossObjectiveText(registry);
-                    survivalTimeFont->text       = minutesText + L":" + secondsText + (objective.empty() ? L"" : L"　" + objective);
+                    // 次に何が来るかまでの残り時間は出さない（ゲームの外の言葉に聞こえるため）
+                    survivalTimeFont->text = minutesText + L":" + secondsText;
                 }
             }
 

@@ -5,8 +5,6 @@
 #pragma once
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
 
-#include <string>
-
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
@@ -40,12 +38,4 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     bool IsFinalBossDefeated(Tsukino::ECS::Registry& registry);
-
-    //-------------------------------------------------------------
-    //! @brief  HUDに出す「次の目標」の文字を作る
-    //! @param  registry [in] ECSレジストリ
-    //! @return 例：「中ボスまで 1:23」「ラスボスまで 0:45」「ボス戦」。進行状態が無ければ空
-    //-------------------------------------------------------------
-    [[nodiscard]]
-    std::wstring GetBossObjectiveText(Tsukino::ECS::Registry& registry);
 }    // namespace CombatAndroid::ECS

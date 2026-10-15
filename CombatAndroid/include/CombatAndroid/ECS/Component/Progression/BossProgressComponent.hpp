@@ -38,14 +38,12 @@ namespace CombatAndroid::ECS {
         bool                 bossDown     = false;          //!< 戦っているボスのHPが0になったか（撃破の演出待ちに入った）
 
         //-----------------------------------------------------
-        // 出現の告知（画面中央の斜めの帯と大きな文字）。シーン初期化時に非表示で作る
+        // 出現の告知（画面中央の斜めの帯と、大きな呼び名）。シーン初期化時に非表示で作る
         //-----------------------------------------------------
         Tsukino::ECS::Entity announceBandEntity     = entt::null;
         Tsukino::ECS::Entity announceTitleEntity    = entt::null;
-        Tsukino::ECS::Entity announceSubtitleEntity = entt::null;
         float                announceElapsed        = -1.0f;    //!< 告知を出してからの経過秒（実時間）。負なら出していない
-        std::wstring         announceTitle;                     //!< 例：「中ボス出現」
-        std::wstring         announceSubtitle;                  //!< 例：ボスの呼び名
+        std::wstring         announceTitle;                     //!< 出しているボスの呼び名（例：「夜の聖騎士」）
         bool                 announceFinal = false;             //!< ラスボスの告知か（色を変える）
     };
 }    // namespace CombatAndroid::ECS
