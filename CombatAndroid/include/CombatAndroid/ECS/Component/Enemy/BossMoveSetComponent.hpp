@@ -26,11 +26,11 @@ namespace CombatAndroid::ECS {
     //! @struct BossMoveSetComponent
     //! @brief  複数の技を持つボスの状態。技の中身は BossMoveTable（Assets/Tables/Bosses/<key>.json）にあり、
     //!         ここは「今どの技をどこまで出したか」だけを持つ
-    //! @note   BossDirectorSystemが湧かせたときに付け、ボスのビヘイビアツリー（OgreBehavior等）だけが書き込む。
+    //! @note   BossDirectorSystemが湧かせたときに付け、ボスのビヘイビアツリー（BossBehavior）だけが書き込む。
     //!         EnemyAttackAreaSystemが予兆の形と位置を読む
     //-------------------------------------------------------------
     struct BossMoveSetComponent {
-        std::string key;    //!< 技の表の名前（例："Ogre"）
+        std::string key;    //!< 技の表の名前（例："Vampire"）
 
         std::vector<Tsukino::Asset::AssetHandle> clips;        //!< 技ごとのクリップ（湧かせたときに読んでおく）
         std::vector<float>                       cooldowns;    //!< 技ごとの残りクールタイム（秒）

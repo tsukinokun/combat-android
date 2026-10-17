@@ -21,7 +21,6 @@ CombatAndroid で使用している素材の出典とライセンスです。
 | 素材 | ファイル | 出典 | ライセンス |
 |---|---|---|---|
 | Animated Spider | `Assets/Models/Boss/Spider/` | [Animated Spider](https://sketchfab.com/3d-models/animated-spider-af87017501fc44e39a33c220f2435100) by [Shadocks](https://sketchfab.com/shadocks) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| Ogre | `Assets/Models/Boss/Ogre/` | [Ogre](https://sketchfab.com/3d-models/ogre-ee48bfe768b04d299be3f70b6d8b56d2) by [demagdev](https://sketchfab.com/demagdev) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 
 ## サウンド
 
