@@ -7,9 +7,9 @@
         "detectRange": 100000.0,
         "midBoss": {
             "baseType": "BigZombie",
-            "prefab": "Enemy/Ogre",
-            "behavior": "Ogre",
-            "displayName": "巨躯の屍",
+            "prefab": "Enemy/Vampire",
+            "behavior": "Vampire",
+            "displayName": "紅き夜の伯爵",
             "sizeScale": 1.6,
             "healthScale": 25.0,
             "attackScale": 1.5,

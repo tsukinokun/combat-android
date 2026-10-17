@@ -2,7 +2,7 @@
     "Components": [
         {
             "key": "OcclusionCutoutComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/OcclusionCutoutComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/OcclusionCutoutComponent.json"
         },
         {
             "key": "AnimationControllerComponent",
@@ -10,7 +10,7 @@
         },
         {
             "key": "AnimationPlayerComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/AnimationPlayerComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/AnimationPlayerComponent.json"
         },
         {
             "key": "BehaviorTreeComponent",
@@ -18,35 +18,35 @@
         },
         {
             "key": "CollisionComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/CollisionComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/CollisionComponent.json"
         },
         {
             "key": "EnemyAnimationSetComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/EnemyAnimationSetComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/EnemyAnimationSetComponent.json"
         },
         {
             "key": "EnemyAttackHitboxComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/EnemyAttackHitboxComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/EnemyAttackHitboxComponent.json"
         },
         {
             "key": "EnemyComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/EnemyComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/EnemyComponent.json"
         },
         {
             "key": "HealthComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/HealthComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/HealthComponent.json"
         },
         {
             "key": "ModelComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/ModelComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/ModelComponent.json"
         },
         {
             "key": "RigidbodyComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/RigidbodyComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/RigidbodyComponent.json"
         },
         {
             "key": "RimGlowComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/RimGlowComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/RimGlowComponent.json"
         },
         {
             "key": "SkeletonOutputComponent",
@@ -54,7 +54,7 @@
         },
         {
             "key": "TransformComponent",
-            "value": "CombatAndroid/Assets/Prefabs/Enemy/Ogre/TransformComponent.json"
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/TransformComponent.json"
         }
     ]
 }
