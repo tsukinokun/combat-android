@@ -19,6 +19,7 @@ namespace CombatAndroid::ECS {
         hlslpp::float3 currentColor    = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 今表示している色（目標の色へ寄せていく）
         float          currentStrength = 0.0f;                                 //!< 今の強さ（0=消灯、1=レベルに応じた全力）
         float          currentLevelT   = 0.0f;                                 //!< 今のレベル補間値（0=Lv1、1=最大レベル）
+        bool           slowGlowing     = false;                                //!< 鈍足の白い縁を点けているか（消すときに使う）
         float          pulseTime       = 0.0f;                                 //!< 脈動用に経過時間を積算するだけの内部状態
     };
 }    // namespace CombatAndroid::ECS

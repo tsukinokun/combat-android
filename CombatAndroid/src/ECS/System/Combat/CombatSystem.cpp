@@ -962,23 +962,12 @@ namespace CombatAndroid::ECS {
         HealthComponent*                                        playerHealth     = nullptr;
         Tsukino::BuiltIn::ECS::TransformComponent*             playerTransform  = nullptr;
         Tsukino::BuiltIn::ECS::CharacterControllerComponent* playerController = nullptr;
-        // 回避の無敵時間中か。本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、
-        // ここで読めるのは今フレームの確定値になる
-        bool             playerInvincible = false;
-        // 傲慢（スキル）の被ダメージ倍率。スキルを持たない場合に備えて既定は等倍
-        float            playerDamageTakenMultiplier = 1.0f;
+        // 無敵（回避・レベルアップ後）と傲慢（スキル）の軽減は、当てるときにDamagePlayer（CombatHit.cpp）が見る。
+        // 本SystemはPlayerAnimationSystem（Gameplay）より後に走るため、そこで読めるのは今フレームの確定値になる
         if(playerEntity != entt::null) {
             playerHealth     = &registry.GetComponent<HealthComponent>(playerEntity);
             playerTransform  = &registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
             playerController = &registry.GetComponent<Tsukino::BuiltIn::ECS::CharacterControllerComponent>(playerEntity);
-
-            // 回避の無敵に加えて、レベルアップ後無敵（SkillSelectSystemがタイマーを立てる。
-            // 戦闘中断からの再開直後に囲まれて一方的に被弾するのを防ぐ猶予時間）中も接触ダメージを無視する
-            const PlayerComponent& playerComp = registry.GetComponent<PlayerComponent>(playerEntity);
-            playerInvincible                   = playerComp.isInvincible || playerComp.levelUpInvincibleTimer > 0.0f;
-
-            if(auto* playerSkills = registry.try_get<PlayerSkillComponent>(playerEntity))
-                playerDamageTakenMultiplier = playerSkills->damageTakenMultiplier;
         }
 
         //-------------------------------------------------------------
@@ -1103,30 +1092,11 @@ namespace CombatAndroid::ECS {
             hitbox.prevSweepPoint    = sweepPoint;
             hitbox.hasPrevSweepPoint = true;
 
-            // 無敵時間中はすり抜ける。hasLandedThisAttackは立てない＝無敵が明けた後、
-            // 同じ判定区間内であれば改めて当たり得る
-            if(isHit && !playerInvincible) {
-                // 傲慢（スキル）で軽減した後の値を実ダメージとして扱う。
-                // 以降のダメージ表示（PlayerDamagedEvent経由）もこの値を使い、
-                // 画面に出る数字と実際のHPの減りを一致させる
-                const float takenDamage = hitbox.damage * playerDamageTakenMultiplier;
-
-                playerHealth->currentHealth -= takenDamage;
-                if(playerHealth->currentHealth <= 0.0f) {
-                    playerHealth->currentHealth = 0.0f;
-                    playerHealth->isDead         = true;
-                }
+            // 無敵時間中はすり抜ける（DamagePlayerがfalseを返す）。hasLandedThisAttackは立てない＝無敵が明けた後、
+            // 同じ判定区間内であれば改めて当たり得る。軽減・通知・ヒットストップは敵の弾と共通（CombatHit.cpp）
+            if(isHit && DamagePlayer(registry, playerEntity, enemyEntity, hitbox.damage, sweepPoint, params.playerHitStopDuration,
+                                     params.playerHitStopScale))
                 hitbox.hasLandedThisAttack = true;
-
-                // 被弾演出（点滅・画面フラッシュ。PlayerDamageEffectSystem）用の通知。
-                // ヒットストップは敵を殴ったとき（kHitStopDuration/kHitStopScale）より弱めにする。
-                // 画面全体ではなく、プレイヤーと攻撃した敵だけを止める
-                if(eventBus) {
-                    eventBus->Publish(PlayerDamagedEvent{enemyEntity, playerEntity, takenDamage, sweepPoint});
-                }
-                ApplyHitStop(registry, playerEntity, params.playerHitStopDuration, params.playerHitStopScale);
-                ApplyHitStop(registry, enemyEntity, params.playerHitStopDuration, params.playerHitStopScale);
-            }
 
 #ifdef _DEBUG
             if(ctx->renderer) {

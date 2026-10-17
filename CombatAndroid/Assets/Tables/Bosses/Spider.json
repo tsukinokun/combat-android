@@ -1,0 +1,138 @@
+{
+    "Boss": {
+        "turnSpeed": 3.0,
+        "chaseStopRange": 80.0,
+        "enrage": {
+            "healthRatio": 0.5,
+            "move": "Charge",
+            "moveSpeedScale": 1.2,
+            "cooldownScale": 0.6,
+            "fogDensityScale": 1.8
+        },
+        "moves": [
+            {
+                "name": "Sting",
+                "kind": "Strike",
+                "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+                "animationIndex": 0,
+                "minRange": 0.0,
+                "maxRange": 90.0,
+                "weight": 3.0,
+                "cooldown": 0.0,
+                "length": 1.25,
+                "recovery": 0.9,
+                "area": "DiscForward",
+                "hitbox": {
+                    "bone": "Bone.001",
+                    "radius": 60.0,
+                    "damage": 35.0,
+                    "start": 0.55,
+                    "duration": 0.3
+                }
+            },
+            {
+                "name": "Charge",
+                "kind": "Charge",
+                "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+                "animationIndex": 3,
+                "loopClip": true,
+                "minRange": 200.0,
+                "maxRange": 900.0,
+                "weight": 2.0,
+                "cooldown": 5.0,
+                "length": 2.0,
+                "recovery": 1.0,
+                "area": "Line",
+                "chargeStart": 0.9,
+                "chargeDuration": 0.9,
+                "chargeSpeed": 1500.0,
+                "hitbox": {
+                    "bone": "Bone.004",
+                    "radius": 70.0,
+                    "damage": 30.0,
+                    "start": 0.9,
+                    "duration": 0.9
+                },
+                "enragedRepeat": 2
+            },
+            {
+                "name": "Web",
+                "kind": "Projectile",
+                "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+                "animationIndex": 5,
+                "loopClip": true,
+                "minRange": 150.0,
+                "maxRange": 900.0,
+                "weight": 2.0,
+                "cooldown": 6.0,
+                "length": 1.6,
+                "recovery": 0.6,
+                "area": "None",
+                "retreatSpeed": 250.0,
+                "projectileCount": 3,
+                "projectileSpread": 30.0,
+                "projectileSpeed": 1100.0,
+                "projectileDamage": 12.0,
+                "projectileRadius": 45.0,
+                "projectileRange": 2200.0,
+                "slowSeconds": 3.0,
+                "slowScale": 0.5,
+                "hitbox": {
+                    "bone": "Bone.001",
+                    "radius": 40.0,
+                    "damage": 0.0,
+                    "start": 1.0,
+                    "duration": 0.0
+                }
+            },
+            {
+                "name": "Brood",
+                "kind": "Strike",
+                "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+                "animationIndex": 0,
+                "minRange": 0.0,
+                "maxRange": 800.0,
+                "weight": 1.0,
+                "cooldown": 15.0,
+                "length": 1.25,
+                "recovery": 0.8,
+                "area": "Ring",
+                "summonCount": 4,
+                "summonRadius": 120.0,
+                "summonPrefab": "Enemy/Spider",
+                "summonSizeScale": 0.3,
+                "summonHealthScale": 0.3,
+                "hitbox": {
+                    "bone": "Bone.004",
+                    "radius": 120.0,
+                    "damage": 0.0,
+                    "start": 0.6,
+                    "duration": 0.0
+                }
+            },
+            {
+                "name": "Orbit",
+                "kind": "Orbit",
+                "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+                "animationIndex": 2,
+                "minRange": 0.0,
+                "maxRange": 500.0,
+                "weight": 1.0,
+                "cooldown": 10.0,
+                "length": 3.0,
+                "recovery": 0.2,
+                "area": "None",
+                "orbitSeconds": 3.0,
+                "orbitRadius": 260.0,
+                "orbitSpeed": 450.0,
+                "hitbox": {
+                    "bone": "Bone.001",
+                    "radius": 40.0,
+                    "damage": 0.0,
+                    "start": 1.0,
+                    "duration": 0.0
+                }
+            }
+        ]
+    }
+}

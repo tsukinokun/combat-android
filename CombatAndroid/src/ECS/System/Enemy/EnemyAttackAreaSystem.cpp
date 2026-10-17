@@ -6,7 +6,9 @@
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Utility/Table/BossMoveTable.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
@@ -134,6 +136,30 @@ namespace CombatAndroid::ECS {
 
             return mesh;
         }
+
+        //-------------------------------------------------------------
+        //! @brief  幅1・長さ1の長方形のメッシュデータを作る（手前の辺の中央が原点、+Zへ伸びる）
+        //! @note   表裏両方の三角形を入れる（扇と同じ理由）
+        //-------------------------------------------------------------
+        Tsukino::GraphicsCommon::MeshData BuildRectMeshData() {
+            Tsukino::GraphicsCommon::MeshData mesh;
+            mesh.format       = Tsukino::GraphicsCommon::VertexFormat::PositionUV;
+            mesh.vertexStride = sizeof(Tsukino::GraphicsCommon::VertexPUV);
+
+            const std::vector<Tsukino::GraphicsCommon::VertexPUV> vertices = {
+                {{-0.5f, 0.0f, 0.0f}, {0.5f, 0.5f}},
+                {{0.5f, 0.0f, 0.0f}, {0.5f, 0.5f}},
+                {{0.5f, 0.0f, 1.0f}, {0.5f, 0.5f}},
+                {{-0.5f, 0.0f, 1.0f}, {0.5f, 0.5f}},
+            };
+            mesh.indices = {0u, 1u, 2u, 0u, 2u, 3u, 0u, 2u, 1u, 0u, 3u, 2u};
+
+            mesh.vertexCount = static_cast<Tsukino::u32>(vertices.size());
+            mesh.vertexData.resize(vertices.size() * sizeof(Tsukino::GraphicsCommon::VertexPUV));
+            std::memcpy(mesh.vertexData.data(), vertices.data(), mesh.vertexData.size());
+            mesh.indexCount = static_cast<Tsukino::u32>(mesh.indices.size());
+            return mesh;
+        }
     }    // namespace
 
     //-------------------------------------------------------------
@@ -152,8 +178,9 @@ namespace CombatAndroid::ECS {
         if(m_discMesh.indexCount == 0) {
             m_discMesh = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildFanMeshData(360.0f));
             m_fanMesh  = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildFanMeshData(params.fanAngleDegrees));
+            m_rectMesh = Tsukino::Renderer::CreateMeshBuffer(ctx->renderer->GetDevice(), BuildRectMeshData());
 
-            if(m_discMesh.indexCount == 0 || m_fanMesh.indexCount == 0) {
+            if(m_discMesh.indexCount == 0 || m_fanMesh.indexCount == 0 || m_rectMesh.indexCount == 0) {
                 Tsukino::Core::Log::Error("EnemyAttackAreaSystem - failed to create the area meshes. Attack areas will not be drawn.");
                 return;
             }
@@ -178,7 +205,7 @@ namespace CombatAndroid::ECS {
         //! @brief 1枚ぶんの描画コマンドを積む
         //-------------------------------------------------------------
         auto pushArea = [&](Tsukino::Renderer::MeshBuffer& mesh, const hlslpp::float3& position, const hlslpp::quaternion& rotation,
-                            float radius, float alpha) {
+                            float radius, float alpha, float width = -1.0f) {
             if(radius <= 0.0f || alpha <= 0.0f)
                 return;
 
@@ -195,7 +222,8 @@ namespace CombatAndroid::ECS {
             cmd.mesh          = &mesh;
             cmd.material      = &material;
             cmd.materialData  = &materialData;
-            cmd.transform     = hlslpp::mul(Tsukino::Core::Math::matrix::scale(radius, 1.0f, radius),
+            // widthを渡したときだけ横と奥行きを別にする（長方形の帯）。それ以外は半径で縦横同じに広げる
+            cmd.transform     = hlslpp::mul(Tsukino::Core::Math::matrix::scale(width > 0.0f ? width : radius, 1.0f, radius),
                                             hlslpp::mul(Tsukino::Core::Math::matrix::fromQuaternion(rotation),
                                                         Tsukino::Core::Math::matrix::translate(position)));
             cmd.prevTransform = cmd.transform;
@@ -209,7 +237,7 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<EnemyComponent, EnemyAnimationSetComponent, EnemyAttackHitboxComponent, HealthComponent,
                                   Tsukino::BuiltIn::ECS::TransformComponent>();
 
-        view.each([&](const EnemyComponent& enemy, const EnemyAnimationSetComponent& animSet, const EnemyAttackHitboxComponent& hitbox,
+        view.each([&](entt::entity entity, const EnemyComponent& enemy, const EnemyAnimationSetComponent& animSet, const EnemyAttackHitboxComponent& hitbox,
                       const HealthComponent& health, const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
             //-------------------------------------------------------------
             // 出す条件はリムライトの予兆（EnemyAttackTelegraphSystem）と同じ：
@@ -228,6 +256,54 @@ namespace CombatAndroid::ECS {
             const hlslpp::float3 forward  = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), transform.rotation);
             hlslpp::float3       basePosition = transform.position;
             basePosition.y                    = params.areaHeight;
+
+            //-------------------------------------------------------------
+            // ボス：技の表が指定した形で出す（形・位置は技ごとに違う）
+            //-------------------------------------------------------------
+            if(const auto* boss = registry.try_get<BossMoveSetComponent>(entity); boss && boss->currentMove >= 0) {
+                const BossMoveSet& set = GetBossMoveSet(boss->key);
+                if(static_cast<size_t>(boss->currentMove) >= set.moves.size())
+                    return;
+                const BossMoveDef& move = set.moves[static_cast<size_t>(boss->currentMove)];
+
+                switch(move.area) {
+                    case BossAreaShape::Fan: {
+                        // 届く距離は技を選ぶ最大距離（＝この距離まで寄ってから振る）に判定の太さを足したもの
+                        const float radius = move.maxRange * boss->sizeScale + hitbox.radius;
+                        pushArea(m_fanMesh, basePosition, transform.rotation, radius, params.outerAlpha * fadeIn);
+                        pushArea(m_fanMesh, basePosition, transform.rotation, radius * progress, params.fillAlpha * fadeIn);
+                        break;
+                    }
+                    case BossAreaShape::DiscForward: {
+                        const hlslpp::float3 center = basePosition + forward * (move.maxRange * boss->sizeScale * params.discCenterRatio);
+                        pushArea(m_discMesh, center, transform.rotation, hitbox.radius, params.outerAlpha * fadeIn);
+                        pushArea(m_discMesh, center, transform.rotation, hitbox.radius * progress, params.fillAlpha * fadeIn);
+                        break;
+                    }
+                    case BossAreaShape::DiscAtTarget: {
+                        hlslpp::float3 center = boss->moveTarget;
+                        center.y              = params.areaHeight;
+                        pushArea(m_discMesh, center, transform.rotation, hitbox.radius, params.outerAlpha * fadeIn);
+                        pushArea(m_discMesh, center, transform.rotation, hitbox.radius * progress, params.fillAlpha * fadeIn);
+                        break;
+                    }
+                    case BossAreaShape::Ring:
+                        pushArea(m_discMesh, basePosition, transform.rotation, hitbox.radius, params.outerAlpha * fadeIn);
+                        pushArea(m_discMesh, basePosition, transform.rotation, hitbox.radius * progress, params.fillAlpha * fadeIn);
+                        break;
+                    case BossAreaShape::Line: {
+                        // 突進の進路：幅は体の判定の直径、長さは駆け抜ける距離に体の半径を足したもの。塗りは手前から奥へ伸びる
+                        const float width  = hitbox.radius * 2.0f;
+                        const float length = move.chargeSpeed * move.chargeDuration + hitbox.radius;
+                        pushArea(m_rectMesh, basePosition, transform.rotation, length, params.outerAlpha * fadeIn, width);
+                        pushArea(m_rectMesh, basePosition, transform.rotation, length * progress, params.fillAlpha * fadeIn, width);
+                        break;
+                    }
+                    case BossAreaShape::None:
+                        break;
+                }
+                return;
+            }
 
             if(hitbox.endBoneName.empty()) {
                 //-------------------------------------------------------------

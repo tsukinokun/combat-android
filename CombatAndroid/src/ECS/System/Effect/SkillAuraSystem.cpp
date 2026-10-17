@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Utility/Common/SkillAura.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 
@@ -43,6 +44,10 @@ namespace CombatAndroid::ECS {
             //! 色・強さ・レベルを目標値へ寄せる速さ（1秒あたり、残りの差をどれだけ詰めるかの指数）。
             //! スキルを取った瞬間に色がパッと切り替わらず、数分の1秒で移り変わる
             float blendSpeed = 4.0f;
+
+            // 鈍足（ボスの糸弾）中の白い縁
+            hlslpp::float3 slowRimColor     = hlslpp::float3(0.9f, 0.95f, 1.0f);
+            float          slowRimIntensity = 1.5f;
         };
 
         template <class Archive>
@@ -55,6 +60,8 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "pulseSpeed", params.pulseSpeed);
             LoadField(archive, "pulseDepth", params.pulseDepth);
             LoadField(archive, "blendSpeed", params.blendSpeed);
+            LoadField(archive, "slowRimColor", params.slowRimColor);
+            LoadField(archive, "slowRimIntensity", params.slowRimIntensity);
         }
 
         //-------------------------------------------------------------
@@ -93,15 +100,35 @@ namespace CombatAndroid::ECS {
             auto&       aura   = view.get<SkillAuraComponent>(entity);
             auto&       rim    = view.get<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
 
+            const bool otherGlow = player.isCharging || player.levelUpInvincibleTimer > 0.0f;    // 溜め・レベルアップ後無敵の発光が優先
+
+            //-------------------------------------------------------------
+            // 鈍足（ボスの糸弾）の間は、糸に絡まれたことが分かるよう体の縁を白く光らせる。スキルのオーラより優先
+            //-------------------------------------------------------------
+            if(player.slowTimer > 0.0f && !otherGlow) {
+                rim.active       = true;
+                rim.rimColor     = params.slowRimColor;
+                rim.rimIntensity = params.slowRimIntensity;
+                rim.rimPower     = params.rimPower;
+                rim.glow         = 0.0f;
+                aura.slowGlowing = true;
+                continue;
+            }
+
             //-------------------------------------------------------------
             // 目標値へ寄せる。スキル未取得なら何も書かない
-            // （RimGlowは溜め・無敵の演出に任せ、消灯もあちらが行う）
+            // （RimGlowは溜め・無敵の演出に任せ、消灯もあちらが行う）。
+            // ただし鈍足の白い光を点けていた場合は、ここで消す（他に消す者がいないため）
             //-------------------------------------------------------------
             const std::optional<DominantSkill> dominant = ResolveDominantSkill(skills);
             if(!dominant) {
                 aura.currentStrength = 0.0f;
+                if(aura.slowGlowing && !otherGlow)
+                    rim.active = false;
+                aura.slowGlowing = false;
                 continue;
             }
+            aura.slowGlowing = false;
 
             const hlslpp::float3 targetColor = ResolveSkillAuraColor(dominant->id, params.saturation) * params.colorBoost;
 

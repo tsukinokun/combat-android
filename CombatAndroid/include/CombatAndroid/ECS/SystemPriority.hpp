@@ -66,6 +66,8 @@ namespace CombatAndroid::ECS {
         Projectile,       // 斬撃弾の移動と当たり判定。弾を生成するCombatSystem（WeaponAttach）の後、
                           // ヒットの結果を読むHealthBar/DamageNumberの前に置く。この並びでないと
                           // 撃った弾が飛び始めるのも、HPバーとダメージ数値が出るのも1フレーム遅れる
+        EnemyProjectile,  // 敵（ボス）の弾の移動とプレイヤーへの当たり。プレイヤーが今フレームの位置へ動いた（Movement）後に当て、
+                          // 被弾で点くHPバー・被弾演出（PlayerHud優先度）より前に済ませる。斬撃弾（Projectile）と同じ並び
         HealthBar,        // 頭上HPバーの表示可否・残量幅の更新。被弾（WeaponAttachでCombatSystemが
                           // hpBarVisibleTimerをセット）の後、WorldAnchorSystemが座標を確定させる前に行う
         DamageNumber,     // ダメージ数値のスロット割り当てとアニメーション更新。被弾（WeaponAttachで

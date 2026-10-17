@@ -1,0 +1,93 @@
+{
+    "Boss": {
+        "turnSpeed": 4.0,
+        "chaseStopRange": 100.0,
+        "enrage": {
+            "healthRatio": 0.5,
+            "move": "Roar",
+            "moveSpeedScale": 1.35,
+            "cooldownScale": 0.6
+        },
+        "moves": [
+            {
+                "name": "Swipe",
+                "clip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx",
+                "minRange": 0.0,
+                "maxRange": 140.0,
+                "weight": 3.0,
+                "cooldown": 0.0,
+                "length": 2.0,
+                "recovery": 0.6,
+                "area": "Fan",
+                "hitbox": {
+                    "bone": "mixamorig:LeftArm",
+                    "endBone": "mixamorig:LeftHand",
+                    "radius": 30.0,
+                    "damage": 25.0,
+                    "start": 1.2,
+                    "duration": 0.25
+                },
+                "enragedRepeat": 2
+            },
+            {
+                "name": "Smash",
+                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Punch.fbx",
+                "minRange": 0.0,
+                "maxRange": 120.0,
+                "weight": 2.0,
+                "cooldown": 4.0,
+                "length": 1.1,
+                "recovery": 1.0,
+                "area": "DiscForward",
+                "hitbox": {
+                    "bone": "mixamorig:LeftHand",
+                    "radius": 45.0,
+                    "damage": 40.0,
+                    "start": 0.72,
+                    "duration": 0.18
+                }
+            },
+            {
+                "name": "Leap",
+                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Jump Attack.fbx",
+                "minRange": 300.0,
+                "maxRange": 700.0,
+                "weight": 2.0,
+                "cooldown": 6.0,
+                "length": 2.6,
+                "recovery": 0.8,
+                "area": "DiscAtTarget",
+                "hitbox": {
+                    "bone": "mixamorig:Hips",
+                    "radius": 90.0,
+                    "damage": 35.0,
+                    "start": 1.55,
+                    "duration": 0.2
+                },
+                "leapStart": 0.5,
+                "leapEnd": 1.55,
+                "leapMaxDistance": 700.0
+            },
+            {
+                "name": "Roar",
+                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Roaring.fbx",
+                "minRange": 0.0,
+                "maxRange": 400.0,
+                "weight": 1.0,
+                "cooldown": 18.0,
+                "length": 2.8,
+                "recovery": 0.5,
+                "area": "Ring",
+                "hitbox": {
+                    "bone": "mixamorig:Hips",
+                    "radius": 170.0,
+                    "damage": 10.0,
+                    "start": 1.5,
+                    "duration": 0.3
+                },
+                "summonCount": 3,
+                "summonRadius": 350.0
+            }
+        ]
+    }
+}

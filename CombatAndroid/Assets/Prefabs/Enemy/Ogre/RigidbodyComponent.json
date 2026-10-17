@@ -1,0 +1,25 @@
+{
+    "RigidbodyComponent": {
+        "type": 1,
+        "mass": 1.0,
+        "friction": 0.5,
+        "restitution": 0.0,
+        "gravityFactor": 1.0,
+        "linearVelocity": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "angularVelocity": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "freezePositionX": false,
+        "freezePositionY": false,
+        "freezePositionZ": false,
+        "freezeRotationX": true,
+        "freezeRotationY": true,
+        "freezeRotationZ": true
+    }
+}

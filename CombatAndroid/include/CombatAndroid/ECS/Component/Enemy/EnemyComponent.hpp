@@ -38,6 +38,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         float knockbackDamageThreshold = 40.0f;    //!< この値以上の単発ダメージを受けたらノックバックする。
                                                      //!< 重い武器（WeaponComponent::knockbackIgnoresThreshold）はこれを無視して必ず発動させる
+        bool  superArmor                 = false;    //!< のけぞらない（ボス）。ダメージは通るがRequestKnockbackを受け付けない
         bool  pendingKnockback           = false;    //!< ノックバック開始待ち（RequestKnockbackが立て、BTのPlayKnockbackが消費する）
         bool  isKnockedBack              = false;    //!< 硬直中か
 

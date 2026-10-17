@@ -8,6 +8,10 @@
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <CombatAndroid/ECS/Event/Combat/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Component/World/TreeColliderComponent.hpp>
 #include <CombatAndroid/ECS/Event/World/TreeHitEvent.hpp>
@@ -27,8 +31,8 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void RequestKnockback(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity enemyEntity, const KnockbackParams& params) {
         auto* enemy = registry.try_get<EnemyComponent>(enemyEntity);
-        if(!enemy)
-            return;
+        if(!enemy || enemy->superArmor)
+            return;    // ボスはのけぞらない（のけぞりで技が潰れると攻めが成り立たない）
 
         // 硬直中は「今より強い要求」だけを通す。弱い要求まで通すと、連撃のたびに
         // のけぞりが頭から再生され直して永久に硬直するハメになる
@@ -181,6 +185,46 @@ namespace CombatAndroid::ECS {
         hitRecord.push_back(hitEntity);
 
         eventBus->Publish(TreeHitEvent{tree->cellKey, direction, strength});
+        return true;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 敵の攻撃をプレイヤーへ当てる共通処理
+    //-------------------------------------------------------------
+    bool DamagePlayer(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity playerEntity, Tsukino::ECS::Entity attacker, float rawDamage,
+                      const hlslpp::float3& hitPosition, float hitStopDuration, float hitStopScale) {
+        if(playerEntity == entt::null || !registry.IsValid(playerEntity))
+            return false;
+
+        auto* playerHealth = registry.try_get<HealthComponent>(playerEntity);
+        auto* player       = registry.try_get<PlayerComponent>(playerEntity);
+        if(!playerHealth || !player || playerHealth->isDead)
+            return false;
+
+        // 回避の無敵に加えて、レベルアップ後無敵（戦闘再開直後に囲まれて一方的に被弾するのを防ぐ猶予）中もすり抜ける
+        if(player->isInvincible || player->levelUpInvincibleTimer > 0.0f)
+            return false;
+
+        // 傲慢（スキル）で軽減した後の値を実ダメージとして扱う。被弾の通知もこの値を使い、
+        // 画面に出る数字と実際のHPの減りを一致させる
+        float damageTakenMultiplier = 1.0f;
+        if(const auto* skills = registry.try_get<PlayerSkillComponent>(playerEntity))
+            damageTakenMultiplier = skills->damageTakenMultiplier;
+        const float takenDamage = rawDamage * damageTakenMultiplier;
+
+        playerHealth->currentHealth -= takenDamage;
+        if(playerHealth->currentHealth <= 0.0f) {
+            playerHealth->currentHealth = 0.0f;
+            playerHealth->isDead        = true;
+        }
+
+        // 被弾演出（点滅・画面フラッシュ。PlayerDamageEffectSystem）用の通知。
+        // ヒットストップは画面全体ではなく、プレイヤーと攻撃した側だけを止める
+        if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+            eventBus->Publish(PlayerDamagedEvent{attacker, playerEntity, takenDamage, hitPosition});
+        ApplyHitStop(registry, playerEntity, hitStopDuration, hitStopScale);
+        if(attacker != entt::null && registry.IsValid(attacker))
+            ApplyHitStop(registry, attacker, hitStopDuration, hitStopScale);
         return true;
     }
 }    // namespace CombatAndroid::ECS

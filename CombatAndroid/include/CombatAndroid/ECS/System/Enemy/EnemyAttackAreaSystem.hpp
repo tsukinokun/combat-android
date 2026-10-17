@@ -36,6 +36,7 @@ namespace CombatAndroid::ECS {
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
 
     private:
+        Tsukino::Renderer::MeshBuffer m_rectMesh;    //!< 幅1・長さ1の長方形（XZ平面、手前の辺の中央が原点で+Zへ伸びる）。突進の進路に使う
         Tsukino::Renderer::MeshBuffer m_discMesh;    //!< 半径1の円（XZ平面、中心が原点）
         Tsukino::Renderer::MeshBuffer m_fanMesh;     //!< 半径1の扇（XZ平面、要が原点で+Z方向へ開く）
 

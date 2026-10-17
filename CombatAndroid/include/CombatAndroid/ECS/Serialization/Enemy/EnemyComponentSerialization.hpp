@@ -69,11 +69,17 @@ namespace CombatAndroid::ECS {
 
     template <class Archive>
     void save(Archive& archive, const EnemyAnimationSetComponent& set) {
-        archive(cereal::make_nvp("walkClip", set.walkClip),
+        archive(cereal::make_nvp("idleClip", set.idleClip),
+                cereal::make_nvp("walkClip", set.walkClip),
                 cereal::make_nvp("attackClip", set.attackClip),
                 cereal::make_nvp("knockbackClip", set.knockbackClip),
                 cereal::make_nvp("deathClip", set.deathClip),
                 cereal::make_nvp("animationIndex", set.animationIndex),
+                cereal::make_nvp("idleIndex", set.idleIndex),
+                cereal::make_nvp("walkIndex", set.walkIndex),
+                cereal::make_nvp("attackIndex", set.attackIndex),
+                cereal::make_nvp("knockbackIndex", set.knockbackIndex),
+                cereal::make_nvp("deathIndex", set.deathIndex),
                 cereal::make_nvp("attackTimeoutSafety", set.attackTimeoutSafety),
                 cereal::make_nvp("knockbackTimeoutSafety", set.knockbackTimeoutSafety),
                 cereal::make_nvp("deathTimeoutSafety", set.deathTimeoutSafety));
@@ -81,11 +87,17 @@ namespace CombatAndroid::ECS {
 
     template <class Archive>
     void load(Archive& archive, EnemyAnimationSetComponent& set) {
+        LoadField(archive, "idleClip", set.idleClip);
         LoadField(archive, "walkClip", set.walkClip);
         LoadField(archive, "attackClip", set.attackClip);
         LoadField(archive, "knockbackClip", set.knockbackClip);
         LoadField(archive, "deathClip", set.deathClip);
         LoadField(archive, "animationIndex", set.animationIndex);
+        LoadField(archive, "idleIndex", set.idleIndex);
+        LoadField(archive, "walkIndex", set.walkIndex);
+        LoadField(archive, "attackIndex", set.attackIndex);
+        LoadField(archive, "knockbackIndex", set.knockbackIndex);
+        LoadField(archive, "deathIndex", set.deathIndex);
         LoadField(archive, "attackTimeoutSafety", set.attackTimeoutSafety);
         LoadField(archive, "knockbackTimeoutSafety", set.knockbackTimeoutSafety);
         LoadField(archive, "deathTimeoutSafety", set.deathTimeoutSafety);

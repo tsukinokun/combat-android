@@ -1,0 +1,16 @@
+{
+    "EnemyAnimationSetComponent": {
+        "walkClip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+        "attackClip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+        "knockbackClip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+        "deathClip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+        "animationIndex": 4,
+        "walkIndex": 4,
+        "attackIndex": 0,
+        "knockbackIndex": 0,
+        "deathIndex": 1,
+        "attackTimeoutSafety": 3.0,
+        "knockbackTimeoutSafety": 1.5,
+        "deathTimeoutSafety": 3.0
+    }
+}

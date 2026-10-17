@@ -72,6 +72,22 @@ namespace CombatAndroid::ECS {
     void ApplyHitStop(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float duration, float scale);
 
     //-------------------------------------------------------------
+    //! @brief  敵の攻撃（体の判定・弾）をプレイヤーへ当てる共通処理。
+    //!         無敵（回避・レベルアップ後）の確認、傲慢（スキル）の軽減、HPの減算と死亡、
+    //!         被弾の通知（PlayerDamagedEvent）、プレイヤーと攻撃した側のヒットストップをまとめて行う
+    //! @param  registry        [in,out] ECSレジストリ
+    //! @param  playerEntity    [in] プレイヤー
+    //! @param  attacker        [in] 攻撃した側（敵本体。弾なら撃ったボス）。ヒットストップと通知に使う
+    //! @param  rawDamage       [in] 軽減前のダメージ
+    //! @param  hitPosition     [in] 当たった位置（演出用）
+    //! @param  hitStopDuration [in] ヒットストップの長さ（実時間・秒）
+    //! @param  hitStopScale    [in] ヒットストップ中の時間の倍率
+    //! @return 当たった（無敵ですり抜けなかった）ならtrue
+    //-------------------------------------------------------------
+    bool DamagePlayer(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity playerEntity, Tsukino::ECS::Entity attacker, float rawDamage,
+                      const hlslpp::float3& hitPosition, float hitStopDuration, float hitStopScale);
+
+    //-------------------------------------------------------------
     //! @brief  1体の敵へのヒットを確定させる共通処理。
     //!         多重ヒット防止・ダメージ・ノックバック要求・嫉妬の吸収・WeaponHitEventの発火・
     //!         ヒットストップ要求を一本化する

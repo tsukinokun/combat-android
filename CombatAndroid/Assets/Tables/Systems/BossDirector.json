@@ -1,23 +1,27 @@
 {
     "BossDirector": {
-        "midBossSeconds": 180.0,
+        "midBossSeconds": 15.0,
         "finalBossDelaySeconds": 120.0,
         "defeatDelaySeconds": 2.0,
         "spawnDistance": 900.0,
         "detectRange": 100000.0,
         "midBoss": {
             "baseType": "BigZombie",
+            "prefab": "Enemy/Ogre",
+            "behavior": "Ogre",
             "displayName": "巨躯の屍",
-            "sizeScale": 1.8,
+            "sizeScale": 1.6,
             "healthScale": 25.0,
             "attackScale": 1.5,
             "moveSpeedScale": 1.0,
             "expScale": 10.0
         },
         "finalBoss": {
-            "baseType": "Paladin",
-            "displayName": "夜の聖騎士",
-            "sizeScale": 2.2,
+            "baseType": "BigZombie",
+            "prefab": "Enemy/Spider",
+            "behavior": "Spider",
+            "displayName": "夜を織るもの",
+            "sizeScale": 2.5,
             "healthScale": 60.0,
             "attackScale": 2.0,
             "moveSpeedScale": 1.0,

@@ -203,8 +203,17 @@ namespace CombatAndroid::ECS {
             return;
 
         CaptureDayValues(registry, *transition);
-        transition->state   = NightState::Nightfall;
+        transition->state    = NightState::Nightfall;
+        transition->fogScale = 1.0f;
         transition->elapsed = 0.0f;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 夜霧の濃さの倍率を変える
+    //-------------------------------------------------------------
+    void SetNightFogScale(Tsukino::ECS::Registry& registry, float scale) {
+        if(NightTransitionComponent* transition = FindTransition(registry))
+            transition->fogScale = scale;
     }
 
     //-------------------------------------------------------------
@@ -249,7 +258,7 @@ namespace CombatAndroid::ECS {
             grade.edgeWidth    = params.edgeWidth;
             grade.tint         = params.tint;
             grade.fogColor     = params.fogColor;
-            grade.fogDensity   = params.fogDensity;
+            grade.fogDensity   = params.fogDensity * transition.fogScale;
 
             switch(transition.state) {
                 case NightState::Nightfall: {

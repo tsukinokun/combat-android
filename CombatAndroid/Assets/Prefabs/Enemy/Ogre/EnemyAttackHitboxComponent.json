@@ -1,0 +1,20 @@
+{
+    "EnemyAttackHitboxComponent": {
+        "boneName": "mixamorig:RightArm",
+        "boneLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "endBoneName": "mixamorig:RightHand",
+        "endBoneLocalOffset": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        },
+        "radius": 25.0,
+        "damage": 15.0,
+        "hitStartTime": 0.30000001192092898,
+        "hitDuration": 0.6000000238418579
+    }
+}

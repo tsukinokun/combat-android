@@ -318,12 +318,20 @@ namespace CombatAndroid::ECS {
     }    // namespace
 
     //-------------------------------------------------------------
-    //! @brief  ゾンビ系敵用のビヘイビアツリーを構築する
+    //! @brief  "Death"分岐を作る
     //-------------------------------------------------------------
-    std::shared_ptr<EnemyBehaviorNode> BuildZombieTree() {
+    std::shared_ptr<EnemyBehaviorNode> BuildEnemyDeathSequence() {
         auto deathSequence = std::make_shared<Sequence<EnemyBlackboard>>();
         deathSequence->AddChild(std::make_shared<ConditionNode<EnemyBlackboard>>(&IsDead));
         deathSequence->AddChild(std::make_shared<ActionNode<EnemyBlackboard>>(&PlayDeath));
+        return deathSequence;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  ゾンビ系敵用のビヘイビアツリーを構築する
+    //-------------------------------------------------------------
+    std::shared_ptr<EnemyBehaviorNode> BuildZombieTree() {
+        auto deathSequence = BuildEnemyDeathSequence();
 
         auto knockbackSequence = std::make_shared<Sequence<EnemyBlackboard>>();
         knockbackSequence->AddChild(std::make_shared<ConditionNode<EnemyBlackboard>>(&ShouldKnockback));

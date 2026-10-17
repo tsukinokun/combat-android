@@ -50,15 +50,17 @@ namespace CombatAndroid::ECS {
         //! @brief  「指定クリップへクロスフェードする」OnEnterコールバックを作るヘルパー
         //!         （PlayerAnimationSystem::MakeClipEnterCallbackと同じ考え方）
         //! @param  clipMember [in] EnemyAnimationSetComponentが持つクリップハンドルへのメンバポインタ
+        //! @param  indexMember [in] そのステートのアニメーション番号へのメンバポインタ（負ならanimationIndexを使う）
         //! @param  looping    [in] ループ再生するか
         //! @param  fadeTime   [in] クロスフェードにかける時間（秒）
         //! @param  inPlace    [in] ルートモーションの水平成分を殺すか
         //-------------------------------------------------------------
         StateMachine<EnemyAnimState>::Callback MakeClipEnterCallback(Tsukino::Asset::AssetRef EnemyAnimationSetComponent::* clipMember,
+                                                                        int EnemyAnimationSetComponent::*                         indexMember,
                                                                         bool                                                     looping,
                                                                         float                                                    fadeTime,
                                                                         bool                                                     inPlace) {
-            return [clipMember, looping, fadeTime, inPlace](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+            return [clipMember, indexMember, looping, fadeTime, inPlace](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 auto&                        animSet = registry.GetComponent<EnemyAnimationSetComponent>(entity);
                 Tsukino::Asset::AssetHandle clip     = animSet.*clipMember;
                 if(!clip.IsValid())
@@ -67,7 +69,8 @@ namespace CombatAndroid::ECS {
                 auto& animController = registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity);
 
                 animController.next.clip            = clip;
-                animController.next.animation_index = animSet.animationIndex;
+                const int stateIndex                = animSet.*indexMember;
+                animController.next.animation_index = stateIndex >= 0 ? static_cast<Tsukino::u32>(stateIndex) : animSet.animationIndex;
                 animController.next.fade_time       = fadeTime;
                 animController.next.immediate       = false;    // クロスフェードで切り替える
                 animController.next.is_looping      = looping;
@@ -110,11 +113,18 @@ namespace CombatAndroid::ECS {
     EnemyAnimationSystem::EnemyAnimationSystem() {
         const EnemyAnimationParams& params = GetParams();
 
-        // 待機用クリップが無いため、Idle/Walkともに歩行クリップを使う。
+        // 待機用クリップ（idleClip）を持たない敵は、Idle/Walkともに歩行クリップを使う。
         // Idleはin_place=trueでその場足踏みにし、移動を表すWalkと視覚的に区別する必要はない
-        // （追跡の有無自体はTransformの移動で表現される）
-        m_stateMachine.RegisterState(EnemyAnimState::Idle, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, params.animBlendTime, true));
-        m_stateMachine.RegisterState(EnemyAnimState::Walk, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, true, params.animBlendTime, true));
+        // （追跡の有無自体はTransformの移動で表現される）。ボスはidleClipを持つ
+        auto walkAsIdle = MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, &EnemyAnimationSetComponent::walkIndex, true, params.animBlendTime, true);
+        auto idleClip   = MakeClipEnterCallback(&EnemyAnimationSetComponent::idleClip, &EnemyAnimationSetComponent::idleIndex, true, params.animBlendTime, true);
+        m_stateMachine.RegisterState(EnemyAnimState::Idle, [walkAsIdle, idleClip](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+            if(registry.GetComponent<EnemyAnimationSetComponent>(entity).idleClip.IsValid())
+                idleClip(registry, entity);
+            else
+                walkAsIdle(registry, entity);
+        });
+        m_stateMachine.RegisterState(EnemyAnimState::Walk, MakeClipEnterCallback(&EnemyAnimationSetComponent::walkClip, &EnemyAnimationSetComponent::walkIndex, true, params.animBlendTime, true));
 
         // Attackへ入るときはattackTimer（ZombieBehavior::PlayAttackの終了判定ウォッチドッグ）も
         // ここでリセットする。PlayAttackはこのOnEnterが実行される1フレーム前から加算を始めているため、
@@ -124,12 +134,16 @@ namespace CombatAndroid::ECS {
         // 併せて、手に武器を持っている敵（Paladin等）はここで武器を「攻撃中」にする。
         // Attackを抜けるときのOnExitで戻すことで、待機・歩行・のけぞり・死亡の間は
         // プレイヤーと同じ浮遊追従に戻る
-        auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, false, params.attackBlendTime, true);
+        auto attackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::attackClip, &EnemyAnimationSetComponent::attackIndex, false, params.attackBlendTime, true);
         m_stateMachine.RegisterState(
             EnemyAnimState::Attack,
             [attackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
                 attackClipEnter(registry, entity);
-                registry.GetComponent<EnemyAnimationSetComponent>(entity).attackTimer = 0.0f;
+                auto& enteredSet = registry.GetComponent<EnemyAnimationSetComponent>(entity);
+                enteredSet.attackTimer = 0.0f;
+                // ボスの突進のように、技がクリップより長いときはループで流す（BossBehaviorが技ごとに立てる）
+                if(enteredSet.attackLooping)
+                    registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity).next.is_looping = true;
                 if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
                     hitbox->hasLandedThisAttack = false;
                     // 前フレームの判定点も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで
@@ -143,14 +157,14 @@ namespace CombatAndroid::ECS {
             });
 
         // Knockbackへ入るときはknockbackTimer（ZombieBehavior::PlayKnockbackの終了判定ウォッチドッグ）をリセットする
-        auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, false, params.knockbackBlendTime, true);
+        auto knockbackClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::knockbackClip, &EnemyAnimationSetComponent::knockbackIndex, false, params.knockbackBlendTime, true);
         m_stateMachine.RegisterState(EnemyAnimState::Knockback, [knockbackClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             knockbackClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).knockbackTimer = 0.0f;
         });
 
         // Deathへ入るときはdeathTimer（ZombieBehavior::PlayDeathの終了判定ウォッチドッグ）をリセットする
-        auto deathClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::deathClip, false, params.deathBlendTime, true);
+        auto deathClipEnter = MakeClipEnterCallback(&EnemyAnimationSetComponent::deathClip, &EnemyAnimationSetComponent::deathIndex, false, params.deathBlendTime, true);
         m_stateMachine.RegisterState(EnemyAnimState::Death, [deathClipEnter](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
             deathClipEnter(registry, entity);
             registry.GetComponent<EnemyAnimationSetComponent>(entity).deathTimer = 0.0f;

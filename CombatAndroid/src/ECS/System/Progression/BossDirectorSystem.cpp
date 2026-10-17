@@ -7,7 +7,16 @@
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
+#include <CombatAndroid/ECS/AI/BossBehavior.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/BossComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/SpawnedEnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/EnemyProjectileComponent.hpp>
+#include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
+#include <CombatAndroid/ECS/Utility/Table/BossMoveTable.hpp>
+#include <Tsukino/Engine/Asset/AssetManager.hpp>
+#include <Tsukino/Core/Path.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
@@ -53,6 +62,8 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         struct BossEntryParams {
             std::string  baseType       = "BigZombie";    //!< 元にする敵（EnemyTypeIdの綴り）
+            std::string  prefab;                          //!< 使うPrefab（Assets/Prefabs/ からの相対名）。空なら元にする敵のPrefab
+            std::string  behavior;                        //!< 技の表の名前（Assets/Tables/Bosses/<behavior>.json）。空なら雑魚と同じ行動
             std::wstring displayName    = L"巨躯の屍";     //!< 告知とログに出す呼び名（「ボス」のような種別名は出さない）
             float        sizeScale      = 1.8f;
             float        healthScale    = 25.0f;
@@ -64,6 +75,8 @@ namespace CombatAndroid::ECS {
         template <class Archive>
         void load(Archive& archive, BossEntryParams& params) {
             LoadField(archive, "baseType", params.baseType);
+            LoadField(archive, "prefab", params.prefab);
+            LoadField(archive, "behavior", params.behavior);
             LoadWideField(archive, "displayName", params.displayName);
             LoadField(archive, "sizeScale", params.sizeScale);
             LoadField(archive, "healthScale", params.healthScale);
@@ -113,7 +126,7 @@ namespace CombatAndroid::ECS {
             float detectRange           = 100000.0f; //!< ボスがプレイヤーを追い続ける距離（どこまでも追ってくる）
 
             BossEntryParams midBoss;
-            BossEntryParams finalBoss = {"Paladin", L"夜の聖騎士", 2.2f, 60.0f, 2.0f, 1.0f, 30.0f};
+            BossEntryParams finalBoss = {"Paladin", "", "", L"夜の聖騎士", 2.2f, 60.0f, 2.0f, 1.0f, 30.0f};
 
             //-------------------------------------------------------------
             // 出現のカットシーン（遠景 → 寄り → プレイヤーへ戻す）
@@ -245,6 +258,8 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             const EnemySpawnTableEntry& base   = FindBaseEntry(entry.baseType);
             EnemySpawnConfig            config = base.makeConfig(context, bossPosition);
+            if(!entry.prefab.empty())
+                config.prefabName = entry.prefab.c_str();    // 調整値は関数内staticで寿命が走行より長いので、ポインタのまま渡してよい
             config.detectRange                 = params.detectRange;
             ApplyEnemyDifficulty(config, dangerRank);
             config.sizeScale *= entry.sizeScale;
@@ -259,6 +274,29 @@ namespace CombatAndroid::ECS {
 
             // エリートの目印も付ける。紫の発光と、画面外にいるときの矢印（EliteIndicatorSystem）がそのまま効く
             registry.AddComponent<EliteEnemyComponent>(boss).baseType = base.id;
+
+            //-------------------------------------------------------------
+            // 技の表を持つボスは、雑魚のツリーを複数の技を持つボスのツリーへ差し替える。
+            // 技ごとのクリップはここで読んでおき（技を出すたびに読まない）、のけぞらないようにする
+            //-------------------------------------------------------------
+            if(!entry.behavior.empty()) {
+                const BossMoveSet& set = GetBossMoveSet(entry.behavior);
+
+                BossMoveSetComponent& moveSet = registry.AddComponent<BossMoveSetComponent>(boss);
+                moveSet.key                   = entry.behavior;
+                moveSet.sizeScale             = config.sizeScale;
+                moveSet.damageScale           = config.attackScale;
+                moveSet.cooldowns.assign(set.moves.size(), 0.0f);
+                for(const BossMoveDef& move : set.moves)
+                    moveSet.clips.push_back(context.assetManager ? context.assetManager->Load(Tsukino::Core::Path(move.clip))
+                                                                 : Tsukino::Asset::AssetHandle::Invalid());
+
+                EnemyComponent& enemy = registry.GetComponent<EnemyComponent>(boss);
+                enemy.superArmor      = true;
+                moveSet.baseMoveSpeed = enemy.moveSpeed;
+
+                registry.GetComponent<BehaviorTreeComponent>(boss).root = BuildBossTree();
+            }
 
             //-------------------------------------------------------------
             // 演出：カットシーン（世界を止めてボスを見せる）・告知・夜への切り替え（中心はボス）
@@ -345,6 +383,75 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
+    //! @brief BossSummonEventの購読を始める
+    //-------------------------------------------------------------
+    void BossDirectorSystem::Initialize(Tsukino::ECS::EventBus& eventBus) {
+        // ハンドラは積むだけ。ビヘイビアツリーの反復中に届くので、ここでは湧かせない
+        m_summonConnection     = eventBus.Subscribe<BossSummonEvent>([this](const BossSummonEvent& summon) { m_pendingSummons.push_back(summon); });
+        m_projectileConnection = eventBus.Subscribe<BossProjectileEvent>([this](const BossProjectileEvent& shot) { m_pendingProjectiles.push_back(shot); });
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 呼ばれた雑魚を湧かせる
+    //! @note  湧き潰しと同じく危険度の補正を掛け、SpawnedEnemyComponentを付けて
+    //!        既存の「霧から浮かび上がる」フェードインと、遠くへ取り残されたときの間引きに乗せる
+    //-------------------------------------------------------------
+    void BossDirectorSystem::SpawnSummons(Tsukino::ECS::Registry& registry, const BossSummonEvent& summon, int dangerRank) {
+        auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        if(!ctx || summon.count <= 0)
+            return;
+
+        const EnemySpawnTableEntry& base = FindBaseEntry("SmallZombie");
+        std::uniform_real_distribution<float> jitter(-0.4f, 0.4f);
+
+        for(int i = 0; i < summon.count; ++i) {
+            // 周りに等間隔で並べ、少しずつずらす（綺麗な円に並ぶと作り物に見える）
+            const float angle = 6.2831853f * (static_cast<float>(i) + 0.5f + jitter(m_rng)) / static_cast<float>(summon.count);
+            const hlslpp::float3 position = summon.center + hlslpp::float3(std::sin(angle), 0.0f, std::cos(angle)) * summon.radius;
+
+            EnemySpawnConfig config = base.makeConfig(*ctx, position);
+            if(!summon.prefab.empty())
+                config.prefabName = summon.prefab.c_str();    // イベントは湧かせ終わるまで生きているので、ポインタのまま渡してよい
+            config.detectRange = GetParams().detectRange;
+            ApplyEnemyDifficulty(config, dangerRank);
+            config.sizeScale *= summon.sizeScale;
+            config.healthScale *= summon.healthScale;
+
+            const Tsukino::ECS::Entity minion = SpawnBehaviorEnemy(registry, *ctx, config);
+            registry.AddComponent<SpawnedEnemyComponent>(minion).spawnDistance = summon.radius;
+        }
+    }
+
+    //-------------------------------------------------------------
+    //! @brief ボスの弾を作る
+    //! @note  見た目は仮（Prefab: Enemy/WebShot。EXP玉のビルボードを白くしたもの）
+    //-------------------------------------------------------------
+    void BossDirectorSystem::SpawnProjectile(Tsukino::ECS::Registry& registry, const BossProjectileEvent& shot) {
+        auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+        if(!ctx)
+            return;
+
+        const Tsukino::ECS::Entity entity = InstantiatePrefab(registry, *ctx, "Enemy/WebShot");
+        if(entity == entt::null)
+            return;
+
+        if(auto* transform = registry.try_get<Tsukino::BuiltIn::ECS::TransformComponent>(entity)) {
+            transform->position = shot.origin;
+            transform->dirty    = true;
+        }
+
+        EnemyProjectileComponent& projectile = registry.AddComponent<EnemyProjectileComponent>(entity);
+        projectile.owner                     = shot.owner;
+        projectile.direction                 = shot.direction;
+        projectile.speed                     = shot.speed;
+        projectile.damage                    = shot.damage;
+        projectile.radius                    = shot.radius;
+        projectile.remaining                 = shot.range;
+        projectile.slowSeconds               = shot.slowSeconds;
+        projectile.slowScale                 = shot.slowScale;
+    }
+
+    //-------------------------------------------------------------
     //! @brief システムの更新
     //-------------------------------------------------------------
     void BossDirectorSystem::Update(Tsukino::ECS::Registry& registry, float deltaTime) {
@@ -364,6 +471,20 @@ namespace CombatAndroid::ECS {
             BossProgressComponent&   progress     = view.get<BossProgressComponent>(playerEntity);
 
             UpdateAnnouncement(registry, *ctx, progress, realDeltaTime);
+
+            // ボスが呼んだ雑魚を湧かせる（倒れた後に届いた分は捨てる）
+            if(!playerHealth.isDead) {
+                for(const BossSummonEvent& summon : m_pendingSummons)
+                    SpawnSummons(registry, summon, clock.dangerRank);
+            }
+            m_pendingSummons.clear();
+
+            // ボスが撃った弾を作る（倒れた後に届いた分は捨てる）
+            if(!playerHealth.isDead) {
+                for(const BossProjectileEvent& shot : m_pendingProjectiles)
+                    SpawnProjectile(registry, shot);
+            }
+            m_pendingProjectiles.clear();
 
             // 倒れた後は進めない（GAME OVERの裏でボスが湧かないように）
             if(playerHealth.isDead)

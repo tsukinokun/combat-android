@@ -27,11 +27,20 @@ namespace CombatAndroid::ECS {
     //!         実際のアニメーションステートを橋渡しするコンポーネント
     //-------------------------------------------------------------
     struct EnemyAnimationSetComponent {
+        Tsukino::Asset::AssetRef idleClip;        //!< 待機（Mutant Idle 等）。空なら歩行クリップをその場で流用する
         Tsukino::Asset::AssetRef walkClip;        //!< Mutant Walking / Unarmed Walk Forward（Idleもin_place再生でこれを流用する）
         Tsukino::Asset::AssetRef attackClip;      //!< Mutant Swiping / Zombie Attack
         Tsukino::Asset::AssetRef knockbackClip;    //!< Zombie Reaction Hit
         Tsukino::Asset::AssetRef deathClip;        //!< Stunned
-        Tsukino::u32   animationIndex = 1;                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
+        Tsukino::u32   animationIndex = 1;
+        //! ステートごとのアニメーション番号。負ならanimationIndexを使う。
+        //! 1つのファイルに複数のモーションが入っている素材（蜘蛛など）で、ステートごとに別の番号を使うためのもの
+        int idleIndex      = -1;
+        int walkIndex      = -1;
+        int attackIndex    = -1;
+        int knockbackIndex = -1;
+        int deathIndex     = -1;
+        bool attackLooping = false;    //!< 攻撃クリップをループ再生するか（ボスの突進の走りなど。Attackへ入るときに読む）                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
 
         EnemyAnimState currentState = EnemyAnimState::Idle;    //!< 現在のステート（EnemyAnimationSystemが管理）
         EnemyAnimState desiredState = EnemyAnimState::Idle;    //!< 今フレームであるべきステート（EnemyBehaviorSystemが書き込む）

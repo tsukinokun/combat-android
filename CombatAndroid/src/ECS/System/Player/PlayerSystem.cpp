@@ -86,8 +86,15 @@ namespace CombatAndroid::ECS {
             // スキルを持たないプレイヤーでも動くよう、既定は等倍・回復なしにしておく
             //-------------------------------------------------------------
             float skillMoveSpeedMultiplier = 1.0f;
+
+            // 鈍足（ボスの糸弾）：残り時間の間だけ移動速度を落とす。スプリントにも等しく掛かる
+            if(player.slowTimer > 0.0f) {
+                player.slowTimer = std::max(player.slowTimer - deltaTime, 0.0f);
+                skillMoveSpeedMultiplier *= player.slowTimer > 0.0f ? player.slowScale : 1.0f;
+            }
+
             if(auto* skills = registry.try_get<PlayerSkillComponent>(entity)) {
-                skillMoveSpeedMultiplier = skills->moveSpeedMultiplier;
+                skillMoveSpeedMultiplier *= skills->moveSpeedMultiplier;
 
                 //-------------------------------------------------------------
                 // 怠惰：何もしていなくても毎秒回復する。

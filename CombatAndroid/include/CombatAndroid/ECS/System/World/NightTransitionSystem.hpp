@@ -44,6 +44,13 @@ namespace CombatAndroid::ECS {
     void RequestDaybreak(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
+    //! @brief  夜霧の濃さの倍率を変える（ボスの第2形態で霧を濃くする）
+    //! @param  registry [in,out] ECSレジストリ
+    //! @param  scale    [in]     NightTransition.json の fogDensity に掛ける倍率
+    //-------------------------------------------------------------
+    void SetNightFogScale(Tsukino::ECS::Registry& registry, float scale);
+
+    //-------------------------------------------------------------
     //! @brief  環境光（空から焼いたIBL）を次の描画で焼き直させる
     //! @param  context [in] エンジンコンテキスト
     //! @note   Rendererはシーンをまたいで1つで、IBLは頼まれない限り焼き直されない。

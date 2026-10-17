@@ -16,6 +16,7 @@
 #include <CombatAndroid/ECS/System/Player/PlayerSystem.hpp>
 #include <CombatAndroid/ECS/System/Combat/CombatSystem.hpp>
 #include <CombatAndroid/ECS/System/Combat/ProjectileSystem.hpp>
+#include <CombatAndroid/ECS/System/Combat/EnemyProjectileSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/AttackMotionBlurSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/SkillAuraSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/SkillAuraParticleSystem.hpp>
@@ -124,7 +125,12 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::RunClockSystem>(), (int)ECS::SystemPriority::RunClock);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemySpawnDirectorSystem>(), (int)ECS::SystemPriority::EnemySpawn);
         // 中ボス・ラスボスの出現と撃破の見届け。走行の時計を読むのでRunClockの後
-        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::BossDirectorSystem>(), (int)ECS::SystemPriority::BossDirector);
+        {
+            // BossSummonEvent（ボスの技が雑魚を呼ぶ）を購読し、次のフレームの頭で湧かせる
+            auto bossDirectorSystem = std::make_shared<CombatAndroid::ECS::BossDirectorSystem>();
+            m_scene.AddSystem(bossDirectorSystem, (int)ECS::SystemPriority::BossDirector);
+            bossDirectorSystem->Initialize(eventBus);
+        }
 #ifdef TSUKINO_ENABLE_STRESS_TEST
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyStressTestSystem>(), (int)ECS::SystemPriority::StressTest);
 #endif
@@ -172,6 +178,8 @@ namespace CombatAndroid {
 #endif
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CombatSystem>(), (int)ECS::SystemPriority::WeaponAttach);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ProjectileSystem>(), (int)ECS::SystemPriority::Projectile);
+        // ボスの弾（蜘蛛の糸弾）。プレイヤーにだけ当たり、ダメージと鈍足を与える
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::EnemyProjectileSystem>(), (int)ECS::SystemPriority::EnemyProjectile);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::HealthBarSystem>(), (int)ECS::SystemPriority::HealthBar);
         {
             // WeaponHitEventを購読してダメージ数値を出す。購読解除はSystemが持つ

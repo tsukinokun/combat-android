@@ -3,7 +3,15 @@
 //! @brief  BossDirectorSystemクラスの宣言
 //-------------------------------------------------------------
 #pragma once
+#include <CombatAndroid/ECS/Event/Enemy/BossProjectileEvent.hpp>
+#include <CombatAndroid/ECS/Event/Enemy/BossSummonEvent.hpp>
+
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
+#include <Tsukino/Core/ECS/Event/EventBus.hpp>
+#include <Tsukino/Core/ECS/Event/ScopedConnection.hpp>
+
+#include <random>
+#include <vector>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -21,6 +29,29 @@ namespace CombatAndroid::ECS {
         //! @brief 更新処理
         //-------------------------------------------------------------
         void Update(Tsukino::ECS::Registry& registry, float deltaTime) override;
+
+        //-------------------------------------------------------------
+        //! @brief BossSummonEvent（ボスが雑魚を呼ぶ）とBossProjectileEvent（ボスが弾を撃つ）の購読を始める
+        //! @param eventBus [in] イベントバス
+        //-------------------------------------------------------------
+        void Initialize(Tsukino::ECS::EventBus& eventBus);
+
+    private:
+        //-------------------------------------------------------------
+        //! @brief  呼ばれた雑魚を湧かせる（ビヘイビアツリーの外＝Updateで行う）
+        //-------------------------------------------------------------
+        void SpawnSummons(Tsukino::ECS::Registry& registry, const BossSummonEvent& summon, int dangerRank);
+
+        //-------------------------------------------------------------
+        //! @brief  ボスの弾を作る（ビヘイビアツリーの外＝Updateで行う）
+        //-------------------------------------------------------------
+        void SpawnProjectile(Tsukino::ECS::Registry& registry, const BossProjectileEvent& shot);
+
+        Tsukino::ECS::ScopedConnection   m_summonConnection;        //!< BossSummonEventの購読
+        Tsukino::ECS::ScopedConnection   m_projectileConnection;    //!< BossProjectileEventの購読
+        std::vector<BossSummonEvent>     m_pendingSummons;          //!< 次のUpdateで湧かせる呼び出し
+        std::vector<BossProjectileEvent> m_pendingProjectiles;      //!< 次のUpdateで作る弾
+        std::mt19937                   m_rng{std::random_device{}()};
     };
 
     //-------------------------------------------------------------

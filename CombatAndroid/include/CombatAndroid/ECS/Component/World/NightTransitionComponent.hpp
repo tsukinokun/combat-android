@@ -40,5 +40,6 @@ namespace CombatAndroid::ECS {
         hlslpp::float3 dayFogSunColor     = hlslpp::float3(1.0f, 1.0f, 1.0f);
 
         float lightBlend = 0.0f;    //!< 太陽・空・霧の、昼(0)から夜(1)への寄せ具合
+        float fogScale   = 1.0f;    //!< 夜霧の濃さの倍率（ボスの第2形態で濃くする。夜に入るたびに1へ戻す）
     };
 }    // namespace CombatAndroid::ECS

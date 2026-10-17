@@ -20,4 +20,11 @@ namespace CombatAndroid::ECS {
     //! @return 構築済みツリーのルートノード
     //-------------------------------------------------------------
     std::shared_ptr<EnemyBehaviorNode> BuildZombieTree();
+
+    //-------------------------------------------------------------
+    //! @brief  "Death"分岐（死亡していれば倒れるクリップを再生し、フェードアウトして消える）を作る
+    //! @return 死亡判定と死亡アクションのSequence
+    //! @note   ボスのツリー（BossBehavior）も同じ倒れ方・撃破通知を使うため公開している
+    //-------------------------------------------------------------
+    std::shared_ptr<EnemyBehaviorNode> BuildEnemyDeathSequence();
 }    // namespace CombatAndroid::ECS

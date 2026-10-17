@@ -19,6 +19,7 @@
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |
 | `UiTextSize.json` | `UiTextSize.cpp` | 画面の文字の大きさの6段階（Display / Title / Heading / Large / Body / Small）。文字はどれもこのどれかを使うので、1つ変えればその段階の文字が全画面でそろって変わる。各 System の調整値には文字の大きさを置かない |
+| `Bosses/<名前>.json` | `BossMoveTable.cpp` | ボスの技の表（技ごとのクリップ・判定・予兆の形・出す距離・クールタイム・跳びかかり・呼ぶ雑魚の数）と激昂。`BossDirector.json` の `behavior` で指す。予兆の形は `Fan` `DiscForward` `DiscAtTarget` `Ring` `Line` `None`、技の種類 `kind` は `Strike`（その場で振る）`Charge`（突進）`Projectile`（弾。当たると鈍足）`Orbit`（旋回）。判定の半径と技を出す距離・旋回の半径にはボスの `sizeScale` が掛かる（突進と弾の速さ・距離には掛からない）。ダメージ0の技は体の判定を出さない |
 | `Systems/<名前>.json` | `ECS/System/<領域>/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
 
 敵1体の素の値（HP・移動速度・当たり判定など）はテーブルではなく Prefab（`Assets/Prefabs/Enemy/<名前>/`）が持つ。
