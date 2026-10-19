@@ -27,6 +27,14 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
+    //! @brief 今世界の時間を止めているかを問い合わせる
+    //-------------------------------------------------------------
+    bool IsWorldTimeFrozen(Tsukino::ECS::Registry& registry) {
+        return IsSkillSelectActive(registry) || IsPauseMenuActive(registry) || IsRunResultFreezing(registry)
+               || (IsCutsceneActive(registry) && !IsLiveCutsceneActive(registry));
+    }
+
+    //-------------------------------------------------------------
     //! @brief 全キャラクタの移動入力を打ち消す
     //-------------------------------------------------------------
     void SuppressAllMoveInput(Tsukino::ECS::Registry& registry) {

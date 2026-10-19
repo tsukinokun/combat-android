@@ -118,6 +118,8 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "clip", breakDef.clip);
         LoadField(archive, "animationIndex", breakDef.animationIndex);
         LoadField(archive, "clipEnd", breakDef.clipEnd);
+        LoadField(archive, "recoverSeconds", breakDef.recoverSeconds);
+        LoadField(archive, "recoverBlend", breakDef.recoverBlend);
     }
 
     template <class Archive>

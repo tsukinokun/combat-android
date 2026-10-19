@@ -58,6 +58,10 @@ namespace CombatAndroid::ECS {
         //! （ApplyBossHitModifiersが消費する）。PlayerAnimationSystemが減らし、その間プレイヤーを縁取る
         float counterReadyTimer = 0.0f;
 
+        //! 雑魚でジャスト回避したときのスローを、次に掛けられるまでの残り秒（群れで連発させないため）。
+        //! TryJustDodgeが立て、PlayerAnimationSystemが減らす
+        float justDodgeSlowCooldown = 0.0f;
+
         //-------------------------------------------------------------
         // レベルアップ後無敵（スキル選択メニューで戦闘が中断された後、再開直後に
         // 囲まれて一方的に被弾するのを防ぐ猶予時間）。SkillSelectSystemが

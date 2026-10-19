@@ -207,7 +207,7 @@ namespace CombatAndroid::ECS {
             return false;
 
         // 回避の無敵に加えて、レベルアップ後無敵（戦闘再開直後に囲まれて一方的に被弾するのを防ぐ猶予）中もすり抜ける。
-        // 回避の出だしでボスの攻撃をすり抜けたならジャスト回避（反撃の構え）にする
+        // 回避の出だしで敵の攻撃をすり抜けたならジャスト回避（反撃の構え）にする
         if(player->isInvincible) {
             TryJustDodge(registry, playerEntity, *player, attacker);
             return false;

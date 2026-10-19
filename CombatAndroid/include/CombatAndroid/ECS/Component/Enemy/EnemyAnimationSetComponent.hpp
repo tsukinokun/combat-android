@@ -40,6 +40,7 @@ namespace CombatAndroid::ECS {
         int attackIndex    = -1;
         int knockbackIndex = -1;
         int deathIndex     = -1;
+        float nextBlendTime = 0.0f;    //!< 次のステートへ入るときだけ使うクロスフェードの秒数（0なら既定）。使ったら0に戻る（ボスのダウンからの起き上がり）
         float attackClipEnd = 0.0f;    //!< 攻撃クリップをこの秒数で止める（0なら最後まで）。ボスのダウンで倒れ込みの途中に膝をつかせるのに使う（Attackへ入るときに読む）
         bool attackLooping = false;    //!< 攻撃クリップをループ再生するか（ボスの突進の走りなど。Attackへ入るときに読む）                    //!< Mixamo製FBXはindex 0が1tickのスタブ、index 1が実モーション
 

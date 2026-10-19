@@ -1,0 +1,28 @@
+{
+    "Components": [
+        {
+            "key": "AnimationControllerComponent",
+            "value": "null"
+        },
+        {
+            "key": "AnimationPlayerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/AnimationPlayerComponent.json"
+        },
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/ModelComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/RimGlowComponent.json"
+        },
+        {
+            "key": "SkeletonOutputComponent",
+            "value": "null"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Vampire/TransformComponent.json"
+        }
+    ]
+}

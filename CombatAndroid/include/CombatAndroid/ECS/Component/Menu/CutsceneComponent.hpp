@@ -44,6 +44,12 @@ namespace CombatAndroid::ECS {
         int                        currentShotIndex = -1;       //!< 再生中のショット番号（-1で未開始）
         float                      shotTimer         = 0.0f;     //!< 現在ショット内の経過秒（実時間）
 
+        //! 世界の時間を止めずに流すか（ライブ）。止める版は敵が止まった絵になるので、
+        //! 暴れる蜘蛛・崩れ落ちる伯爵のように動きを見せたいムービーで立てる。
+        //! プレイヤー入力・敵のAI・ボスの出現（IsGameplayFrozenを見る処理）はライブでも止まり、
+        //! 進むのはアニメ・物理・演出の時間だけ（IsWorldTimeFrozen）
+        bool liveWorld = false;
+
         //-----------------------------------------------------
         // ばねの内部状態（TpsCameraComponent::followSpring*と同じ考え方）。
         // ショットが切り替わっても持ち越すことで、ショット間が「カット」ではなく

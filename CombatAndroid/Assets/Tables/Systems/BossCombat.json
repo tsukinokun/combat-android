@@ -1,6 +1,7 @@
 {
     "BossCombat": {
         "justWindow": 0.15,
+        "regularSlowCooldown": 4.0,
         "counterWindow": 1.5,
         "counterDamageScale": 2.5,
         "counterBreakScale": 4.0,

@@ -71,7 +71,9 @@ namespace CombatAndroid::ECS {
                 animController.next.clip            = clip;
                 const int stateIndex                = animSet.*indexMember;
                 animController.next.animation_index = stateIndex >= 0 ? static_cast<Tsukino::u32>(stateIndex) : animSet.animationIndex;
-                animController.next.fade_time       = fadeTime;
+                // 一度だけ長めに切り替えたいとき（ボスのダウンからの起き上がり）は、その秒数を使って0に戻す
+                animController.next.fade_time = animSet.nextBlendTime > 0.0f ? animSet.nextBlendTime : fadeTime;
+                animSet.nextBlendTime         = 0.0f;
                 animController.next.immediate       = false;    // クロスフェードで切り替える
                 animController.next.is_looping      = looping;
                 animController.next.clip_start_time = 0.0f;     // クリップ全体を再生する

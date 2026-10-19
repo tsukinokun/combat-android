@@ -52,6 +52,9 @@ namespace CombatAndroid::ECS {
                           // Physicsが担うため、ここで書いたTransformをその同じフレームのPhysicsが
                           // 読めるよう、必ずPhysicsより前に置くこと（後ろだと1フレーム遅れて
                           // 地面が追いついてくる）。それ以外の処理とは依存関係が無い
+        CutsceneActor,    // ムービーの役者（暴れる蜘蛛・見下ろす伯爵）を台本どおりに動かす。敵のAI（Movement）と同じく
+                          // Transformとクリップの切り替え要求を書くので、それをAnimationSystem（Gameplay）が同じフレームで
+                          // 読めるようGameplayより前に置く。片付けに使うショット番号（Cutscene）は前フレームの値でよい
         SoftTarget,       // ソフトターゲット（自動で狙う敵）を選ぶ。プレイヤーの位置と移動入力の向き（Movementで確定）を
                           // 使うのでその後に置き、攻撃の段に入るPlayerAnimationSystem（Gameplay）が今フレームの
                           // ターゲットで振り向きを要求できるよう、Gameplayより前に置く

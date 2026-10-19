@@ -18,6 +18,9 @@
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 #include <Tsukino/Core/Path.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyHeldWeaponComponent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/BossProgressComponent.hpp>
@@ -135,6 +138,11 @@ namespace CombatAndroid::ECS {
             BossShotParams closeShot = {420.0f, 60.0f, 260.0f, -0.05f, 50.0f, 1.6f, 1.2f, 0.5f, 0.0f};
             BossShotParams returnShot = {420.0f, 150.0f, 210.0f, 0.22f, 60.0f, 1.0f, 1.4f, 3.14159f, 0.0f};
 
+            // クリアのムービー（ラスボスを倒した後）：崩れ落ちるボスの周りを回る → 引いて夜明けの空 → 朝日の中のプレイヤー
+            BossShotParams endingCollapseShot = {420.0f, 30.0f, 120.0f, 0.05f, 50.0f, 4.0f, 1.0f, 0.6f, 0.35f};
+            BossShotParams endingSkyShot      = {1400.0f, 250.0f, 700.0f, 0.0f, 60.0f, 3.0f, 0.6f, 0.0f, 0.05f};
+            BossShotParams endingPlayerShot   = {320.0f, 40.0f, 175.0f, 0.03f, 50.0f, 2.5f, 1.0f, 3.14159f, 0.1f};
+
             //-------------------------------------------------------------
             // 告知（画面中央の帯と文字）。時間は実時間
             //-------------------------------------------------------------
@@ -160,6 +168,9 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "revealShot", params.revealShot);
             LoadField(archive, "closeShot", params.closeShot);
             LoadField(archive, "returnShot", params.returnShot);
+            LoadField(archive, "endingCollapseShot", params.endingCollapseShot);
+            LoadField(archive, "endingSkyShot", params.endingSkyShot);
+            LoadField(archive, "endingPlayerShot", params.endingPlayerShot);
             LoadField(archive, "announceSeconds", params.announceSeconds);
             LoadField(archive, "announceOffsetY", params.announceOffsetY);
             LoadField(archive, "bandTailX", params.bandTailX);
@@ -238,6 +249,65 @@ namespace CombatAndroid::ECS {
             shot.blendFrequency = params.blendFrequency;
             shot.yawDriftSpeed  = params.yawDriftSpeed;
             return shot;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  ラスボスを倒した後のクリアのムービーを始める（世界を止めないライブのカットシーン）
+        //! @return 始められたか（スキル選択の予約などで始められなければfalse。そのときは従来どおり待ってからクリアにする）
+        //! @note   残っている雑魚と敵の弾は、ムービーの前に消す（EXP玉は出さない）。
+        //!         敵のAIはカットシーン中は止まるので、ボスの死亡モーションはここで直接始めておく
+        //-------------------------------------------------------------
+        bool StartEndingCutscene(Tsukino::ECS::Registry& registry, const BossDirectorParams& params, Tsukino::ECS::Entity playerEntity,
+                                 Tsukino::ECS::Entity boss) {
+            if(boss == entt::null || !registry.IsValid(boss) || !registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(boss))
+                return false;
+            if(IsGameplayFrozen(registry))
+                return false;    // PlayCutsceneは他の停止中は再生しない
+
+            const hlslpp::float3 playerPosition = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity).position;
+            const hlslpp::float3 bossPosition   = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(boss).position;
+            const float          baseYaw        = std::atan2(static_cast<float>(playerPosition.x) - static_cast<float>(bossPosition.x),
+                                                             -(static_cast<float>(playerPosition.z) - static_cast<float>(bossPosition.z)));
+
+            std::vector<CutsceneShot> shots;
+            shots.push_back(MakeShot(params.endingCollapseShot, boss, baseYaw));
+            CutsceneShot sky = MakeShot(params.endingSkyShot, playerEntity, baseYaw);
+            sky.farZ         = 6000.0f;    // 引いた空の絵は地平線まで見せる
+            shots.push_back(sky);
+            shots.push_back(MakeShot(params.endingPlayerShot, playerEntity, baseYaw));
+            PlayCutscene(registry, std::move(shots), true);
+
+            //-------------------------------------------------------------
+            // 後片付け：雑魚（ボス以外の敵）と敵の弾を消す。夜明けとともに消えた扱いで、EXP玉は出さない
+            //-------------------------------------------------------------
+            std::vector<Tsukino::ECS::Entity> doomed;
+            {
+                auto enemies = registry.View<EnemyComponent>();
+                for(entt::entity entity : enemies) {
+                    if(entity != boss)
+                        doomed.push_back(entity);
+                }
+                auto projectiles = registry.View<EnemyProjectileComponent>();
+                for(entt::entity entity : projectiles)
+                    doomed.push_back(entity);
+            }
+            for(Tsukino::ECS::Entity entity : doomed) {
+                if(const auto* health = registry.try_get<HealthComponent>(entity))
+                    DestroyEnemyHpBar(registry, *health);
+                if(const auto* held = registry.try_get<EnemyHeldWeaponComponent>(entity);
+                   held && held->weaponEntity != entt::null && registry.IsValid(held->weaponEntity))
+                    registry.QueueDestroy(held->weaponEntity);
+                registry.QueueDestroy(entity);
+            }
+
+            // 敵のAIはムービー中は止まるので、倒れるモーションはここで始めておく（続きの消える演出はムービーの後）
+            if(auto* animSet = registry.try_get<EnemyAnimationSetComponent>(boss))
+                animSet->desiredState = EnemyAnimState::Death;
+
+            // 倒した瞬間に大技と同じスローを掛ける
+            if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                eventBus->Publish(PlayerFinisherEvent{playerEntity, 0.0f});
+            return true;
         }
 
         //-------------------------------------------------------------
@@ -522,17 +592,36 @@ namespace CombatAndroid::ECS {
                     if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
                         eventBus->Publish(GameLogEvent{GameLogCategory::BossDefeated, entry.displayName});
 
-                    // ラスボスを倒した後の待ちで倒されてGAME OVERにならないよう、無敵にしておく
-                    if(isFinal)
+                    // ラスボスを倒した後の待ち（ムービー）で倒されてGAME OVERにならないよう、無敵にしておく
+                    if(isFinal) {
                         view.get<PlayerComponent>(playerEntity).levelUpInvincibleTimer =
                             std::max(view.get<PlayerComponent>(playerEntity).levelUpInvincibleTimer, params.defeatDelaySeconds + 1.0f);
-                    else
-                        RequestDaybreak(registry);    // 中ボスを倒したら夜が明ける（ラスボスはそのままリザルトへ）
+                        progress.endingPlaying  = StartEndingCutscene(registry, params, playerEntity, progress.bossEntity);
+                        progress.endingDaybreak = false;
+                    } else {
+                        RequestDaybreak(registry);    // 中ボスを倒したら夜が明ける
+                    }
                 }
 
-                progress.phaseElapsed += deltaTime;
-                if(progress.phaseElapsed < params.defeatDelaySeconds)
-                    continue;
+                //-------------------------------------------------------------
+                // クリアのムービー中：2本目（空の絵）に入ったら夜を明けさせ、終わったら（スキップを含む）クリアへ進む
+                //-------------------------------------------------------------
+                if(progress.endingPlaying) {
+                    if(IsCutsceneActive(registry)) {
+                        if(!progress.endingDaybreak && GetCutsceneShotIndex(registry) >= 1) {
+                            progress.endingDaybreak = true;
+                            RequestDaybreak(registry);
+                        }
+                        continue;
+                    }
+                    if(!progress.endingDaybreak)
+                        RequestDaybreak(registry);    // 空の絵の前にスキップされても、夜は明けさせる
+                    progress.endingPlaying = false;
+                } else {
+                    progress.phaseElapsed += deltaTime;
+                    if(progress.phaseElapsed < params.defeatDelaySeconds)
+                        continue;
+                }
 
                 progress.phase                 = progress.phase == BossPhase::FinalActive ? BossPhase::FinalDefeated : BossPhase::Interlude;
                 progress.phaseElapsed          = 0.0f;

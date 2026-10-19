@@ -4,6 +4,7 @@
 //! @author  山﨑愛
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/System/Enemy/EnemySpawnDirectorSystem.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
 
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
@@ -88,7 +89,8 @@ namespace CombatAndroid::ECS {
         CullDistantEnemies(registry, playerPosition);
         UpdateSpawnFadeIn(registry, playerPosition, deltaTime);
 
-        if(playerDead || elapsedSeconds < kWarmupSeconds)
+        // ムービー（ライブのカットシーンは時間が進む）の間は湧かせない
+        if(playerDead || elapsedSeconds < kWarmupSeconds || IsCutsceneActive(registry))
             return;
 
         m_spawnTimer -= deltaTime;

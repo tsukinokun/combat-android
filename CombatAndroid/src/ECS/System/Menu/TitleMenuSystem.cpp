@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -404,6 +405,21 @@ namespace CombatAndroid::ECS {
                     RefreshUi(registry, *ctx, title);
                 }
             }
+
+#ifdef _DEBUG
+            //-------------------------------------------------------------
+            // 自動の動作確認用：起動引数に --autostart があれば、最初の1回だけ「はじめる」を選んだことにする
+            // （入力を外から送れない環境でも、ムービーやボス戦まで進められるように）
+            //-------------------------------------------------------------
+            static bool s_autoStartChecked = false;
+            if(!s_autoStartChecked) {
+                s_autoStartChecked = true;
+                if(std::strstr(GetCommandLineA(), "--autostart") != nullptr) {
+                    RequestTitleLaunch(registry);
+                    continue;
+                }
+            }
+#endif
 
             if(!IsGameMenuConfirmPressed(input) && !pointer.clicked)
                 continue;

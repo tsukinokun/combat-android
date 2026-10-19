@@ -32,11 +32,12 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  カットシーンを1本再生する関数
     //! @param  registry [in] ECSレジストリ
-    //! @param  shots    [in] 再生するショット列（空なら何もしない）
+    //! @param  shots     [in] 再生するショット列（空なら何もしない）
+    //! @param  liveWorld [in] 世界の時間を止めずに流すか（CutsceneComponent::liveWorld）
     //! @note   既に何か再生中、またはスキル選択・ポーズ・リザルトなど他の停止要因が
     //!         既に有効な場合は何もせず警告ログを出す（同時に2つ動く事態を避ける）
     //-------------------------------------------------------------
-    void PlayCutscene(Tsukino::ECS::Registry& registry, std::vector<CutsceneShot> shots);
+    void PlayCutscene(Tsukino::ECS::Registry& registry, std::vector<CutsceneShot> shots, bool liveWorld = false);
 
     //-------------------------------------------------------------
     //! @brief  今カットシーンを再生中かを問い合わせる関数
@@ -45,6 +46,22 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     bool IsCutsceneActive(Tsukino::ECS::Registry& registry);
+
+    //-------------------------------------------------------------
+    //! @brief  世界の時間を止めないカットシーン（ライブ）を再生中かを問い合わせる関数
+    //! @param  registry [in] ECSレジストリ
+    //! @return true: ライブのカットシーンを再生中
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    bool IsLiveCutsceneActive(Tsukino::ECS::Registry& registry);
+
+    //-------------------------------------------------------------
+    //! @brief  再生中のショット番号を問い合わせる関数（ショットの切り替わりに演出を差し込むのに使う）
+    //! @param  registry [in] ECSレジストリ
+    //! @return 0始まりのショット番号。再生していなければ-1
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    int GetCutsceneShotIndex(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
     //! @class  CutsceneSystem

@@ -36,6 +36,8 @@ namespace CombatAndroid::ECS {
         float                interludeStartSeconds = 0.0f;  //!< 中ボスを倒し終えた時点の走行の時計（ラスボスまではこの時計で数える）
         Tsukino::ECS::Entity bossEntity   = entt::null;     //!< 戦っているボス
         bool                 bossDown     = false;          //!< 戦っているボスのHPが0になったか（撃破の演出待ちに入った）
+        bool                 endingPlaying  = false;        //!< ラスボスを倒した後のクリアのムービーを流しているか
+        bool                 endingDaybreak = false;        //!< クリアのムービーで夜明けを始めたか
 
         //-----------------------------------------------------
         // 出現の告知（画面中央の斜めの帯と、大きな呼び名）。シーン初期化時に非表示で作る

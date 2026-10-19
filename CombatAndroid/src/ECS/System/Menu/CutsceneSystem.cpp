@@ -39,6 +39,10 @@ namespace CombatAndroid::ECS {
         //! レターボックスの退場アニメーションにかける秒数（実時間）
         constexpr float kLetterboxRetractDuration = 0.35f;
 
+        //! 1フレームで進めてよいショットの時間の上限（秒）。役者のモデルの初回読み込みなどで
+        //! 数秒止まったフレームがあっても、その間にショットが飛ばされないようにする
+        constexpr float kMaxShotStep = 0.1f;
+
         const hlslpp::float4      kLetterboxColor(0.0f, 0.0f, 0.0f, 1.0f);
         const hlslpp::float4      kSkipHintColor(0.85f, 0.85f, 0.85f, 1.0f);
 
@@ -57,7 +61,34 @@ namespace CombatAndroid::ECS {
         //!         retractingLetterboxを立てて退場アニメーションへ引き継ぐ
         //-------------------------------------------------------------
         void StopCutscene(Tsukino::ECS::Registry& registry, CutsceneComponent& cutscene) {
+            //-------------------------------------------------------------
+            // TPSカメラへ引き継ぐ。終わった瞬間のカメラの位置をばねの初期位置にし、旋回の向きを
+            // 「プレイヤーから今のカメラへの向き」に合わせる（反対側へ大回りしないように）。
+            // 注視点と画角はTpsCameraSystemが handoffDuration かけて通常へ寄せる
+            //-------------------------------------------------------------
+            auto cameraView = registry.View<TpsCameraComponent, Tsukino::BuiltIn::ECS::TransformComponent, Tsukino::BuiltIn::ECS::CameraComponent>();
+            for(entt::entity cameraEntity : cameraView) {
+                auto&       tpsCamera = cameraView.get<TpsCameraComponent>(cameraEntity);
+                const auto& transform = cameraView.get<Tsukino::BuiltIn::ECS::TransformComponent>(cameraEntity);
+                const auto& camera    = cameraView.get<Tsukino::BuiltIn::ECS::CameraComponent>(cameraEntity);
+
+                tpsCamera.followSpringPosition = transform.position;
+                tpsCamera.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                tpsCamera.hasFollowSpringState = true;
+                tpsCamera.handoffLookAt        = camera.lookAtTarget;
+                tpsCamera.handoffFov           = camera.fov;
+                tpsCamera.handoffTimer         = tpsCamera.handoffDuration;
+
+                if(tpsCamera.target != entt::null && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(tpsCamera.target)) {
+                    const hlslpp::float3 offset = transform.position - registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(tpsCamera.target).position;
+                    if(static_cast<float>(offset.x) * static_cast<float>(offset.x) + static_cast<float>(offset.z) * static_cast<float>(offset.z) > 1.0f)
+                        tpsCamera.yaw = std::atan2(static_cast<float>(offset.x), -static_cast<float>(offset.z));
+                }
+                break;    // TPSカメラは1体だけの想定
+            }
+
             cutscene.playing          = false;
+            cutscene.liveWorld        = false;
             cutscene.currentShotIndex = -1;
             cutscene.shotTimer        = 0.0f;
             cutscene.shots.clear();
@@ -111,7 +142,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief カットシーンを1本再生する
     //-------------------------------------------------------------
-    void PlayCutscene(Tsukino::ECS::Registry& registry, std::vector<CutsceneShot> shots) {
+    void PlayCutscene(Tsukino::ECS::Registry& registry, std::vector<CutsceneShot> shots, bool liveWorld) {
         CutsceneComponent* cutscene = FindCutscene(registry);
         if(!cutscene) {
             Tsukino::Core::Log::Error("CutsceneSystem - CreateCutscenePlayback was not called; PlayCutscene ignored.");
@@ -139,6 +170,7 @@ namespace CombatAndroid::ECS {
         cutscene->currentShotIndex = -1;
         cutscene->shotTimer        = 0.0f;
         cutscene->hasSpringState   = false;
+        cutscene->liveWorld        = liveWorld;
     }
 
     //-------------------------------------------------------------
@@ -147,6 +179,24 @@ namespace CombatAndroid::ECS {
     bool IsCutsceneActive(Tsukino::ECS::Registry& registry) {
         const CutsceneComponent* cutscene = FindCutscene(registry);
         return cutscene && cutscene->playing;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 世界の時間を止めないカットシーンを再生中かを問い合わせる
+    //-------------------------------------------------------------
+    bool IsLiveCutsceneActive(Tsukino::ECS::Registry& registry) {
+        const CutsceneComponent* cutscene = FindCutscene(registry);
+        return cutscene && cutscene->playing && cutscene->liveWorld;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 再生中のショット番号を問い合わせる
+    //-------------------------------------------------------------
+    int GetCutsceneShotIndex(Tsukino::ECS::Registry& registry) {
+        const CutsceneComponent* cutscene = FindCutscene(registry);
+        if(!cutscene || !cutscene->playing)
+            return -1;
+        return std::max(cutscene->currentShotIndex, 0);
     }
 
     //-------------------------------------------------------------
@@ -163,8 +213,9 @@ namespace CombatAndroid::ECS {
 
         // 演出はWorldTimeContext::realDeltaTimeで進める（自分自身が引き起こすフリーズで
         // 止まらないようにするため。TpsCameraSystemの死亡演出と同じ理由）
-        const float realDeltaTime =
+        const float rawDeltaTime =
             registry.HasContext<WorldTimeContext>() ? registry.GetContext<WorldTimeContext>().realDeltaTime : 0.0f;
+        const float realDeltaTime = std::min(rawDeltaTime, kMaxShotStep);
 
         if(!cutscene->playing) {
             // 再生は終わっていても、上下の帯だけ退場アニメーションを追いかけて進める

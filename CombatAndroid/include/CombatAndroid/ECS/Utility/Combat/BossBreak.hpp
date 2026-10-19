@@ -20,7 +20,8 @@ namespace CombatAndroid::ECS {
     //! @brief  駆け引きの調整値（Assets/Tables/Systems/BossCombat.json。ここの初期値はJSONにキーが無いときの既定値）
     //-------------------------------------------------------------
     struct BossCombatParams {
-        float justWindow          = 0.15f;    //!< 回避を始めてからこの秒数以内にボスの攻撃をすり抜けたらジャスト回避
+        float justWindow          = 0.15f;    //!< 回避を始めてからこの秒数以内に敵の攻撃をすり抜けたらジャスト回避
+        float regularSlowCooldown = 4.0f;     //!< 雑魚でジャスト回避したときのスローを、次に掛けられるまでの秒数（ボスは毎回掛ける）
         float counterWindow       = 1.5f;     //!< ジャスト回避の後、反撃の構えが続く秒数
         float counterDamageScale  = 2.5f;     //!< 反撃の一撃のダメージ倍率
         float counterBreakScale   = 4.0f;     //!< 反撃の一撃が体勢ゲージを削る倍率
@@ -47,13 +48,13 @@ namespace CombatAndroid::ECS {
     const BossCombatParams& GetBossCombatParams();
 
     //-------------------------------------------------------------
-    //! @brief  ボスへの一撃にダウン・後隙・反撃の倍率を掛け、体勢ゲージを溜める
+    //! @brief  敵への一撃に反撃の倍率を掛け、ボスならダウン・後隙の倍率も掛けて体勢ゲージを溜める
     //! @param  registry   [in,out] ECSレジストリ
     //! @param  attacker   [in]     攻撃した側（プレイヤー）。反撃の構えを消費する
     //! @param  hitEntity  [in]     当たった相手。ボス（BossMoveSetComponent）でなければ何もしない
     //! @param  damage     [in]     倍率を掛ける前のダメージ
     //! @param  breakScale [in]     体勢ゲージを削る倍率（重い一撃ならheavyBreakScale）
-    //! @return 倍率を掛けた後のダメージ（ボスでなければdamageのまま）
+    //! @return 倍率を掛けた後のダメージ
     //! @note   ゲージが満タンになったらBossMoveSetComponent::breakPendingを立てるだけで、
     //!         ダウンへ移るのはBossBehaviorの次のUpdate
     //-------------------------------------------------------------
@@ -62,13 +63,14 @@ namespace CombatAndroid::ECS {
                                 float breakScale);
 
     //-------------------------------------------------------------
-    //! @brief  回避の無敵でボスの攻撃をすり抜けた瞬間に呼び、ジャスト回避なら反撃の構えを付ける
+    //! @brief  回避の無敵で敵（ボス・雑魚）の攻撃をすり抜けた瞬間に呼び、ジャスト回避なら反撃の構えを付ける
     //! @param  registry     [in,out] ECSレジストリ
     //! @param  playerEntity [in]     プレイヤー
     //! @param  player       [in,out] プレイヤーの状態（counterReadyTimerを書く）
     //! @param  attacker     [in]     攻撃した側（敵本体。弾なら撃ったボス）
     //! @return ジャスト回避になったか
     //! @note   成立したら PlayerFinisherEvent（インパクト待ち0秒）を流し、大技と同じスローとカメラの寄りを掛ける。
+    //!         雑魚のときはPlayerComponent::justDodgeSlowCooldownが残っている間はスローを掛けない（反撃の構えは付く）。
     //!         反撃の構えが残っている間は成立させない（1回の振りの判定区間で何度も成立しないように）
     //-------------------------------------------------------------
     bool TryJustDodge(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity playerEntity, PlayerComponent& player, Tsukino::ECS::Entity attacker);

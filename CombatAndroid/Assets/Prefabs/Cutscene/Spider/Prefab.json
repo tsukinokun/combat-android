@@ -1,0 +1,28 @@
+{
+    "Components": [
+        {
+            "key": "AnimationControllerComponent",
+            "value": "null"
+        },
+        {
+            "key": "AnimationPlayerComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/AnimationPlayerComponent.json"
+        },
+        {
+            "key": "ModelComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/ModelComponent.json"
+        },
+        {
+            "key": "RimGlowComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/RimGlowComponent.json"
+        },
+        {
+            "key": "SkeletonOutputComponent",
+            "value": "null"
+        },
+        {
+            "key": "TransformComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/TransformComponent.json"
+        }
+    ]
+}

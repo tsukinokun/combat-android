@@ -486,16 +486,27 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 case BossActionPhase::Broken: {
                     // StartBreakで待機を1フレーム挟んだので、ここからは攻撃ステートの仕組みでダウンのクリップを流す
-                    animSet.desiredState = EnemyAnimState::Attack;
-                    if(boss.phaseTimer < breakDef.downSeconds)
+                    if(boss.phaseTimer < breakDef.downSeconds) {
+                        animSet.desiredState = EnemyAnimState::Attack;
+                        break;
+                    }
+
+                    //-------------------------------------------------------------
+                    // 起き上がり：ダウンの姿勢から待機へ、いつもより長い切り替えで移す（脚を丸めた蜘蛛が
+                    // 一瞬で立つと瞬間移動に見えるため）。切り替え終わるまでその場で止まってから追跡へ戻る
+                    //-------------------------------------------------------------
+                    if(animSet.desiredState == EnemyAnimState::Attack) {
+                        animSet.nextBlendTime = breakDef.recoverBlend;
+                        animSet.attackClipEnd = 0.0f;
+                        animSet.desiredState  = EnemyAnimState::Idle;
+                    }
+                    if(boss.phaseTimer < breakDef.downSeconds + breakDef.recoverSeconds)
                         break;
 
-                    boss.breakGauge      = 0.0f;
-                    boss.breakIdleTimer  = 0.0f;
-                    boss.phase           = BossActionPhase::Chase;
-                    boss.phaseTimer      = 0.0f;
-                    animSet.attackClipEnd = 0.0f;
-                    animSet.desiredState  = EnemyAnimState::Idle;
+                    boss.breakGauge     = 0.0f;
+                    boss.breakIdleTimer = 0.0f;
+                    boss.phase          = BossActionPhase::Chase;
+                    boss.phaseTimer     = 0.0f;
                     break;
                 }
             }

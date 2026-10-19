@@ -42,6 +42,7 @@
 #include <CombatAndroid/ECS/Utility/Spawn/WeaponSpawner.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/AssetPreloader.hpp>
 #include <CombatAndroid/ECS/Utility/Audio/Bgm.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneActorSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
@@ -104,6 +105,8 @@
 #include <entt/entt.hpp>
 #include <hlsl++.h>
 
+#include <cmath>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -146,6 +149,102 @@ namespace {
         handoff.duration        = 1.5f;
         handoff.blendFrequency  = 1.2f;
         shots.push_back(handoff);
+
+        return shots;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  オープニングの前半（蜘蛛が暴れ、伯爵が見下ろして霧に消える）の役者を出し、そのショットを返す
+    //! @param  registry       [in,out] ECSレジストリ
+    //! @param  context        [in]     エンジンコンテキスト（役者の生成・クリップの読み込みに使う）
+    //! @param  playerPosition [in]     プレイヤーの開始位置（役者はその前方の遠くに置く）
+    //! @return 前半のショット（この後に BuildOpeningCutsceneShots の俯瞰と引き渡しが続く）
+    //! @note   役者は見た目だけのPrefab（Assets/Prefabs/Cutscene/）。俯瞰のショット（番号2）に入ったら片付ける。
+    //!         ライブのカットシーン（世界の時間を止めない）で流す前提。位置と秒数は実機で見ながら詰める出発点
+    //-------------------------------------------------------------
+    std::vector<CombatAndroid::ECS::CutsceneShot> BuildOpeningActorShots(Tsukino::ECS::Registry&                    registry,
+                                                                         Tsukino::EngineIntegration::EngineContext& context,
+                                                                         const hlslpp::float3&                      playerPosition) {
+        using CombatAndroid::ECS::CutsceneActorComponent;
+        using CombatAndroid::ECS::CutsceneActorStep;
+
+        std::vector<CombatAndroid::ECS::CutsceneShot> shots;
+        if(!context.assetManager)
+            return shots;
+
+        constexpr int   kDespawnAtShot   = 2;          // 俯瞰（3本目）に入ったら役者を片付ける
+        constexpr float kRampageSeconds  = 3.5f;       // 蜘蛛が暴れるショットの長さ
+        constexpr float kWatcherSeconds  = 3.0f;       // 伯爵が見下ろすショットの長さ
+        constexpr float kLeapSeconds     = 1.6f;       // 伯爵が跳び去る動きに使う、ショットの終わりの秒数
+        constexpr float kWatcherScale    = 2.2f;       // 伯爵の大きさ（ラスボスの sizeScale と揃える）
+
+        //-------------------------------------------------------------
+        // 蜘蛛：プレイヤーの前方を、右から左へ走っては刺す（run → attack を繰り返す）。
+        // 霧の濃さはプレイヤーからの距離で決まる（FogFollow）ので、遠くに置くと霧に隠れる。
+        // 役者はプレイヤーから700前後に収める
+        //-------------------------------------------------------------
+        const Tsukino::Asset::AssetHandle spiderClip = context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx"));
+        CutsceneActorComponent spider;
+        spider.despawnAtShot = kDespawnAtShot;
+        spider.steps.push_back(CutsceneActorStep{spiderClip, 3, true, 0.8f, 600.0f});     // run
+        spider.steps.push_back(CutsceneActorStep{spiderClip, 0, false, 1.25f, 0.0f});     // attack（刺す）
+        const hlslpp::float3      spiderStart = playerPosition + hlslpp::float3(500.0f, 0.0f, 700.0f);
+        const Tsukino::ECS::Entity spiderActor =
+            CombatAndroid::ECS::SpawnCutsceneActor(registry, context, "Cutscene/Spider", spiderStart, -1.5707963f, 2.5f, std::move(spider));
+
+        //-------------------------------------------------------------
+        // 伯爵：プレイヤーの左前に立ち、蜘蛛の暴れる方を見ている。見下ろすショットの終わりに、
+        // 跳びかかりの動きで踏み切って、霧の奥の空へ跳び去る（消えるのではなく去る）
+        //-------------------------------------------------------------
+        const hlslpp::float3 watcherPosition = playerPosition + hlslpp::float3(-350.0f, 0.0f, 450.0f);
+        const hlslpp::float3 toRampage       = (spiderStart + hlslpp::float3(-500.0f, 0.0f, 0.0f)) - watcherPosition;
+        const float          watcherYaw      = std::atan2(static_cast<float>(toRampage.x), static_cast<float>(toRampage.z));
+
+        CutsceneActorComponent watcher;
+        watcher.despawnAtShot = kDespawnAtShot;
+        watcher.steps.push_back(CutsceneActorStep{
+            context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Vampire/Mutant Idle.fbx")), -1, true,
+            kRampageSeconds + kWatcherSeconds - kLeapSeconds, 0.0f});
+        // 跳ぶ：しゃがんでから（moveDelay）前方の上へ大きく動いて、画面の上へ抜ける
+        watcher.steps.push_back(CutsceneActorStep{
+            context.assetManager->Load(Tsukino::Core::Path("CombatAndroid/Assets/Anims/Vampire/Mutant Jump Attack.fbx")), -1, false, 30.0f,
+            700.0f, 1100.0f, 0.5f});
+        (void)CombatAndroid::ECS::SpawnCutsceneActor(registry, context, "Cutscene/Vampire", watcherPosition,
+                                                                                          watcherYaw, kWatcherScale, std::move(watcher));
+
+        //-------------------------------------------------------------
+        // ショット1：暴れる蜘蛛を、草より高い位置から斜めに見下ろす（蜘蛛について行く）
+        //-------------------------------------------------------------
+        CombatAndroid::ECS::CutsceneShot rampage;
+        rampage.targetEntity   = spiderActor;
+        rampage.distance       = 700.0f;
+        rampage.height         = 160.0f;
+        rampage.lookHeight     = 120.0f;
+        rampage.yaw            = -0.46f;    // 蜘蛛の手前（プレイヤー側）やや左から
+        rampage.pitch          = 0.15f;
+        rampage.fov            = 55.0f;
+        rampage.farZ           = 6000.0f;
+        rampage.duration       = kRampageSeconds;
+        rampage.blendFrequency = 1.2f;
+        shots.push_back(rampage);
+
+        //-------------------------------------------------------------
+        // ショット2：伯爵の顔に寄る。カメラは伯爵の向いている側の少し横から。
+        // 跳んで画面の外へ抜けるのを見せたいので、伯爵には付いて行かず立っていた場所を見続ける
+        //-------------------------------------------------------------
+        const float cameraSide = watcherYaw + 0.35f;
+        CombatAndroid::ECS::CutsceneShot watcherShot;
+        watcherShot.targetPoint    = watcherPosition;
+        watcherShot.distance       = 420.0f;
+        watcherShot.height         = 200.0f;    // 草（背丈100前後）より上にカメラを置く
+        watcherShot.lookHeight     = 260.0f;
+        watcherShot.yaw            = std::atan2(std::sin(cameraSide), -std::cos(cameraSide));    // 向いている方へカメラを置く
+        watcherShot.pitch          = 0.08f;
+        watcherShot.fov            = 45.0f;
+        watcherShot.duration       = kWatcherSeconds;
+        watcherShot.blendFrequency = 0.9f;
+        watcherShot.yawDriftSpeed  = 0.05f;
+        shots.push_back(watcherShot);
 
         return shots;
     }
@@ -631,7 +730,14 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         // オープニングのカットシーン。全エンティティが揃った最後に、1回だけ再生する
         //--------------------------------------------------------------
-        CombatAndroid::ECS::PlayCutscene(registry, BuildOpeningCutsceneShots(playerEntity, playerTransform.position));
+        // 前半は蜘蛛と伯爵の役者が動くので、世界の時間を止めないライブで流す
+        // （時計・湧き・入力・敵のAIはカットシーン中は止まっている）。役者を作るとTransformの
+        // 格納先が動き得るので、プレイヤーの位置は先に値で取っておく
+        const hlslpp::float3 playerStart = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity).position;
+        std::vector<CombatAndroid::ECS::CutsceneShot> openingShots = BuildOpeningActorShots(registry, *context, playerStart);
+        for(CombatAndroid::ECS::CutsceneShot& shot : BuildOpeningCutsceneShots(playerEntity, playerStart))
+            openingShots.push_back(shot);
+        CombatAndroid::ECS::PlayCutscene(registry, std::move(openingShots), true);
     }
 
     //-------------------------------------------------------------
@@ -656,8 +762,11 @@ namespace CombatAndroid {
         // ただしPhysicsSystemだけはdeltaTimeが0以下でも1/60秒ぶんステップしてしまうため、
         // これだけではCharacterVirtualが滑り続ける。移動入力の打ち消しと、
         // プレイヤー入力の遮断は各メニューのSystem側で行っている（GameplayFreeze.hpp）
+        //
+        // ライブのカットシーン（暴れる蜘蛛・崩れ落ちる伯爵）だけは時間を止めない。入力・敵AI・湧きは
+        // IsGameplayFrozenを見て各System側で止まり、アニメと演出の時間だけが進む（IsWorldTimeFrozen）
         //--------------------------------------------------------------
-        if(CombatAndroid::ECS::IsGameplayFrozen(m_scene.GetRegistry()))
+        if(CombatAndroid::ECS::IsWorldTimeFrozen(m_scene.GetRegistry()))
             scaledDeltaTime = 0.0f;
 
         // スローに引きずられたくない演出（カメラの寄り）が実時間を読めるよう、Sceneを更新する前に置く

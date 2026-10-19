@@ -241,7 +241,9 @@ namespace CombatAndroid::ECS {
             // ばねの状態は大技のズームで寄るぶんを足す前の位置として別に持つ
             //-------------------------------------------------------------
             float followGap = hlslpp::length(desiredPosition - tpsCamera.followSpringPosition);
-            if(!tpsCamera.hasFollowSpringState || followGap > tpsCamera.followSpringResetDistance) {
+            // カットシーンからの引き継ぎ中は、遠くても置き直さずにばねで寄せる（演出カメラの位置から戻ってくる）
+            const bool farJump = followGap > tpsCamera.followSpringResetDistance && tpsCamera.handoffTimer <= 0.0f;
+            if(!tpsCamera.hasFollowSpringState || farJump) {
                 tpsCamera.followSpringPosition = desiredPosition;
                 tpsCamera.followSpringVelocity = hlslpp::float3(0.0f, 0.0f, 0.0f);
                 tpsCamera.hasFollowSpringState = true;
@@ -387,6 +389,17 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             // プレイヤーの頭のあたりを注視する（揺れのぶんだけずらす）
             //-------------------------------------------------------------
+            //-------------------------------------------------------------
+            // カットシーンからの引き継ぎ：終わった瞬間の注視点・画角から、通常の値へなめらかに寄せる
+            //-------------------------------------------------------------
+            if(tpsCamera.handoffTimer > 0.0f) {
+                const float u     = 1.0f - std::clamp(tpsCamera.handoffTimer / std::max(tpsCamera.handoffDuration, 0.01f), 0.0f, 1.0f);
+                const float eased = u * u * (3.0f - 2.0f * u);
+                lookAtTarget      = tpsCamera.handoffLookAt + (lookAtTarget - tpsCamera.handoffLookAt) * eased;
+                camera.fov        = std::lerp(tpsCamera.handoffFov, camera.fov, eased);
+                tpsCamera.handoffTimer = std::max(tpsCamera.handoffTimer - realDeltaTime, 0.0f);
+            }
+
             camera.useLookAt    = true;
             camera.lookAtTarget = lookAtTarget + tpsCamera.shakeOffset;
             camera.dirty        = true;

@@ -122,6 +122,8 @@ namespace CombatAndroid::ECS {
         std::string clip;                           //!< ダウン中に再生するクリップ。空ならのけぞりのクリップ
         int         animationIndex = -1;            //!< クリップの中のアニメーション番号。負ならPrefabのanimationIndex
         float       clipEnd        = 0.0f;          //!< クリップをこの秒数で止める（0なら最後まで）。倒れ込みの途中で止めて膝をつかせる
+        float       recoverSeconds = 0.7f;          //!< ダウンが明けてから、その場で起き上がって動き出すまで（秒）
+        float       recoverBlend   = 0.5f;          //!< 起き上がるとき、ダウンの姿勢から待機へ移す切り替えの秒数（短いと瞬間移動に見える）
     };
 
     //-------------------------------------------------------------

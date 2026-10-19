@@ -684,6 +684,8 @@ namespace CombatAndroid::ECS {
             // 反撃の構え（ボスの攻撃をジャスト回避した直後）。残っている間は金白に縁取り、
             // 切れた瞬間（または一撃を当てて消費された瞬間）に消す。溜め中は溜めの色を優先する
             //-------------------------------------------------------------
+            if(player.justDodgeSlowCooldown > 0.0f)
+                player.justDodgeSlowCooldown = std::max(player.justDodgeSlowCooldown - deltaTime, 0.0f);
             if(player.counterReadyTimer > 0.0f || m_counterGlowShown) {
                 player.counterReadyTimer = std::max(player.counterReadyTimer - deltaTime, 0.0f);
                 if(!willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {

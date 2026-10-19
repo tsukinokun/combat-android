@@ -13,6 +13,7 @@
 #include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Event/UI/GameLogEvent.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
@@ -526,6 +527,9 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<SkillSelectComponent>();
         for(entt::entity entity : view) {
             const SkillSelectComponent& select = view.get<SkillSelectComponent>(entity);
+            // ムービー中に溜まったレベルアップは、ムービーが終わってから開く（それまでは止めない）
+            if(!select.isActive && select.closingBlockFrames <= 0 && IsCutsceneActive(registry))
+                return false;
             return select.isActive || select.pendingLevelUps > 0 || select.closingBlockFrames > 0;
         }
         return false;
@@ -586,6 +590,10 @@ namespace CombatAndroid::ECS {
                 HideUi(registry, select);
                 continue;
             }
+
+            // ムービー（ライブのカットシーン）の間は開かず、予約だけ残しておく
+            if(!select.isActive && IsCutsceneActive(registry))
+                continue;
 
             // 停止中はプレイヤーも敵も移動入力を持たない状態に固定する
             SuppressAllMoveInput(registry);

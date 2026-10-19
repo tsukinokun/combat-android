@@ -21,6 +21,16 @@ namespace CombatAndroid::ECS {
     bool IsGameplayFrozen(Tsukino::ECS::Registry& registry);
 
     //-------------------------------------------------------------
+    //! @brief  今世界の時間（シーンが各Systemへ渡すdeltaTime）を止めているかを問い合わせる
+    //! @param  registry [in] ECSレジストリ
+    //! @return true: スキル選択・ポーズ・リザルト・世界を止めるカットシーンのどれかが有効
+    //! @note   IsGameplayFrozenとの違いは、ライブのカットシーン（IsLiveCutsceneActive）を含まないことだけ。
+    //!         ライブ中はアニメ・物理・演出の時間だけが進み、IsGameplayFrozenを見る処理（入力・AI等）は止まったまま
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    bool IsWorldTimeFrozen(Tsukino::ECS::Registry& registry);
+
+    //-------------------------------------------------------------
     //! @brief  全キャラクタの移動入力を打ち消す
     //! @param  registry [in] ECSレジストリ
     //! @note   PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップする。

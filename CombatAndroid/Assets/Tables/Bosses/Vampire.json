@@ -15,7 +15,9 @@
             "decayDelay": 2.0,
             "downSeconds": 4.0,
             "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Dying.fbx",
-            "clipEnd": 1.5
+            "clipEnd": 1.5,
+            "recoverSeconds": 0.7,
+            "recoverBlend": 0.4
         },
         "moves": [
             {

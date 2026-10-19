@@ -30,6 +30,7 @@
 #include <CombatAndroid/ECS/System/Combat/AttackTurnAssistSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/TargetMarkerSystem.hpp>
 #include <CombatAndroid/ECS/System/World/OcclusionCutoutSystem.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneActorSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/World/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/Player/PlayerAnimationSystem.hpp>
@@ -240,6 +241,7 @@ namespace CombatAndroid {
         // カットシーンの演出カメラ。TpsCameraSystemより前に登録し、再生中はTransform/fovを
         // 直接書き切ってからTpsCameraSystemに「何もしない」判断をさせる
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CutsceneSystem>(), (int)ECS::SystemPriority::Cutscene);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CutsceneActorSystem>(), (int)ECS::SystemPriority::CutsceneActor);
         {
             // PlayerDamagedEventを購読して、被弾したらカメラを揺らす。
             // Publish元のCombatSystem（WeaponAttach）より後ろに居るので、被弾したフレームのうちに揺れ始める

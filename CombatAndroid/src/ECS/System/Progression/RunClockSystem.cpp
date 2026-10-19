@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Event/UI/GameLogEvent.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
 #include <CombatAndroid/ECS/Utility/Table/EnemyDifficultyTable.hpp>
 
@@ -44,9 +45,10 @@ namespace CombatAndroid::ECS {
             // 自動的に止まる（CombatAndroidSceneのscaledDeltaTime）。
             // 上限は無い（クリアは時間ではなくラスボスの撃破で決まる）
             // ボス戦の間（撃破の演出待ちを含む）も止める。危険度はこの時計から決まるので
-            // 一緒に止まり、ラスボスまでの待ちも「中ボスを倒した時刻」から数え直しになる
+            // 一緒に止まり、ラスボスまでの待ちも「中ボスを倒した時刻」から数え直しになる。
+            // ムービー（ライブのカットシーンは時間が進む）の間も止める
             //-------------------------------------------------------------
-            if(!health.isDead && !IsBossBattleActive(registry))
+            if(!health.isDead && !IsBossBattleActive(registry) && !IsCutsceneActive(registry))
                 clock.elapsedSeconds += deltaTime;
 
 #ifdef _DEBUG

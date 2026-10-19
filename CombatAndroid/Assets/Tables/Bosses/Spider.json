@@ -17,7 +17,9 @@
             "downSeconds": 4.0,
             "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
             "animationIndex": 1,
-            "clipEnd": 1.0
+            "clipEnd": 1.0,
+            "recoverSeconds": 0.7,
+            "recoverBlend": 0.6
         },
         "moves": [
             {
