@@ -16,6 +16,7 @@
 #include <CombatAndroid/ECS/System/Menu/RunResultSystem.hpp>
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/Table/WeaponEvolutionTable.hpp>
@@ -102,6 +103,7 @@ namespace CombatAndroid::ECS {
             float levelUpInvincibleRimPower = 2.5f;
             float levelUpInvincibleGlowMin = 0.15f;    //!< 白発光の脈動の下限
             float levelUpInvincibleGlowMax = 0.5f;     //!< 白発光の脈動の上限
+            float confirmLockSeconds = 0.6f;    //!< 開いてから決定（F・クリック）を受け付けるまでの秒（実時間）。攻撃の連打で誤って決めないため
         };
 
         template <class Archive>
@@ -140,6 +142,7 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "levelUpInvincibleRimPower", params.levelUpInvincibleRimPower);
             LoadField(archive, "levelUpInvincibleGlowMin", params.levelUpInvincibleGlowMin);
             LoadField(archive, "levelUpInvincibleGlowMax", params.levelUpInvincibleGlowMax);
+            LoadField(archive, "confirmLockSeconds", params.confirmLockSeconds);
         }
 
         //-------------------------------------------------------------
@@ -600,8 +603,9 @@ namespace CombatAndroid::ECS {
 
                 select.candidateCount  = candidateCount;
                 select.cursorIndex     = 0;
-                select.isActive        = true;
-                select.openedThisFrame = true;
+                select.isActive         = true;
+                select.openedThisFrame  = true;
+                select.confirmLockTimer = GetParams().confirmLockSeconds;
 
                 //-------------------------------------------------------------
                 // 進行中のヒットストップを打ち切る。CombatAndroidScene::OnUpdateは
@@ -618,6 +622,13 @@ namespace CombatAndroid::ECS {
             if(select.openedThisFrame) {
                 select.openedThisFrame = false;
                 continue;
+            }
+
+            // 決定の受付待ち。メニュー中はdeltaTimeが0なので実時間で減らす
+            if(select.confirmLockTimer > 0.0f) {
+                const float realDeltaTime =
+                    registry.HasContext<WorldTimeContext>() ? registry.GetContext<WorldTimeContext>().realDeltaTime : 0.0f;
+                select.confirmLockTimer = std::max(select.confirmLockTimer - realDeltaTime, 0.0f);
             }
 
             if(!ctx->inputSystem)
@@ -671,7 +682,8 @@ namespace CombatAndroid::ECS {
             // pendingLevelUpsがまだ残っていれば次のフレームで2回目のメニューが開く
             //（IsSkillSelectActiveはpendingLevelUpsも見ているので停止は続いたまま）
             //-------------------------------------------------------------
-            if(ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F) || pointer.clicked) {
+            const bool confirmUnlocked = select.confirmLockTimer <= 0.0f;
+            if(confirmUnlocked && (ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F) || pointer.clicked)) {
                 const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];

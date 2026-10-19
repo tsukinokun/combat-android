@@ -1,6 +1,6 @@
 {
     "BossDirector": {
-        "midBossSeconds": 15.0,
+        "midBossSeconds": 180.0,
         "finalBossDelaySeconds": 120.0,
         "defeatDelaySeconds": 2.0,
         "spawnDistance": 900.0,
@@ -11,8 +11,8 @@
             "behavior": "Vampire",
             "displayName": "紅き夜の伯爵",
             "sizeScale": 1.6,
-            "healthScale": 25.0,
-            "attackScale": 1.5,
+            "healthScale": 15.0,
+            "attackScale": 0.8,
             "moveSpeedScale": 1.0,
             "expScale": 10.0
         },
@@ -22,8 +22,8 @@
             "behavior": "Spider",
             "displayName": "夜を織るもの",
             "sizeScale": 2.5,
-            "healthScale": 60.0,
-            "attackScale": 2.0,
+            "healthScale": 35.0,
+            "attackScale": 0.9,
             "moveSpeedScale": 1.0,
             "expScale": 30.0
         },

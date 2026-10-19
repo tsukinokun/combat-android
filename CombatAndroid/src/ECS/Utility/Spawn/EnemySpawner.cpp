@@ -167,11 +167,13 @@ namespace CombatAndroid::ECS {
             static_cast<float>(registry.GetComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(enemyEntity).offsetPosition.y) * 2.0f;
 
         const Tsukino::ECS::Entity backgroundEntity = SpawnHpBar(registry, context, "Enemy/HpBarBackground", enemyEntity, capsuleTop);
+        const Tsukino::ECS::Entity trailEntity      = SpawnHpBar(registry, context, "Enemy/HpBarTrail", enemyEntity, capsuleTop);
         const Tsukino::ECS::Entity fillEntity       = SpawnHpBar(registry, context, "Enemy/HpBarFill", enemyEntity, capsuleTop);
 
         // HPバーを作るとComponentの格納先が動き得るので、ここで参照を取り直して結ぶ
         HealthComponent& health      = registry.GetComponent<HealthComponent>(enemyEntity);
         health.hpBarBackgroundEntity = backgroundEntity;
+        health.hpBarTrailEntity      = trailEntity;
         health.hpBarFillEntity       = fillEntity;
 
         //-------------------------------------------------------------
@@ -300,5 +302,15 @@ namespace CombatAndroid::ECS {
         std::uniform_int_distribution<int> distribution(0, static_cast<int>(WeaponId::Count) - 1);
 
         return MakePaladinConfig(context, spawnPosition, static_cast<WeaponId>(distribution(s_weaponRng)));
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 敵の頭上HPバー（背景・削れ・残量）を破棄予約する
+    //-------------------------------------------------------------
+    void DestroyEnemyHpBar(Tsukino::ECS::Registry& registry, const HealthComponent& health) {
+        for(Tsukino::ECS::Entity barEntity : {health.hpBarBackgroundEntity, health.hpBarTrailEntity, health.hpBarFillEntity}) {
+            if(barEntity != entt::null)
+                registry.QueueDestroy(barEntity);
+        }
     }
 }    // namespace CombatAndroid::ECS

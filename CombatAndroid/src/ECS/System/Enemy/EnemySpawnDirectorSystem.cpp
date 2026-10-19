@@ -356,14 +356,10 @@ namespace CombatAndroid::ECS {
     //! @brief 本Systemが湧かせた敵1体を、HPバー・持ち武器ごと破棄予約する
     //-------------------------------------------------------------
     void EnemySpawnDirectorSystem::DespawnSpawnedEnemy(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
-        // 敵1体につきHPバーが2エンティティぶら下がっている。本体だけ消すと
+        // 敵1体にはHPバーのエンティティがぶら下がっている。本体だけ消すと
         // HPバーが宙に浮いたまま残る（EnemyStressTestSystem::DespawnAllと同じ作法）
-        if(const HealthComponent* health = registry.try_get<HealthComponent>(entity)) {
-            if(health->hpBarBackgroundEntity != entt::null)
-                registry.QueueDestroy(health->hpBarBackgroundEntity);
-            if(health->hpBarFillEntity != entt::null)
-                registry.QueueDestroy(health->hpBarFillEntity);
-        }
+        if(const HealthComponent* health = registry.try_get<HealthComponent>(entity))
+            DestroyEnemyHpBar(registry, *health);
 
         // 武器を持つ敵（Paladin等）は、その武器も一緒に消す。
         // 武器は敵の子エンティティではなく独立したエンティティなので、

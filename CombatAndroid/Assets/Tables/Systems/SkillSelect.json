@@ -33,6 +33,7 @@
         "levelUpInvincibleRimIntensityMax": 5.0,
         "levelUpInvincibleRimPower": 2.5,
         "levelUpInvincibleGlowMin": 0.15,
-        "levelUpInvincibleGlowMax": 0.5
+        "levelUpInvincibleGlowMax": 0.5,
+        "confirmLockSeconds": 0.6
     }
 }

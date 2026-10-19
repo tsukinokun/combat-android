@@ -5,6 +5,7 @@
 #include <CombatAndroid/ECS/System/UI/HealthBarSystem.hpp>
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
+#include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -28,12 +29,22 @@ namespace CombatAndroid::ECS {
         struct HealthBarParams {
             float barWidthPixels  = 60.0f;    //!< バー全体（満タン時）の幅
             float barHeightPixels = 8.0f;     //!< バーの高さ
+
+            // 削れの演出：減った分を白いバーで少し残し、遅れて縮める
+            float          trailDelay       = 0.35f;                                   //!< 減ってから削れが縮み始めるまで（秒）
+            float          trailShrinkSpeed = 1.5f;                                    //!< 削れが縮む速さ（満タン幅に対する割合/秒）
+            float          hitFlashSeconds  = 0.08f;                                   //!< 減った瞬間に残量のバーを白く光らせる長さ（秒）
+            hlslpp::float4 trailColor       = hlslpp::float4(1.0f, 1.0f, 1.0f, 0.85f);  //!< 削れのバーの色
         };
 
         template <class Archive>
         void load(Archive& archive, HealthBarParams& params) {
             LoadField(archive, "barWidthPixels", params.barWidthPixels);
             LoadField(archive, "barHeightPixels", params.barHeightPixels);
+            LoadField(archive, "trailDelay", params.trailDelay);
+            LoadField(archive, "trailShrinkSpeed", params.trailShrinkSpeed);
+            LoadField(archive, "hitFlashSeconds", params.hitFlashSeconds);
+            LoadField(archive, "trailColor", params.trailColor);
         }
 
         //-------------------------------------------------------------
@@ -42,6 +53,25 @@ namespace CombatAndroid::ECS {
         const HealthBarParams& GetParams() {
             static const HealthBarParams s_params = LoadSystemParams<HealthBarParams>("HealthBar");
             return s_params;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  左端を固定したまま、満タン幅に対するratioぶんの長さでバーを置く関数
+        //! @param  registry [in,out] エンティティレジストリ
+        //! @param  bar      [in]     バーのエンティティ（Transform＋WorldAnchor）
+        //! @param  params   [in]     チューニング値（バーの幅・高さ）
+        //! @param  ratio    [in]     長さの割合（0〜1）
+        //! @param  show     [in]     表示するか（falseならscale0で隠す）
+        //! @note   中央基準で縮むと右端しか動かないように見えるため、
+        //!         WorldAnchorComponent.screenOffsetを左へずらして左端を固定し、右端だけが減っていくようにする
+        //-------------------------------------------------------------
+        void PlaceBar(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity bar, const HealthBarParams& params, float ratio, bool show) {
+            Tsukino::BuiltIn::ECS::TransformComponent& transform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(bar);
+            transform.scale = show ? hlslpp::float3((params.barWidthPixels / kBarTexturePixelSize) * ratio, (params.barHeightPixels / kBarTexturePixelSize), 1.0f)
+                                   : hlslpp::float3(0.0f, 0.0f, 0.0f);
+
+            if(auto* anchor = registry.try_get<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(bar))
+                anchor->screenOffset.x = -(params.barWidthPixels * (1.0f - ratio) * 0.5f);
         }
     }    // namespace
 
@@ -78,22 +108,41 @@ namespace CombatAndroid::ECS {
             backgroundTransform.scale = show ? hlslpp::float3((params.barWidthPixels / kBarTexturePixelSize), (params.barHeightPixels / kBarTexturePixelSize), 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
 
             //-------------------------------------------------------------
-            // 残量バー：ratio分だけ幅を縮める。中央基準で縮むと右端しか動かないように見えるため、
-            // WorldAnchorComponent.screenOffsetを左へずらして左端を固定し、右端だけが減っていくようにする
+            // 削れ：残量が減ったら、白いバーを前の長さのまましばらく残し、遅れて残量まで縮める。
+            // 減った瞬間には残量のバーも一瞬白く光らせる。回復で増えたときは削れをすぐ追いつかせる。
+            // 連撃の間は削れを残し続け、手が止まってから縮める（追撃のたびに待ち直す）
             //-------------------------------------------------------------
-            Tsukino::BuiltIn::ECS::TransformComponent& fillTransform =
-                registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(health.hpBarFillEntity);
-            fillTransform.scale = show ? hlslpp::float3((params.barWidthPixels / kBarTexturePixelSize) * ratio, (params.barHeightPixels / kBarTexturePixelSize), 1.0f) : hlslpp::float3(0.0f, 0.0f, 0.0f);
+            if(ratio < health.hpBarLastRatio - 1e-4f) {
+                health.hpBarTrailDelay = params.trailDelay;
+                health.hpBarFlashTimer = params.hitFlashSeconds;
+            }
+            health.hpBarLastRatio = ratio;
 
-            if(auto* fillAnchor = registry.try_get<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(health.hpBarFillEntity)) {
-                fillAnchor->screenOffset.x = -(params.barWidthPixels * (1.0f - ratio) * 0.5f);
+            if(health.hpBarTrailDelay > 0.0f) {
+                health.hpBarTrailDelay = std::max(0.0f, health.hpBarTrailDelay - deltaTime);
+            } else {
+                health.hpBarTrailRatio = std::max(ratio, health.hpBarTrailRatio - params.trailShrinkSpeed * deltaTime);
+            }
+            if(ratio > health.hpBarTrailRatio)
+                health.hpBarTrailRatio = ratio;
+
+            if(health.hpBarFlashTimer > 0.0f)
+                health.hpBarFlashTimer = std::max(0.0f, health.hpBarFlashTimer - deltaTime);
+
+            if(health.hpBarTrailEntity != entt::null && registry.IsValid(health.hpBarTrailEntity)) {
+                PlaceBar(registry, health.hpBarTrailEntity, params, health.hpBarTrailRatio, show);
+                if(auto* trailSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(health.hpBarTrailEntity))
+                    trailSprite->tintColor = params.trailColor;
             }
 
             //-------------------------------------------------------------
-            // 残量に応じてtintColorを緑→赤へ補間する
+            // 残量バー：ratio分だけ幅を縮め、残量に応じてtintColorを緑→赤へ補間する（減った瞬間だけ白）
             //-------------------------------------------------------------
+            PlaceBar(registry, health.hpBarFillEntity, params, ratio, show);
+
             if(auto* fillSprite = registry.try_get<Tsukino::BuiltIn::ECS::SpriteComponent>(health.hpBarFillEntity)) {
-                fillSprite->tintColor = hlslpp::float4(1.0f - ratio, ratio, 0.0f, 1.0f);
+                fillSprite->tintColor = health.hpBarFlashTimer > 0.0f ? hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f)
+                                                                      : hlslpp::float4(1.0f - ratio, ratio, 0.0f, 1.0f);
             }
         });
     }

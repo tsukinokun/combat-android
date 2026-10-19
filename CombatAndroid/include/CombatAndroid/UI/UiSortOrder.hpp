@@ -18,7 +18,8 @@ namespace CombatAndroid::UI {
 
     //! ワールド上の対象に紐づくUI（WorldAnchorComponentで画面へ投影されるもの）
     constexpr int kEnemyHpBarBackground = 100;    //!< 敵の頭上HPバー・背景
-    constexpr int kEnemyHpBarFill       = 101;    //!< 敵の頭上HPバー・残量
+    constexpr int kEnemyHpBarTrail      = 101;    //!< 敵の頭上HPバー・削れ（減った分を遅れて縮める白いバー。残量の奥）
+    constexpr int kEnemyHpBarFill       = 102;    //!< 敵の頭上HPバー・残量
     constexpr int kTargetMarker         = 105;    //!< ソフトターゲットの敵を囲む四隅のカギ括弧（HPバーより手前、ダメージ数値より奥）
     constexpr int kDamageNumber         = 110;    //!< ダメージ数値
     constexpr int kPickupPrompt         = 120;    //!< 拾得プロンプト。操作の案内なので

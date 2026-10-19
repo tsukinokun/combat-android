@@ -41,6 +41,11 @@ namespace CombatAndroid::ECS {
         //! そのまま決定入力を拾わないようにするための1フレーム待ち（RunResultSystemと同じ流儀）
         bool openedThisFrame = false;
 
+        //! 開いてから決定（F・クリック）を受け付けるまでの残り秒（実時間）。
+        //! 戦闘中に連打していた左クリックで、開いた直後のカードを誤って決めないための待ち。
+        //! カーソル移動はこの間も受け付ける
+        float confirmLockTimer = 0.0f;
+
         //! 決定した後、あと何フレーム入力の遮断を続けるか。
         //! SkillSelectSystemはPickupSystem等より前の優先度で走るため、決定したフレームの
         //! isActive=falseをそのままにすると同じフレームの後半でPickupSystemが

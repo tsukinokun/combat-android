@@ -19,7 +19,7 @@ namespace CombatAndroid::ECS {
     //!         「走行のリセット」になる（PlayerSkillComponentと同じ割り切り）
     //-------------------------------------------------------------
     struct RunClockComponent {
-        float elapsedSeconds   = 0.0f;    //!< 生存時間（秒）。プレイヤーが死ぬと加算を止める
+        float elapsedSeconds   = 0.0f;    //!< 生存時間（秒）。プレイヤーが死ぬと加算を止める。ボス戦の間も止める
         int   dangerRank       = 1;       //!< elapsedSecondsから決まる現在の危険度（1始まり）
         float rankUpFlashTimer = 0.0f;    //!< ランクが上がった瞬間に立てる演出用の残り時間（秒）
     };

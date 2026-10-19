@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/Component/Enemy/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Event/Enemy/EnemyDiedEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Spawn/EnemySpawner.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
@@ -141,13 +142,11 @@ namespace CombatAndroid::ECS {
                     eventBus->Publish(diedEvent);
                 }
 
-                // 本体・頭上HPバー（背景・残量）を破棄予約する。
+                // 本体・頭上HPバーを破棄予約する。
                 // View反復中なので即時破棄はしない（CombatSystemの死亡処理と同じ作法）
                 context.registry.QueueDestroy(context.entity);
-                if(auto* health = context.registry.try_get<HealthComponent>(context.entity)) {
-                    context.registry.QueueDestroy(health->hpBarBackgroundEntity);
-                    context.registry.QueueDestroy(health->hpBarFillEntity);
-                }
+                if(auto* health = context.registry.try_get<HealthComponent>(context.entity))
+                    DestroyEnemyHpBar(context.registry, *health);
             }
 
             return NodeStatus::Running;

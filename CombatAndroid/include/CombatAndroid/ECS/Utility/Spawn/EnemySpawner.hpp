@@ -25,6 +25,8 @@ namespace Tsukino::EngineIntegration {
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
+    struct HealthComponent;
+
     //-------------------------------------------------------------
     //! @struct EnemySpawnConfig
     //! @brief  SpawnBehaviorEnemyへ渡す1体分の生成パラメータ
@@ -72,13 +74,21 @@ namespace CombatAndroid::ECS {
     //! @param  context  [in] エンジンコンテキスト（PrefabFactoryの取得に使う）
     //! @param  config   [in] 生成パラメータ
     //! @return 生成した敵本体のエンティティ
-    //! @note   1体につき「本体・HPバー背景・HPバー残量」の3エンティティを生成する。
-    //!         破棄する際は HealthComponent が持つ hpBarBackgroundEntity /
-    //!         hpBarFillEntity も併せて QueueDestroy すること
+    //! @note   1体につき「本体・HPバー背景・HPバー削れ・HPバー残量」の4エンティティを生成する。
+    //!         破棄する際は DestroyEnemyHpBar でHPバーも併せて破棄予約すること
     //-------------------------------------------------------------
     Tsukino::ECS::Entity SpawnBehaviorEnemy(Tsukino::ECS::Registry& registry,
                                             Tsukino::EngineIntegration::EngineContext& context,
                                             const EnemySpawnConfig& config);
+
+    //-------------------------------------------------------------
+    //! @brief  敵の頭上HPバー（背景・削れ・残量）を破棄予約する関数
+    //! @param  registry [in,out] エンティティレジストリ
+    //! @param  health   [in]     HPバーを持つ敵のHealthComponent
+    //! @note   本体だけ消すとHPバーが宙に浮いたまま残るので、敵を消す箇所は必ずこれも呼ぶ。
+    //!         QueueDestroyなのでView反復中に呼んでも安全
+    //-------------------------------------------------------------
+    void DestroyEnemyHpBar(Tsukino::ECS::Registry& registry, const HealthComponent& health);
 
     //-------------------------------------------------------------
     //! @brief  SmallZombie 1体分の生成パラメータを作る関数

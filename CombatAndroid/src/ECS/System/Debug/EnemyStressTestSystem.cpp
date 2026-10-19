@@ -361,15 +361,8 @@ namespace CombatAndroid::ECS {
             // 敵1体につきHPバーが2エンティティぶら下がっている。
             // 本体だけ消すとHPバーが宙に浮いたまま残り、エンティティ数が戻らない
             //-----------------------------------------------------
-            if(registry.HasComponent<CombatAndroid::ECS::HealthComponent>(entity)) {
-                const CombatAndroid::ECS::HealthComponent& health = registry.GetComponent<CombatAndroid::ECS::HealthComponent>(entity);
-
-                if(health.hpBarBackgroundEntity != entt::null)
-                    registry.QueueDestroy(health.hpBarBackgroundEntity);
-
-                if(health.hpBarFillEntity != entt::null)
-                    registry.QueueDestroy(health.hpBarFillEntity);
-            }
+            if(registry.HasComponent<CombatAndroid::ECS::HealthComponent>(entity))
+                DestroyEnemyHpBar(registry, registry.GetComponent<CombatAndroid::ECS::HealthComponent>(entity));
 
             //-----------------------------------------------------
             // 武器を持つ敵（Paladin等）は、その武器も一緒に消す。

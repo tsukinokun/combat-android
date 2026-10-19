@@ -1,6 +1,10 @@
 {
     "HealthBar": {
         "barWidthPixels": 60.0,
-        "barHeightPixels": 8.0
+        "barHeightPixels": 8.0,
+        "trailDelay": 0.35,
+        "trailShrinkSpeed": 1.5,
+        "hitFlashSeconds": 0.08,
+        "trailColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 0.85 }
     }
 }
