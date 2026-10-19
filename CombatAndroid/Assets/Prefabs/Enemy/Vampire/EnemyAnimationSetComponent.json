@@ -1,9 +1,9 @@
 {
     "EnemyAnimationSetComponent": {
         "idleClip": "CombatAndroid/Assets/Anims/Vampire/Mutant Idle.fbx",
-        "walkClip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Walking.fbx",
-        "attackClip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx",
-        "knockbackClip": "CombatAndroid/Assets/Anims/SmallZombie/Zombie Reaction Hit.fbx",
+        "walkClip": "CombatAndroid/Assets/Anims/Vampire/Mutant Walking.fbx",
+        "attackClip": "CombatAndroid/Assets/Anims/Vampire/Mutant Swiping.fbx",
+        "knockbackClip": "CombatAndroid/Assets/Anims/Vampire/Zombie Reaction Hit.fbx",
         "deathClip": "CombatAndroid/Assets/Anims/Vampire/Mutant Dying.fbx",
         "animationIndex": 1,
         "attackTimeoutSafety": 3.0,

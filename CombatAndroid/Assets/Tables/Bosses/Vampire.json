@@ -11,7 +11,7 @@
         "moves": [
             {
                 "name": "Swipe",
-                "clip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Swiping.fbx",
                 "minRange": 0.0,
                 "maxRange": 140.0,
                 "weight": 3.0,
