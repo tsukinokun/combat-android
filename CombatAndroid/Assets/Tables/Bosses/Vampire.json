@@ -8,6 +8,15 @@
             "moveSpeedScale": 1.35,
             "cooldownScale": 0.6
         },
+        "break": {
+            "gaugeRatio": 0.12,
+            "growthPerBreak": 0.25,
+            "decayRatioPerSecond": 0.04,
+            "decayDelay": 2.0,
+            "downSeconds": 4.0,
+            "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Dying.fbx",
+            "clipEnd": 1.5
+        },
         "moves": [
             {
                 "name": "Swipe",

@@ -290,6 +290,8 @@ namespace CombatAndroid::ECS {
                 for(const BossMoveDef& move : set.moves)
                     moveSet.clips.push_back(context.assetManager ? context.assetManager->Load(Tsukino::Core::Path(move.clip))
                                                                  : Tsukino::Asset::AssetHandle::Invalid());
+                if(!set.breakDef.clip.empty() && context.assetManager)
+                    moveSet.breakClip = context.assetManager->Load(Tsukino::Core::Path(set.breakDef.clip));
 
                 EnemyComponent& enemy = registry.GetComponent<EnemyComponent>(boss);
                 enemy.superArmor      = true;

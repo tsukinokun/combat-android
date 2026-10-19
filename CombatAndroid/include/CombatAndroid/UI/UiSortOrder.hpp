@@ -42,6 +42,11 @@ namespace CombatAndroid::UI {
     constexpr int kHudBarTrail      = 201;    //!< HPバーの「減った分」（残量の後ろで遅れて縮む白い帯）
     constexpr int kHudBarFill       = 202;    //!< HP/EXPバーの残量
     constexpr int kHudSkillIcon     = 203;    //!< EXPバーの下に並ぶ取得済みスキルのアイコン枠
+    constexpr int kBossHudFrame     = 205;    //!< 画面下中央のボス用HUD・体勢ゲージの枠（ボスの隙の間だけ金色に光る。背景より奥）
+    constexpr int kBossHudBack      = 206;    //!< ボス用HUD・HPバーと体勢ゲージの背景
+    constexpr int kBossHudTrail     = 207;    //!< ボス用HUD・HPバーの「減った分」
+    constexpr int kBossHudFill      = 208;    //!< ボス用HUD・HPバーの残量と体勢ゲージの溜まり
+    constexpr int kBossHudText      = 212;    //!< ボス用HUD・ボスの呼び名
     constexpr int kHudText          = 210;    //!< HP/EXPの数値・生存時間・取得済みスキル名
     constexpr int kEliteIndicator   = 215;    //!< 画面外のエリートの方向を示す矢印
     constexpr int kPickupIndicator  = 216;    //!< 画面外の拾得アイテム（落ちている武器）の方向を示す矢印

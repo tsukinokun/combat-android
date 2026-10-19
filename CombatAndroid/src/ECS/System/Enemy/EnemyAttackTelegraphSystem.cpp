@@ -6,11 +6,13 @@
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EliteEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAttackHitboxComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 #include <CombatAndroid/ECS/Utility/Spawn/EliteEnemy.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
@@ -18,6 +20,7 @@
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -122,6 +125,20 @@ namespace CombatAndroid::ECS {
             rimGlow.rimIntensity = rest.intensity + (params.rimIntensityMax - rest.intensity) * strength;
             rimGlow.rimPower     = params.rimPower;
             rimGlow.glow         = rest.glow + (params.glowMax - rest.glow) * strength;
+
+            //-------------------------------------------------------------
+            // ボスの隙（技の後・ダウン中）は金色に脈打たせて「今が攻め時」を体で見せる
+            //-------------------------------------------------------------
+            if(const auto* boss = registry.try_get<BossMoveSetComponent>(entity);
+               boss && !health.isDead && (boss->phase == BossActionPhase::Recovery || boss->phase == BossActionPhase::Broken)) {
+                const BossCombatParams& combat = GetBossCombatParams();
+                const float pulse   = 0.5f + 0.5f * std::sin(boss->phaseTimer * combat.vulnerablePulseSpeed * 6.2831853f);
+                const float peak    = boss->phase == BossActionPhase::Broken ? combat.downRimIntensity : combat.vulnerableRimIntensity;
+                rimGlow.rimColor     = combat.vulnerableRimColor;
+                rimGlow.rimIntensity = peak * (0.6f + 0.4f * pulse);
+                rimGlow.glow         = combat.vulnerableGlow * pulse;
+            }
+
             rimGlow.active       = rimGlow.rimIntensity > 0.0f || rimGlow.glow > 0.0f;
         });
     }

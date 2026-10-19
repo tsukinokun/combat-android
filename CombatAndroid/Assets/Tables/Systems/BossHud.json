@@ -1,0 +1,24 @@
+{
+    "BossHud": {
+        "barWidth": 560.0,
+        "hpBarHeight": 14.0,
+        "gaugeHeight": 7.0,
+        "gaugeGapY": 6.0,
+        "bottomMargin": 64.0,
+        "nameGapY": 16.0,
+        "frameThickness": 3.0,
+        "backColor": { "x": 0.08, "y": 0.08, "z": 0.1, "w": 0.85 },
+        "hpColor": { "x": 0.82, "y": 0.12, "z": 0.16, "w": 1.0 },
+        "trailColor": { "x": 1.0, "y": 0.95, "z": 0.85, "w": 0.9 },
+        "gaugeLowColor": { "x": 0.85, "y": 0.85, "z": 0.85, "w": 1.0 },
+        "gaugeHighColor": { "x": 1.0, "y": 0.55, "z": 0.1, "w": 1.0 },
+        "downColor": { "x": 1.0, "y": 0.85, "z": 0.3, "w": 1.0 },
+        "frameIdleColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 0.6 },
+        "frameOpenColor": { "x": 1.0, "y": 0.82, "z": 0.2, "w": 1.0 },
+        "nameColor": { "x": 1.0, "y": 1.0, "z": 1.0, "w": 1.0 },
+        "trailHoldSeconds": 0.35,
+        "trailShrinkSpeed": 1.2,
+        "pulseSpeed": 2.5,
+        "downBlinkSpeed": 6.0
+    }
+}

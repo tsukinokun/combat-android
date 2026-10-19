@@ -248,6 +248,10 @@ namespace CombatAndroid::ECS {
             if(!isWindingUp)
                 return;
 
+            // ボスのダウンは攻撃ステートでクリップを流しているだけなので、予兆は出さない
+            if(const auto* boss = registry.try_get<BossMoveSetComponent>(entity); boss && boss->phase == BossActionPhase::Broken)
+                return;
+
             // 塗りの広がり（0→1）。1になった瞬間に判定が出る
             const float progress = std::clamp(animSet.attackTimer / hitbox.hitStartTime, 0.0f, 1.0f);
             const float fadeIn   = std::clamp(animSet.attackTimer / params.fadeInSeconds, 0.0f, 1.0f);

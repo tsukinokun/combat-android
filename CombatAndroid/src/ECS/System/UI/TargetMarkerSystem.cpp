@@ -5,6 +5,7 @@
 #include <CombatAndroid/ECS/System/UI/TargetMarkerSystem.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/SoftTargetComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
@@ -49,6 +50,10 @@ namespace CombatAndroid::ECS {
             float          acquireScale       = 1.6f;     //!< ターゲットが変わった瞬間の枠の大きさ（1で動きなし）
             float          acquireDuration    = 0.15f;    //!< そこから元の大きさへ縮むまでの秒数
             float          readyBlendSpeed    = 14.0f;    //!< 薄い印⇔濃い印を切り替える速さ（1秒あたりの寄せの強さ）
+            hlslpp::float4 vulnerableColor    = hlslpp::float4(1.0f, 0.82f, 0.2f, 1.0f);    //!< ボスの隙（技の後・ダウン中）の色
+            float          vulnerableThickness = 5.0f;    //!< ボスの隙の線の太さ（脈打ちの山）
+            float          vulnerablePulseSpeed = 2.5f;   //!< 脈打ちの速さ（1秒あたりの回数）
+            float          vulnerableScale    = 1.08f;    //!< 脈打ちの山で枠を広げる倍率
         };
 
         template <class Archive>
@@ -66,6 +71,10 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "acquireScale", params.acquireScale);
             LoadField(archive, "acquireDuration", params.acquireDuration);
             LoadField(archive, "readyBlendSpeed", params.readyBlendSpeed);
+            LoadField(archive, "vulnerableColor", params.vulnerableColor);
+            LoadField(archive, "vulnerableThickness", params.vulnerableThickness);
+            LoadField(archive, "vulnerablePulseSpeed", params.vulnerablePulseSpeed);
+            LoadField(archive, "vulnerableScale", params.vulnerableScale);
         }
 
         //-------------------------------------------------------------
@@ -218,8 +227,21 @@ namespace CombatAndroid::ECS {
         boxH *= scale;
         boxW *= scale;
 
-        const float          thickness = params.candidateThickness + (params.readyThickness - params.candidateThickness) * m_readyBlend;
-        const hlslpp::float4 color     = params.candidateColor + (params.readyColor - params.candidateColor) * m_readyBlend;
+        float          thickness = params.candidateThickness + (params.readyThickness - params.candidateThickness) * m_readyBlend;
+        hlslpp::float4 color     = params.candidateColor + (params.readyColor - params.candidateColor) * m_readyBlend;
+
+        //-------------------------------------------------------------
+        // ボスの隙（技の後・ダウン中）は、文字の代わりに金色の脈打つ太い枠で「今が攻め時」を知らせる
+        //-------------------------------------------------------------
+        if(const auto* boss = registry.try_get<BossMoveSetComponent>(target);
+           boss && (boss->phase == BossActionPhase::Recovery || boss->phase == BossActionPhase::Broken)) {
+            const float pulse = 0.5f + 0.5f * std::sin(boss->phaseTimer * params.vulnerablePulseSpeed * 6.2831853f);
+            color             = params.vulnerableColor;
+            thickness         = params.readyThickness + (params.vulnerableThickness - params.readyThickness) * pulse;
+            const float grow  = 1.0f + (params.vulnerableScale - 1.0f) * pulse;
+            boxW *= grow;
+            boxH *= grow;
+        }
         const float          arm       = std::clamp(std::min(boxW, boxH) * params.cornerRatio, params.cornerMin, params.cornerMax);
 
         //-------------------------------------------------------------

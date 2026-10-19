@@ -20,6 +20,7 @@ namespace CombatAndroid::ECS {
         Chase = 0,    //!< 追いかける（技を選べるのを待つ）
         Move,         //!< 技を出している（予兆 → 判定 → 終わり）
         Recovery,     //!< 技の後の隙
+        Broken,       //!< 体勢ゲージが満タンになってダウンしている（技を出さず、受けるダメージが増える）
     };
 
     //-------------------------------------------------------------
@@ -34,6 +35,7 @@ namespace CombatAndroid::ECS {
 
         std::vector<Tsukino::Asset::AssetHandle> clips;        //!< 技ごとのクリップ（湧かせたときに読んでおく）
         std::vector<float>                       cooldowns;    //!< 技ごとの残りクールタイム（秒）
+        Tsukino::Asset::AssetHandle              breakClip;    //!< ダウン中のクリップ（湧かせたときに読んでおく）。無効ならのけぞりのクリップ
 
         float sizeScale   = 1.0f;    //!< 判定の半径へ掛ける倍率（ボスの大きさ）
         float damageScale = 1.0f;    //!< ダメージへ掛ける倍率（危険度・ボスの攻撃力）
@@ -53,5 +55,12 @@ namespace CombatAndroid::ECS {
         bool  enraged          = false;    //!< 激昂したか
         bool  enrageMovePending = false;   //!< 激昂の合図の技をまだ出していないか
         float baseMoveSpeed    = 0.0f;     //!< 激昂前の移動速度（湧かせたときの値）
+
+        // --- ブレイク（体勢崩し）。溜めるのはApplyBossHitModifiers（BossBreak.hpp）、ダウンさせるのはBossBehavior ---
+        float breakGauge       = 0.0f;     //!< 今の体勢ゲージ（0〜breakGaugeMax）
+        float breakGaugeMax    = 0.0f;     //!< 体勢ゲージの最大値。0なら初回のUpdateで表から決める
+        float breakIdleTimer   = 0.0f;     //!< 最後に当てられてからの秒（一定時間たつとゲージが減り始める）
+        int   breakCount       = 0;        //!< ダウンした回数（回数ごとに最大値を増やす）
+        bool  breakPending     = false;    //!< ゲージが満タンになった。次のUpdateでダウンへ移る
     };
 }    // namespace CombatAndroid::ECS

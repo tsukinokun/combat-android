@@ -1,0 +1,19 @@
+{
+    "BossCombat": {
+        "justWindow": 0.15,
+        "counterWindow": 1.5,
+        "counterDamageScale": 2.5,
+        "counterBreakScale": 4.0,
+        "recoveryDamageScale": 1.5,
+        "recoveryBreakScale": 2.0,
+        "downDamageScale": 2.0,
+        "heavyBreakScale": 2.0,
+        "counterRimColor": { "x": 1.0, "y": 0.9, "z": 0.6 },
+        "counterRimIntensity": 4.0,
+        "vulnerableRimColor": { "x": 1.0, "y": 0.78, "z": 0.25 },
+        "vulnerableRimIntensity": 3.0,
+        "downRimIntensity": 5.0,
+        "vulnerableGlow": 0.15,
+        "vulnerablePulseSpeed": 2.5
+    }
+}

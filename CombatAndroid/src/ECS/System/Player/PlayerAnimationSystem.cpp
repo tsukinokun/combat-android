@@ -16,6 +16,7 @@
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/SoftTarget.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
@@ -677,6 +678,24 @@ namespace CombatAndroid::ECS {
                 rimGlow.rimIntensity = 5.0f;
                 rimGlow.rimPower     = 2.5f;
                 rimGlow.glow         = 0.3f;
+            }
+
+            //-------------------------------------------------------------
+            // 反撃の構え（ボスの攻撃をジャスト回避した直後）。残っている間は金白に縁取り、
+            // 切れた瞬間（または一撃を当てて消費された瞬間）に消す。溜め中は溜めの色を優先する
+            //-------------------------------------------------------------
+            if(player.counterReadyTimer > 0.0f || m_counterGlowShown) {
+                player.counterReadyTimer = std::max(player.counterReadyTimer - deltaTime, 0.0f);
+                if(!willBeCharging && registry.HasComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity)) {
+                    auto&                   rimGlow = registry.GetComponent<Tsukino::BuiltIn::ECS::RimGlowComponent>(entity);
+                    const BossCombatParams& combat  = GetBossCombatParams();
+                    rimGlow.active                  = player.counterReadyTimer > 0.0f;
+                    rimGlow.rimColor                = combat.counterRimColor;
+                    rimGlow.rimIntensity            = combat.counterRimIntensity;
+                    rimGlow.rimPower                = 2.5f;
+                    rimGlow.glow                    = 0.2f;
+                }
+                m_counterGlowShown = player.counterReadyTimer > 0.0f;
             }
 
             //-------------------------------------------------------------

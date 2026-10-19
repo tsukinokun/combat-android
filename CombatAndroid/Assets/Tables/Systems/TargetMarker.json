@@ -12,6 +12,10 @@
         "minBoxSize": 28.0,
         "acquireScale": 1.6,
         "acquireDuration": 0.15,
-        "readyBlendSpeed": 14.0
+        "readyBlendSpeed": 14.0,
+        "vulnerableColor": { "x": 1.0, "y": 0.82, "z": 0.2, "w": 1.0 },
+        "vulnerableThickness": 5.0,
+        "vulnerablePulseSpeed": 2.5,
+        "vulnerableScale": 1.08
     }
 }

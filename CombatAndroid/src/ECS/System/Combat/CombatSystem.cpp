@@ -19,6 +19,7 @@
 #include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
 #include <CombatAndroid/ECS/Event/World/GrassWaveEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/CombatHit.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -289,8 +290,10 @@ namespace CombatAndroid::ECS {
 
             KnockbackParams knockback = MakeKnockbackParams(registry, weapon, hitPositionFallback, isAreaAttack);
 
+            // 連撃3段目の範囲攻撃は重い一撃として、ボスの体勢ゲージを多めに削る
+            const float breakScale = isAreaAttack ? GetBossCombatParams().heavyBreakScale : 1.0f;
             ApplyCombatHit(registry, eventBus, weapon.owner, weaponEntity, hitEntity, dealtDamage, hitPositionFallback,
-                           weapon.hitEnemiesThisAttack, skillLifeStealRatio, weapon.lifeStealHealedThisAttack, knockback);
+                           weapon.hitEnemiesThisAttack, skillLifeStealRatio, weapon.lifeStealHealedThisAttack, knockback, breakScale);
         }
     }    // namespace
 

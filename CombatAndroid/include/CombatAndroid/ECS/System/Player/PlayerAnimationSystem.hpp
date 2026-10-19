@@ -30,5 +30,6 @@ namespace CombatAndroid::ECS {
 
     private:
         StateMachine<PlayerAnimState> m_stateMachine;    //!< Idle/Run/FastRun/Dodge/Attack1-3の遷移とクリップ切り替えを管理する
+        bool m_counterGlowShown = false;                 //!< 反撃の構えの縁取りを出しているか（切れた瞬間に1度だけ消すため。プレイヤーは1人の前提）
     };
 }    // namespace CombatAndroid::ECS

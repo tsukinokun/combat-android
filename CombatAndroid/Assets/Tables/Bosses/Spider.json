@@ -9,6 +9,16 @@
             "cooldownScale": 0.6,
             "fogDensityScale": 1.8
         },
+        "break": {
+            "gaugeRatio": 0.1,
+            "growthPerBreak": 0.25,
+            "decayRatioPerSecond": 0.04,
+            "decayDelay": 2.0,
+            "downSeconds": 4.0,
+            "clip": "CombatAndroid/Assets/Models/Boss/Spider/Spider.fbx",
+            "animationIndex": 1,
+            "clipEnd": 1.0
+        },
         "moves": [
             {
                 "name": "Sting",

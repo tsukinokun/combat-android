@@ -86,6 +86,9 @@ namespace CombatAndroid::ECS {
                             // TransformLateがworldMatrixへ焼き込む前である必要がある（ExpOrbの粒と同じ制約）
         PlayerHud,        // 画面左上のHP/EXPバー更新。HP（WeaponAttachでCombatSystemが確定）とEXP
                           // （ExpOrbが確定）の両方より後に置く
+        BossHud,          // 画面下中央のボス用HUD（名前・HP・体勢ゲージ）。ボスのHPと体勢ゲージ（WeaponAttach/Projectileの
+                          // ヒットで確定）とダウンの状態（MovementのBossBehavior）を読むのでその後、PlayerHudと同じ並びに置く。
+                          // 画面固定のUIなので、TransformUIがworldMatrixへ焼き込む前に書き終える
         InputPrompt,      // 操作を促すUI（キーキャップ・長押しゲージ）の表示判断と値の反映。
                           // 溜め状態（PlayerAnimationSetComponent::chargeTimer）はGameplayで確定するのでその後に置き、
                           // かつWorldAnchorSystemが座標を確定させる前でなければならない

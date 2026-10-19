@@ -144,6 +144,9 @@ namespace CombatAndroid::ECS {
                 // ボスの突進のように、技がクリップより長いときはループで流す（BossBehaviorが技ごとに立てる）
                 if(enteredSet.attackLooping)
                     registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity).next.is_looping = true;
+                // ボスのダウンのように、クリップの途中で止めたいときは終わりの秒数を渡す（止めた姿勢のまま保つ）
+                if(enteredSet.attackClipEnd > 0.0f)
+                    registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity).next.clip_end_time = enteredSet.attackClipEnd;
                 if(auto* hitbox = registry.try_get<EnemyAttackHitboxComponent>(entity)) {
                     hitbox->hasLandedThisAttack = false;
                     // 前フレームの判定点も破棄する。前の攻撃の終端位置から新しい攻撃の開始位置まで

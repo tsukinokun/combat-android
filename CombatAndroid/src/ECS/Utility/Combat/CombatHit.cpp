@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Event/Combat/WeaponHitEvent.hpp>
 #include <CombatAndroid/ECS/Component/World/TreeColliderComponent.hpp>
 #include <CombatAndroid/ECS/Event/World/TreeHitEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -102,7 +103,8 @@ namespace CombatAndroid::ECS {
                         std::vector<Tsukino::ECS::Entity>& hitRecord,
                         float lifeStealRatio,
                         float& lifeStealHealed,
-                        const KnockbackParams& knockback) {
+                        const KnockbackParams& knockback,
+                        float breakScale) {
         if(!registry.HasComponent<EnemyComponent>(hitEntity) || !registry.HasComponent<HealthComponent>(hitEntity))
             return false;
 
@@ -113,6 +115,9 @@ namespace CombatAndroid::ECS {
 
         if(std::find(hitRecord.begin(), hitRecord.end(), hitEntity) != hitRecord.end())
             return false;
+
+        // ボスなら、ダウン・後隙・反撃の倍率を掛けて体勢ゲージを溜める。以降の数値表示・吸収もこの値を使う
+        dealtDamage = ApplyBossHitModifiers(registry, attacker, hitEntity, dealtDamage, breakScale);
 
         enemyHealth.currentHealth -= dealtDamage;
         if(enemyHealth.currentHealth <= 0.0f) {
@@ -201,8 +206,13 @@ namespace CombatAndroid::ECS {
         if(!playerHealth || !player || playerHealth->isDead)
             return false;
 
-        // 回避の無敵に加えて、レベルアップ後無敵（戦闘再開直後に囲まれて一方的に被弾するのを防ぐ猶予）中もすり抜ける
-        if(player->isInvincible || player->levelUpInvincibleTimer > 0.0f)
+        // 回避の無敵に加えて、レベルアップ後無敵（戦闘再開直後に囲まれて一方的に被弾するのを防ぐ猶予）中もすり抜ける。
+        // 回避の出だしでボスの攻撃をすり抜けたならジャスト回避（反撃の構え）にする
+        if(player->isInvincible) {
+            TryJustDodge(registry, playerEntity, *player, attacker);
+            return false;
+        }
+        if(player->levelUpInvincibleTimer > 0.0f)
             return false;
 
         // 傲慢（スキル）で軽減した後の値を実ダメージとして扱う。被弾の通知もこの値を使い、

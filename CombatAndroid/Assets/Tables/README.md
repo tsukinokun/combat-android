@@ -38,10 +38,12 @@ Paladin の武器ごとの攻撃は `Assets/Prefabs/Enemy/PaladinWeaponAttacks.j
 System の `.cpp` の無名 namespace にある調整値は、ここへ出す。今あるのは
 
 - UI：`GameLog` `TitleStage` `TitleMenu` `SkillSelect` `RunResult` `Tutorial` `PauseMenu` `InputPrompt` `ScreenFade`
-- HUD：`PlayerHud` `PlayerSkillHud` `HealthBar` `PlayerDamageEffect`
+- HUD：`PlayerHud` `PlayerSkillHud` `HealthBar` `PlayerDamageEffect` `BossHud`（画面下中央のボスのHP・体勢ゲージ）
 - 戦闘・演出：`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop` `EnemyAttackTelegraph` `EnemyAttackArea`
   `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound` `HitImpactEffect` `EliteIndicator`
   `PickupIndicator`
+- ボス戦の駆け引き：`BossCombat`（ジャスト回避の受付・反撃・後隙・ダウン中の倍率と、隙を知らせる縁取りの色）。
+  ボスごとの体勢ゲージ（ゲージの量・ダウンの秒数・ダウンのクリップ）は `Bosses/<名前>.json` の `break`
 - 進行：`BossDirector`（中ボス・ラスボスの出る時間と中身・出現のカットシーン・告知）、
   `NightTransition`（ボス戦の夜。球の広がる速さ・夜の色合い・夜の太陽／空／霧）
 

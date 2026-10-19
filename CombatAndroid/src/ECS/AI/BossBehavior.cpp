@@ -99,6 +99,7 @@ namespace CombatAndroid::ECS {
                 animSet.attackClip = boss.clips[static_cast<size_t>(moveIndex)];
             animSet.attackIndex   = move.animationIndex;
             animSet.attackLooping = move.loopClip;
+            animSet.attackClipEnd = 0.0f;    // ダウンで途中止めにした設定を戻す
 
             //-------------------------------------------------------------
             // 判定を技の値へ。ボーンを替えたら名前の解決をやり直させる（CombatSystemのキャッシュを無効にする）
@@ -167,6 +168,39 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  ダウンさせる。技を打ち切り、ダウンのクリップを途中まで再生して止め、攻撃判定と予兆を消す
+        //-------------------------------------------------------------
+        void StartBreak(BehaviorContext<EnemyBlackboard>& context, BossMoveSetComponent& boss, const BossMoveSet& set) {
+            auto& animSet = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            auto& hitbox  = context.registry.GetComponent<EnemyAttackHitboxComponent>(context.entity);
+
+            boss.phase        = BossActionPhase::Broken;
+            boss.phaseTimer   = 0.0f;
+            boss.currentMove  = -1;
+            boss.repeatLeft   = 0;
+            boss.breakPending = false;
+            ++boss.breakCount;
+
+            // 判定は出さない（予兆の光も判定の時刻に向けて強まるので、時刻を遠くへ置いて消す）
+            hitbox.hitDuration  = 0.0f;
+            hitbox.hitStartTime = 1.0e6f;
+
+            //-------------------------------------------------------------
+            // 攻撃ステートの仕組みで「ダウンのクリップを途中まで再生して止める」。
+            // 同じ攻撃ステートのままだとクリップが切り替わらないので、一度待機を挟む（次のフレームで攻撃へ入る）
+            //-------------------------------------------------------------
+            animSet.attackClip    = boss.breakClip.IsValid() ? boss.breakClip : animSet.knockbackClip;
+            animSet.attackIndex   = set.breakDef.animationIndex;
+            animSet.attackLooping = false;
+            animSet.attackClipEnd = set.breakDef.clipEnd;
+            animSet.desiredState  = EnemyAnimState::Idle;
+
+#ifdef _DEBUG
+            Tsukino::Core::Log::Info("Boss[" + boss.key + "] BREAK count=" + std::to_string(boss.breakCount));
+#endif
+        }
+
+        //-------------------------------------------------------------
         //! @brief  出せる技を距離・クールタイム・重みで1つ選ぶ
         //! @return 技の番号。出せる技が無ければ -1
         //-------------------------------------------------------------
@@ -219,6 +253,24 @@ namespace CombatAndroid::ECS {
                 cooldown = std::max(cooldown - dt, 0.0f);
 
             boss.phaseTimer += dt;
+
+            //-------------------------------------------------------------
+            // 体勢ゲージ：最大値は湧いた後の最大HPから決める（危険度・ボスの倍率込み）。ダウンするたびに増やす。
+            // しばらく当てられなければ少しずつ戻る。満タンになったら（ApplyBossHitModifiersが立てる）ダウンする
+            //-------------------------------------------------------------
+            const BossBreakDef& breakDef = set.breakDef;
+            if(breakDef.gaugeRatio > 0.0f) {
+                boss.breakGaugeMax = health.maxHealth * breakDef.gaugeRatio * (1.0f + breakDef.growthPerBreak * static_cast<float>(boss.breakCount));
+                if(boss.phase != BossActionPhase::Broken) {
+                    boss.breakIdleTimer += dt;
+                    if(boss.breakIdleTimer >= breakDef.decayDelay)
+                        boss.breakGauge = std::max(boss.breakGauge - boss.breakGaugeMax * breakDef.decayRatioPerSecond * dt, 0.0f);
+                }
+                if(boss.breakPending && boss.phase != BossActionPhase::Broken) {
+                    StartBreak(context, boss, set);
+                    return NodeStatus::Running;
+                }
+            }
 
             //-------------------------------------------------------------
             // 激昂：HPが閾値を切った最初の1回だけ。合図の技は今の技を終えてから出す
@@ -425,6 +477,25 @@ namespace CombatAndroid::ECS {
                         boss.phaseTimer  = 0.0f;
                         boss.currentMove = -1;
                     }
+                    break;
+                }
+
+                //-------------------------------------------------------------
+                // ダウン：その場で膝をついて動かない。受けるダメージはApplyBossHitModifiersが増やす。
+                // 明けたらゲージを空にして追跡へ戻る（すぐに技を出せるよう、クールタイムはそのまま）
+                //-------------------------------------------------------------
+                case BossActionPhase::Broken: {
+                    // StartBreakで待機を1フレーム挟んだので、ここからは攻撃ステートの仕組みでダウンのクリップを流す
+                    animSet.desiredState = EnemyAnimState::Attack;
+                    if(boss.phaseTimer < breakDef.downSeconds)
+                        break;
+
+                    boss.breakGauge      = 0.0f;
+                    boss.breakIdleTimer  = 0.0f;
+                    boss.phase           = BossActionPhase::Chase;
+                    boss.phaseTimer      = 0.0f;
+                    animSet.attackClipEnd = 0.0f;
+                    animSet.desiredState  = EnemyAnimState::Idle;
                     break;
                 }
             }

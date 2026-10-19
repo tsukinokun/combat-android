@@ -54,6 +54,10 @@ namespace CombatAndroid::ECS {
         bool isDodging    = false;    //!< 回避モーション再生中か。PlayerAnimationSystemが毎フレーム確定させ、PlayerSystemが向き直りの抑制に参照する
         bool isInvincible = false;    //!< 回避の無敵時間中か。PlayerAnimationSystemが確定させ、CombatSystem（後で走る）が接触ダメージのスキップに使う
 
+        //! 反撃の構えの残り秒。ボスの攻撃をジャスト回避すると立ち（TryJustDodge）、次の一撃が強くなる
+        //! （ApplyBossHitModifiersが消費する）。PlayerAnimationSystemが減らし、その間プレイヤーを縁取る
+        float counterReadyTimer = 0.0f;
+
         //-------------------------------------------------------------
         // レベルアップ後無敵（スキル選択メニューで戦闘が中断された後、再開直後に
         // 囲まれて一方的に被弾するのを防ぐ猶予時間）。SkillSelectSystemが

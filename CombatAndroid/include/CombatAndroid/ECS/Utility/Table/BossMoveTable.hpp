@@ -110,12 +110,28 @@ namespace CombatAndroid::ECS {
     };
 
     //-------------------------------------------------------------
+    //! @struct BossBreakDef
+    //! @brief  ブレイク（体勢崩し）の定義。体勢ゲージが満タンになるとダウンする
+    //-------------------------------------------------------------
+    struct BossBreakDef {
+        float       gaugeRatio          = 0.12f;    //!< 体勢ゲージの最大値（最大HPに対する割合）。0以下ならブレイクしない
+        float       growthPerBreak      = 0.25f;    //!< ダウンするたびに最大値を増やす割合（2回目は1.25倍…）
+        float       decayRatioPerSecond = 0.04f;    //!< 何もしないと1秒あたりに減る量（最大値に対する割合）
+        float       decayDelay          = 2.0f;     //!< 最後に当ててから減り始めるまで（秒）
+        float       downSeconds         = 4.0f;     //!< ダウンしている時間（秒）
+        std::string clip;                           //!< ダウン中に再生するクリップ。空ならのけぞりのクリップ
+        int         animationIndex = -1;            //!< クリップの中のアニメーション番号。負ならPrefabのanimationIndex
+        float       clipEnd        = 0.0f;          //!< クリップをこの秒数で止める（0なら最後まで）。倒れ込みの途中で止めて膝をつかせる
+    };
+
+    //-------------------------------------------------------------
     //! @struct BossMoveSet
     //! @brief  ボス1体ぶんの技の表
     //-------------------------------------------------------------
     struct BossMoveSet {
         std::vector<BossMoveDef> moves;
         BossEnrageDef            enrage;
+        BossBreakDef             breakDef;
         float                    turnSpeed      = 4.0f;    //!< 予兆の間にプレイヤーへ向き直る速さ（ラジアン/秒）
         float                    chaseStopRange = 180.0f;  //!< 追いかけるのをやめて立ち止まる距離
     };

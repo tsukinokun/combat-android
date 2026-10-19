@@ -16,6 +16,7 @@ namespace CombatAndroid::ECS {
     //!         PlayerAnimationSystemが大技に入った瞬間にPublishする。大技とは次のもの：
     //!         - 範囲攻撃を持つ段（ウォーハンマー・グレートソードの連撃3段目）
     //!         - 最大段階（紫）まで溜めてからの解放（バトルアックス）
+    //!         ボスの攻撃をジャスト回避したときも、同じ演出をインパクト待ち0秒で掛ける（TryJustDodge）
     //-------------------------------------------------------------
     struct PlayerFinisherEvent {
         entt::entity player;         //!< 大技を出したプレイヤーエンティティ

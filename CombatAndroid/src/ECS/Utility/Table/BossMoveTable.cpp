@@ -109,9 +109,22 @@ namespace CombatAndroid::ECS {
     }
 
     template <class Archive>
+    void load(Archive& archive, BossBreakDef& breakDef) {
+        LoadField(archive, "gaugeRatio", breakDef.gaugeRatio);
+        LoadField(archive, "growthPerBreak", breakDef.growthPerBreak);
+        LoadField(archive, "decayRatioPerSecond", breakDef.decayRatioPerSecond);
+        LoadField(archive, "decayDelay", breakDef.decayDelay);
+        LoadField(archive, "downSeconds", breakDef.downSeconds);
+        LoadField(archive, "clip", breakDef.clip);
+        LoadField(archive, "animationIndex", breakDef.animationIndex);
+        LoadField(archive, "clipEnd", breakDef.clipEnd);
+    }
+
+    template <class Archive>
     void load(Archive& archive, BossMoveSet& set) {
         LoadField(archive, "moves", set.moves);
         LoadField(archive, "enrage", set.enrage);
+        LoadField(archive, "break", set.breakDef);
         LoadField(archive, "turnSpeed", set.turnSpeed);
         LoadField(archive, "chaseStopRange", set.chaseStopRange);
     }

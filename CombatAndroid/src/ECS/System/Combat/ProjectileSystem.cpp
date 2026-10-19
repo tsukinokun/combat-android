@@ -7,6 +7,7 @@
 
 #include <CombatAndroid/ECS/Component/Combat/ProjectileComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/CombatHit.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
@@ -78,8 +79,10 @@ namespace CombatAndroid::ECS {
                     // 木の幹を通ったら、弾の向きへ木を揺らす（弾は止めない）
                     NotifyTreeHit(registry, eventBus, hitEntity, projectile.direction, 0.8f, projectile.hitTrees);
 
+                    // 斬撃弾は溜めの解放でしか出ないので、重い一撃としてボスの体勢ゲージを多めに削る
                     bool landed = ApplyCombatHit(registry, eventBus, projectile.owner, entity, hitEntity, projectile.damage, sweepCenter,
-                                                 projectile.hitEnemies, projectile.lifeStealRatio, projectile.lifeStealHealed);
+                                                 projectile.hitEnemies, projectile.lifeStealRatio, projectile.lifeStealHealed, KnockbackParams{},
+                                                 GetBossCombatParams().heavyBreakScale);
 
                     // 同じフレームのオーバーラップに複数体が含まれることがあるため、
                     // 貫通しない弾は1体目にダメージが入った時点で残りを見ずに打ち切る

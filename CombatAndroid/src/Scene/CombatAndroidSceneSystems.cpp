@@ -39,6 +39,7 @@
 #include <CombatAndroid/ECS/System/Weapon/EnemyWeaponDropSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/ExpOrbSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/PlayerHudSystem.hpp>
+#include <CombatAndroid/ECS/System/UI/BossHudSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/InputPromptSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/TutorialSystem.hpp>
@@ -203,6 +204,7 @@ namespace CombatAndroid {
         // 取得スキル（七つの大罪）の色の光の粒をプレイヤーの足元から立ちのぼらせる
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillAuraParticleSystem>(), (int)ECS::SystemPriority::SkillAuraParticle);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerHudSystem>(), (int)ECS::SystemPriority::PlayerHud);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::BossHudSystem>(), (int)ECS::SystemPriority::BossHud);
         // 場面の切り替わりを繋ぐ黒。TransformUIより前に板の位置を書く必要があるのでここに置く
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), (int)ECS::SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptSystem>(), (int)ECS::SystemPriority::InputPrompt);

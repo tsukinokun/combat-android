@@ -103,7 +103,9 @@ namespace CombatAndroid::ECS {
     //! @param  lifeStealRatio      [in]     スキル「嫉妬」の吸収割合（0なら吸収しない）
     //! @param  lifeStealHealed     [in,out] 上記の吸収済み総量。上限（kLifeStealCapRatioPerAttack）の判定に使う
     //! @param  knockback           [in]     ノックバックの要求内容。既定構築なら従来どおり（閾値超えでその場硬直）
+    //! @param  breakScale          [in]     ボスの体勢ゲージを削る倍率（重い一撃ならBossCombatParams::heavyBreakScale）
     //! @return 実際にダメージを与えたらtrue
+    //! @note   相手がボスなら、ダウン・後隙・反撃の倍率をdealtDamageへ掛けてから使う（ApplyBossHitModifiers）
     //-------------------------------------------------------------
     bool ApplyCombatHit(Tsukino::ECS::Registry& registry,
                         Tsukino::ECS::EventBus* eventBus,
@@ -115,7 +117,8 @@ namespace CombatAndroid::ECS {
                         std::vector<Tsukino::ECS::Entity>& hitRecord,
                         float lifeStealRatio,
                         float& lifeStealHealed,
-                        const KnockbackParams& knockback = KnockbackParams{});
+                        const KnockbackParams& knockback = KnockbackParams{},
+                        float breakScale = 1.0f);
 
     //-------------------------------------------------------------
     //! @brief  当たり判定で拾った相手が木の幹なら、木を揺らす通知（TreeHitEvent）を出す
