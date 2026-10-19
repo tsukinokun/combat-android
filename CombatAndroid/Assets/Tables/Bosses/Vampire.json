@@ -4,7 +4,7 @@
         "chaseStopRange": 100.0,
         "enrage": {
             "healthRatio": 0.5,
-            "move": "Roar",
+            "move": "",
             "moveSpeedScale": 1.35,
             "cooldownScale": 0.6
         },
@@ -31,7 +31,7 @@
             },
             {
                 "name": "Smash",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Punch.fbx",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Punch.fbx",
                 "minRange": 0.0,
                 "maxRange": 120.0,
                 "weight": 2.0,
@@ -49,7 +49,7 @@
             },
             {
                 "name": "Leap",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Jump Attack.fbx",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Jump Attack.fbx",
                 "minRange": 300.0,
                 "maxRange": 700.0,
                 "weight": 2.0,
@@ -67,26 +67,6 @@
                 "leapStart": 0.5,
                 "leapEnd": 1.55,
                 "leapMaxDistance": 700.0
-            },
-            {
-                "name": "Roar",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Roaring.fbx",
-                "minRange": 0.0,
-                "maxRange": 400.0,
-                "weight": 1.0,
-                "cooldown": 18.0,
-                "length": 2.8,
-                "recovery": 0.5,
-                "area": "Ring",
-                "hitbox": {
-                    "bone": "mixamorig:Hips",
-                    "radius": 170.0,
-                    "damage": 10.0,
-                    "start": 1.5,
-                    "duration": 0.3
-                },
-                "summonCount": 3,
-                "summonRadius": 350.0
             }
         ]
     }
