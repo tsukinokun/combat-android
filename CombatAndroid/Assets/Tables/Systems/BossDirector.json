@@ -1,6 +1,6 @@
 {
     "BossDirector": {
-        "midBossSeconds": 15.0,
+        "midBossSeconds": 180.0,
         "finalBossDelaySeconds": 120.0,
         "defeatDelaySeconds": 2.0,
         "spawnDistance": 900.0,
@@ -9,7 +9,7 @@
             "baseType": "BigZombie",
             "prefab": "Enemy/Vampire",
             "behavior": "Vampire",
-            "displayName": "紅き夜の伯爵",
+            "displayName": "血を啜るもの",
             "sizeScale": 1.6,
             "healthScale": 25.0,
             "attackScale": 1.5,

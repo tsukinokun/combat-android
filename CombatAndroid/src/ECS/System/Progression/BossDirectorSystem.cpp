@@ -64,7 +64,7 @@ namespace CombatAndroid::ECS {
             std::string  baseType       = "BigZombie";    //!< 元にする敵（EnemyTypeIdの綴り）
             std::string  prefab;                          //!< 使うPrefab（Assets/Prefabs/ からの相対名）。空なら元にする敵のPrefab
             std::string  behavior;                        //!< 技の表の名前（Assets/Tables/Bosses/<behavior>.json）。空なら雑魚と同じ行動
-            std::wstring displayName    = L"巨躯の屍";     //!< 告知とログに出す呼び名（「ボス」のような種別名は出さない）
+            std::wstring displayName    = L"血を啜るもの"; //!< 告知とログに出す呼び名（「ボス」のような種別名は出さない）
             float        sizeScale      = 1.8f;
             float        healthScale    = 25.0f;
             float        attackScale    = 1.5f;

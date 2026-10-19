@@ -4,13 +4,13 @@
         "chaseStopRange": 100.0,
         "enrage": {
             "healthRatio": 0.5,
-            "move": "Roar",
+            "move": "Summon",
             "moveSpeedScale": 1.35,
             "cooldownScale": 0.6
         },
         "moves": [
             {
-                "name": "Swipe",
+                "name": "Claw",
                 "clip": "CombatAndroid/Assets/Anims/BigZombie/Mutant Swiping.fbx",
                 "minRange": 0.0,
                 "maxRange": 140.0,
@@ -30,8 +30,8 @@
                 "enragedRepeat": 2
             },
             {
-                "name": "Smash",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Punch.fbx",
+                "name": "Crush",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Punch.fbx",
                 "minRange": 0.0,
                 "maxRange": 120.0,
                 "weight": 2.0,
@@ -48,8 +48,8 @@
                 }
             },
             {
-                "name": "Leap",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Jump Attack.fbx",
+                "name": "Pounce",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Jump Attack.fbx",
                 "minRange": 300.0,
                 "maxRange": 700.0,
                 "weight": 2.0,
@@ -69,8 +69,8 @@
                 "leapMaxDistance": 700.0
             },
             {
-                "name": "Roar",
-                "clip": "CombatAndroid/Assets/Anims/Ogre/Mutant Roaring.fbx",
+                "name": "Summon",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Roaring.fbx",
                 "minRange": 0.0,
                 "maxRange": 400.0,
                 "weight": 1.0,
