@@ -40,6 +40,22 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "downRimIntensity", params.downRimIntensity);
         LoadField(archive, "vulnerableGlow", params.vulnerableGlow);
         LoadField(archive, "vulnerablePulseSpeed", params.vulnerablePulseSpeed);
+        LoadField(archive, "kickClip", params.kickClip);
+        LoadField(archive, "kickClipStart", params.kickClipStart);
+        LoadField(archive, "kickClipEnd", params.kickClipEnd);
+        LoadField(archive, "kickImpactTime", params.kickImpactTime);
+        LoadField(archive, "kickDashSeconds", params.kickDashSeconds);
+        LoadField(archive, "kickDashSpeed", params.kickDashSpeed);
+        LoadField(archive, "kickStopDistance", params.kickStopDistance);
+        LoadField(archive, "kickMaxDistance", params.kickMaxDistance);
+        LoadField(archive, "kickReach", params.kickReach);
+        LoadField(archive, "kickRadius", params.kickRadius);
+        LoadField(archive, "kickDamage", params.kickDamage);
+        LoadField(archive, "kickKnockbackSpeed", params.kickKnockbackSpeed);
+        LoadField(archive, "kickKnockbackStun", params.kickKnockbackStun);
+        LoadField(archive, "kickSlowScale", params.kickSlowScale);
+        LoadField(archive, "kickSlowHold", params.kickSlowHold);
+        LoadField(archive, "kickSlowEaseOut", params.kickSlowEaseOut);
     }
 
     //-------------------------------------------------------------
@@ -110,6 +126,7 @@ namespace CombatAndroid::ECS {
             return false;
 
         player.counterReadyTimer = params.counterWindow;
+        player.counterTarget     = attacker;
 
         //-------------------------------------------------------------
         // 大技と同じ「スロー＋カメラの寄り」を、待ち無しで掛ける。

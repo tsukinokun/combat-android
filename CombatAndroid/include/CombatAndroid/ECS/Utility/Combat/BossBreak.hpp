@@ -11,6 +11,8 @@
 
 #include <hlsl++.h>
 
+#include <string>
+
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     struct PlayerComponent;
@@ -39,6 +41,24 @@ namespace CombatAndroid::ECS {
         float          downRimIntensity       = 5.0f;                                  //!< ダウン中の縁取りの強さ（脈打ちの山）
         float          vulnerableGlow         = 0.15f;                                 //!< 面全体を持ち上げる量（脈打ちの山）
         float          vulnerablePulseSpeed   = 2.5f;                                  //!< 脈打ちの速さ（1秒あたりの回数）
+
+        // 反撃キック（反撃の構えの間に左クリック）。秒はすべて実時間（プレイヤーはスローを打ち消して動く）
+        std::string kickClip        = "CombatAndroid/Assets/Anims/Player/Mma Kick.fbx";    //!< キックのクリップ
+        float       kickClipStart   = 0.5f;      //!< クリップの再生を始める秒（構えを省いて踏み込みから）
+        float       kickClipEnd     = 1.6f;      //!< クリップの再生を終える秒
+        float       kickImpactTime  = 0.5f;      //!< キックに入ってから蹴りが当たるまでの秒（クリップの1.0秒あたり＝右足が最も速い所）
+        float       kickDashSeconds = 0.4f;      //!< 相手へ詰める時間（秒）
+        float       kickDashSpeed   = 2200.0f;   //!< 詰める速さ（ユニット/秒）
+        float       kickStopDistance = 90.0f;    //!< 相手の体の表面からこの距離で止まる
+        float       kickMaxDistance = 900.0f;    //!< これより遠い相手には詰めない（その場で蹴る）
+        float       kickReach       = 80.0f;     //!< 当たりの中心をプレイヤーの前へ出す距離
+        float       kickRadius      = 130.0f;    //!< 当たりの半径（相手の体の半径を足して判定する）
+        float       kickDamage      = 60.0f;     //!< 基礎ダメージ（反撃・スキルの倍率がこれに掛かる）
+        float       kickKnockbackSpeed = 900.0f; //!< 雑魚を吹き飛ばす初速
+        float       kickKnockbackStun  = 0.6f;   //!< 雑魚の硬直
+        float       kickSlowScale   = 0.2f;      //!< キックの間の世界の時間の倍率
+        float       kickSlowHold    = 0.7f;      //!< スローを保つ秒
+        float       kickSlowEaseOut = 0.35f;     //!< スローから戻す秒
     };
 
     //-------------------------------------------------------------

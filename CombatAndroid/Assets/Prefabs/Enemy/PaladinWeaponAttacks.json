@@ -5,8 +5,8 @@
         "hitboxReach": 90.0,
         "hitboxRadius": 30.0,
         "hitboxDamage": 28.0,
-        "hitStartTime": 0.5,
-        "hitDuration": 0.550000011920929
+        "hitStartTime": 0.55,
+        "hitDuration": 0.3
     },
     "Greatsword": {
         "attackClipPath": "CombatAndroid/Assets/Anims/Paladin/greatSwordAttack.fbx",
@@ -14,8 +14,8 @@
         "hitboxReach": 90.0,
         "hitboxRadius": 26.0,
         "hitboxDamage": 22.0,
-        "hitStartTime": 0.44999998807907107,
-        "hitDuration": 0.550000011920929
+        "hitStartTime": 0.65,
+        "hitDuration": 0.3
     },
     "Battleaxe": {
         "attackClipPath": "CombatAndroid/Assets/Anims/Paladin/battleAxeAttack.fbx",
@@ -23,7 +23,7 @@
         "hitboxReach": 90.0,
         "hitboxRadius": 28.0,
         "hitboxDamage": 25.0,
-        "hitStartTime": 0.44999998807907107,
-        "hitDuration": 0.550000011920929
+        "hitStartTime": 0.85,
+        "hitDuration": 0.45
     }
 }

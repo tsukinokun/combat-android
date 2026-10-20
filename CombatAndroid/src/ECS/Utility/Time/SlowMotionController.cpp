@@ -24,6 +24,8 @@ namespace CombatAndroid::ECS {
     void SlowMotionController::Initialize(Tsukino::ECS::EventBus& eventBus) {
         m_finisherConnection =
             eventBus.Subscribe<PlayerFinisherEvent>([this](const PlayerFinisherEvent& event) { OnPlayerFinisher(event); });
+        m_counterKickConnection =
+            eventBus.Subscribe<PlayerCounterKickEvent>([this](const PlayerCounterKickEvent& event) { OnCounterKick(event); });
     }
 
     //-------------------------------------------------------------
@@ -32,8 +34,24 @@ namespace CombatAndroid::ECS {
     void SlowMotionController::OnPlayerFinisher(const PlayerFinisherEvent& event) {
         const float delay = std::max(event.impactDelay, 0.0f);
 
+        // 大技は既定の強さ・長さ（反撃キックのスロー中に来たら、そのまま既定へ戻して入り直す）
+        m_activeScale   = slowScale;
+        m_activeHold    = holdDuration;
+        m_activeEaseOut = easeOutDuration;
+
         // 待機中にもう1発来たら、先に来るインパクトに合わせる
         m_pendingImpactDelay = (m_pendingImpactDelay < 0.0f) ? delay : std::min(m_pendingImpactDelay, delay);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 反撃キックのハンドラ
+    //-------------------------------------------------------------
+    void SlowMotionController::OnCounterKick(const PlayerCounterKickEvent& event) {
+        m_activeScale        = std::clamp(event.slowScale, 0.01f, 1.0f);
+        m_activeHold         = std::max(event.holdSeconds, 0.0f);
+        m_activeEaseOut      = std::max(event.easeOutSeconds, 0.0f);
+        m_pendingImpactDelay = -1.0f;
+        Start();
     }
 
     //-------------------------------------------------------------
@@ -41,17 +59,17 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     float SlowMotionController::ScaleAt(float elapsed) const {
         const float easeIn  = std::max(easeInDuration, 0.0f);
-        const float hold    = std::max(holdDuration, 0.0f);
-        const float easeOut = std::max(easeOutDuration, 0.0f);
+        const float hold    = std::max(m_activeHold, 0.0f);
+        const float easeOut = std::max(m_activeEaseOut, 0.0f);
 
         if(elapsed < easeIn)
-            return 1.0f + (slowScale - 1.0f) * SmoothStep(elapsed / easeIn);
+            return 1.0f + (m_activeScale - 1.0f) * SmoothStep(elapsed / easeIn);
 
         if(elapsed < easeIn + hold)
-            return slowScale;
+            return m_activeScale;
 
         if(elapsed < easeIn + hold + easeOut)
-            return slowScale + (1.0f - slowScale) * SmoothStep((elapsed - easeIn - hold) / easeOut);
+            return m_activeScale + (1.0f - m_activeScale) * SmoothStep((elapsed - easeIn - hold) / easeOut);
 
         return 1.0f;
     }
@@ -66,7 +84,7 @@ namespace CombatAndroid::ECS {
             // 新しく始める。入りの途中ならそのまま入りを続ける
             if(!m_active)
                 m_elapsed = 0.0f;
-        } else if(m_elapsed < easeIn + std::max(holdDuration, 0.0f)) {
+        } else if(m_elapsed < easeIn + std::max(m_activeHold, 0.0f)) {
             // 保持の途中なら、保持の頭からやり直す（倍率は同じなので途切れない）
             m_elapsed = easeIn;
         } else {
@@ -118,7 +136,7 @@ namespace CombatAndroid::ECS {
         const float scale = ScaleAt(m_elapsed);
 
         m_elapsed += dt;
-        if(m_elapsed >= std::max(easeInDuration, 0.0f) + std::max(holdDuration, 0.0f) + std::max(easeOutDuration, 0.0f))
+        if(m_elapsed >= std::max(easeInDuration, 0.0f) + std::max(m_activeHold, 0.0f) + std::max(m_activeEaseOut, 0.0f))
             m_active = false;
 
         return scale;

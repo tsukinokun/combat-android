@@ -49,6 +49,7 @@ namespace CombatAndroid::ECS {
             "CombatAndroid/Assets/Audio/HitImpactSharp.wav",
             "CombatAndroid/Assets/Audio/ChargeFire.wav",
             "CombatAndroid/Assets/Effect/attackImpact.efkefc",
+            "CombatAndroid/Assets/Anims/Player/Mma Kick.fbx",    // 反撃キック（初めて出したときに読み込みで止まらないよう先に読む）
             "CombatAndroid/Assets/Textures/Ground/DirtGround.bmp",
             "CombatAndroid/Assets/Textures/UI/ExpOrb.png",
             "CombatAndroid/Assets/Textures/UI/WhitePixel.png",

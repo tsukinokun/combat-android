@@ -35,7 +35,7 @@
                     "endBone": "mixamorig:LeftHand",
                     "radius": 30.0,
                     "damage": 25.0,
-                    "start": 1.2,
+                    "start": 1.17,
                     "duration": 0.25
                 },
                 "enragedRepeat": 2
@@ -54,8 +54,8 @@
                     "bone": "mixamorig:LeftHand",
                     "radius": 45.0,
                     "damage": 40.0,
-                    "start": 0.72,
-                    "duration": 0.18
+                    "start": 0.65,
+                    "duration": 0.2
                 }
             },
             {
@@ -72,7 +72,7 @@
                     "bone": "mixamorig:Hips",
                     "radius": 90.0,
                     "damage": 35.0,
-                    "start": 1.55,
+                    "start": 1.45,
                     "duration": 0.2
                 },
                 "leapStart": 0.5,

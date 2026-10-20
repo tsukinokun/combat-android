@@ -35,11 +35,11 @@
                 "recovery": 0.9,
                 "area": "DiscForward",
                 "hitbox": {
-                    "bone": "Bone.001",
+                    "bone": "Bone.004",
                     "radius": 60.0,
                     "damage": 35.0,
                     "start": 0.55,
-                    "duration": 0.3
+                    "duration": 0.2
                 }
             },
             {

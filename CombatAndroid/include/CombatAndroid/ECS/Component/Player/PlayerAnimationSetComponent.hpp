@@ -22,6 +22,7 @@ namespace CombatAndroid::ECS {
         Attack1,    //!< 連撃1段目
         Attack2,    //!< 連撃2段目
         Attack3,    //!< 連撃3段目
+        Kick,       //!< ジャスト回避の後の反撃キック（世界がスローの中を高速で詰めて蹴る）
         Death,      //!< 死亡（HealthComponent::isDeadが立つと最優先で遷移する。他の全ステートより優先）
     };
 

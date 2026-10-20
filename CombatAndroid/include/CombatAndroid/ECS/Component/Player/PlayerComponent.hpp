@@ -58,6 +58,14 @@ namespace CombatAndroid::ECS {
         //! （ApplyBossHitModifiersが消費する）。PlayerAnimationSystemが減らし、その間プレイヤーを縁取る
         float counterReadyTimer = 0.0f;
 
+        //! ジャスト回避のきっかけになった敵（反撃キックの飛び先）。TryJustDodgeが書く
+        Tsukino::ECS::Entity counterTarget = entt::null;
+
+        // --- 反撃キックの進行（PlayerAnimationSystemだけが書く） ---
+        float                kickTimer   = 0.0f;          //!< キックに入ってからの実時間（秒）
+        bool                 kickHitDone = false;         //!< このキックの当たりをもう出したか
+        Tsukino::ECS::Entity kickTarget  = entt::null;    //!< このキックで詰める相手
+
         //! 雑魚でジャスト回避したときのスローを、次に掛けられるまでの残り秒（群れで連発させないため）。
         //! TryJustDodgeが立て、PlayerAnimationSystemが減らす
         float justDodgeSlowCooldown = 0.0f;

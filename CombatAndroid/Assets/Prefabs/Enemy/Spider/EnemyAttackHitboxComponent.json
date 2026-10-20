@@ -1,6 +1,6 @@
 {
     "EnemyAttackHitboxComponent": {
-        "boneName": "Bone.001",
+        "boneName": "Bone.004",
         "boneLocalOffset": {
             "x": 0.0,
             "y": 0.0,
@@ -14,7 +14,7 @@
         },
         "radius": 25.0,
         "damage": 15.0,
-        "hitStartTime": 0.30000001192092898,
-        "hitDuration": 0.6000000238418579
+        "hitStartTime": 0.55,
+        "hitDuration": 0.2
     }
 }

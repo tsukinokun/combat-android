@@ -9,6 +9,7 @@
 //-------------------------------------------------------------
 #pragma once
 
+#include <CombatAndroid/ECS/Event/Player/PlayerCounterKickEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
 
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
@@ -52,6 +53,12 @@ namespace CombatAndroid::ECS {
         void OnPlayerFinisher(const PlayerFinisherEvent& event);
 
         //-------------------------------------------------------------
+        //! @brief 反撃キックのハンドラ。キック用の強さ・長さで、待たずにスローを始める
+        //! @param event [in] 反撃キックのイベント
+        //-------------------------------------------------------------
+        void OnCounterKick(const PlayerCounterKickEvent& event);
+
+        //-------------------------------------------------------------
         //! @brief  スローを始める（保持の頭から）。既にスロー中なら倍率を途切れさせずに入り直す
         //-------------------------------------------------------------
         void Start();
@@ -68,5 +75,11 @@ namespace CombatAndroid::ECS {
         bool  m_active             = false;    //!< スロー中か
 
         Tsukino::ECS::ScopedConnection m_finisherConnection;    //!< PlayerFinisherEventの購読
+        Tsukino::ECS::ScopedConnection m_counterKickConnection; //!< PlayerCounterKickEventの購読
+
+        // 今かけているスローの強さ・長さ。大技は公開の既定値、反撃キックはイベントの値を使う
+        float m_activeScale   = 0.2f;
+        float m_activeHold    = 0.25f;
+        float m_activeEaseOut = 0.3f;
     };
 }    // namespace CombatAndroid::ECS

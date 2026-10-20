@@ -9,12 +9,36 @@
         "recoveryBreakScale": 2.0,
         "downDamageScale": 2.0,
         "heavyBreakScale": 2.0,
-        "counterRimColor": { "x": 1.0, "y": 0.9, "z": 0.6 },
+        "counterRimColor": {
+            "x": 1.0,
+            "y": 0.9,
+            "z": 0.6
+        },
         "counterRimIntensity": 4.0,
-        "vulnerableRimColor": { "x": 1.0, "y": 0.78, "z": 0.25 },
+        "vulnerableRimColor": {
+            "x": 1.0,
+            "y": 0.78,
+            "z": 0.25
+        },
         "vulnerableRimIntensity": 3.0,
         "downRimIntensity": 5.0,
         "vulnerableGlow": 0.15,
-        "vulnerablePulseSpeed": 2.5
+        "vulnerablePulseSpeed": 2.5,
+        "kickClip": "CombatAndroid/Assets/Anims/Player/Mma Kick.fbx",
+        "kickClipStart": 0.5,
+        "kickClipEnd": 1.6,
+        "kickImpactTime": 0.5,
+        "kickDashSeconds": 0.4,
+        "kickDashSpeed": 2200.0,
+        "kickStopDistance": 90.0,
+        "kickMaxDistance": 900.0,
+        "kickReach": 80.0,
+        "kickRadius": 130.0,
+        "kickDamage": 60.0,
+        "kickKnockbackSpeed": 900.0,
+        "kickKnockbackStun": 0.6,
+        "kickSlowScale": 0.2,
+        "kickSlowHold": 0.7,
+        "kickSlowEaseOut": 0.35
     }
 }

@@ -12,7 +12,13 @@
 #include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/SoftTargetComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerChargeEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerCounterKickEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/CombatHit.hpp>
+#include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
@@ -26,12 +32,18 @@
 #include <Tsukino/BuiltIn/ECS/Component/RimGlowComponent.hpp>
 
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
+#include <Tsukino/Core/Path.hpp>
+#include <Tsukino/Engine/Asset/AssetManager.hpp>
+#include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/Core/typedef.hpp>
 #include <Tsukino/Core/Log.hpp>
 
 #include <hlsl++.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <string>
+#include <vector>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
@@ -92,6 +104,82 @@ namespace CombatAndroid::ECS {
                 // 攻撃以外のステートへ入るときは必ず等速へ戻す
                 registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationPlayerComponent>(entity).playback_speed = 1.0f;
             };
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  反撃キックへ入るOnEnterコールバック。キックのクリップの踏み込みから蹴り終わりまでを流す
+        //-------------------------------------------------------------
+        StateMachine<PlayerAnimState>::Callback MakeKickEnterCallback() {
+            return [](Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+                auto* ctx = registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+                if(!ctx || !ctx->assetManager)
+                    return;
+
+                const BossCombatParams&           params = GetBossCombatParams();
+                const Tsukino::Asset::AssetHandle clip   = ctx->assetManager->Load(Tsukino::Core::Path(params.kickClip));
+                if(!clip.IsValid())
+                    return;
+
+                auto& animController                = registry.GetComponent<Tsukino::BuiltIn::ECS::AnimationControllerComponent>(entity);
+                animController.next.clip            = clip;
+                animController.next.animation_index = 1;
+                animController.next.fade_time       = 0.06f;
+                animController.next.immediate       = false;
+                animController.next.is_looping      = false;
+                animController.next.clip_start_time = params.kickClipStart;
+                animController.next.clip_end_time   = params.kickClipEnd;
+                animController.next.in_place        = true;    // 詰める動きはCharacterControllerで出す
+            };
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  反撃キックの当たりを出す。前方の円に入った敵（詰めた相手は必ず）へ当てる
+        //! @param  registry  [in,out] ECSレジストリ
+        //! @param  playerEntity [in] プレイヤー
+        //! @param  player    [in]     プレイヤーの状態（詰めた相手）
+        //! @param  transform [in]     プレイヤーの姿勢
+        //-------------------------------------------------------------
+        void ApplyKickHit(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity playerEntity, const PlayerComponent& player,
+                          const Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+            const BossCombatParams& params  = GetBossCombatParams();
+            const hlslpp::float3    forward = hlslpp::mul(hlslpp::float3(0.0f, 0.0f, 1.0f), transform.rotation);
+            const hlslpp::float3    center  = transform.position + forward * params.kickReach;
+
+            float attackMultiplier = 1.0f;
+            if(const auto* skills = registry.try_get<PlayerSkillComponent>(playerEntity))
+                attackMultiplier = skills->attackMultiplier;
+
+            KnockbackParams knockback;
+            knockback.sourcePosition        = transform.position;
+            knockback.speed                 = params.kickKnockbackSpeed;
+            knockback.stunDuration          = params.kickKnockbackStun;
+            knockback.ignoreDamageThreshold = true;
+
+            // 当てる相手を先に集める（ApplyCombatHitの中でComponentが増減しても反復が壊れないように）
+            std::vector<Tsukino::ECS::Entity> victims;
+            auto view = registry.View<EnemyComponent, HealthComponent, Tsukino::BuiltIn::ECS::TransformComponent>();
+            for(entt::entity enemyEntity : view) {
+                if(view.get<HealthComponent>(enemyEntity).isDead)
+                    continue;
+                hlslpp::float3 toEnemy = view.get<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity).position - center;
+                toEnemy.y              = 0.0f;
+                const float reach      = params.kickRadius + view.get<EnemyComponent>(enemyEntity).bodyRadius;
+                const bool  isTarget   = enemyEntity == player.kickTarget;
+                if(static_cast<float>(hlslpp::length(toEnemy)) <= reach * (isTarget ? 1.5f : 1.0f))
+                    victims.push_back(enemyEntity);
+            }
+
+            auto*                             eventBus = registry.GetContext<Tsukino::ECS::EventBus*>();
+            std::vector<Tsukino::ECS::Entity> hitRecord;
+            float                             lifeStealHealed = 0.0f;
+            for(Tsukino::ECS::Entity victim : victims) {
+                (void)ApplyCombatHit(registry, eventBus, playerEntity, playerEntity, victim, params.kickDamage * attackMultiplier, center, hitRecord,
+                                     0.0f, lifeStealHealed, knockback, params.heavyBreakScale);
+            }
+
+            // 打撃感：画面を揺らし、重い一撃の音を鳴らす（連撃3段目と同じ通知を、待ちなしで）
+            if(eventBus)
+                eventBus->Publish(PlayerHeavyStrikeEvent{playerEntity, 0.0f});
         }
 
         //-------------------------------------------------------------
@@ -317,6 +405,8 @@ namespace CombatAndroid::ECS {
         m_stateMachine.RegisterState(PlayerAnimState::Attack1, MakeAttackStepEnterCallback(0));
         m_stateMachine.RegisterState(PlayerAnimState::Attack2, MakeAttackStepEnterCallback(1));
         m_stateMachine.RegisterState(PlayerAnimState::Attack3, MakeAttackStepEnterCallback(2));
+        // ジャスト回避の後の反撃キック（Mma Kick.fbx）
+        m_stateMachine.RegisterState(PlayerAnimState::Kick, MakeKickEnterCallback());
         // 死亡モーションは単発再生・ルート前進を殺す（in_place）。倒れた後も画面内に留まらせるため
         m_stateMachine.RegisterState(PlayerAnimState::Death, MakeClipEnterCallback(&PlayerAnimationSetComponent::deathClip, 1, false, params.deathBlendTime, true));
     }
@@ -369,6 +459,17 @@ namespace CombatAndroid::ECS {
             bool isAttacking = IsAttackState(animSet.currentState);
             bool isDodging   = animSet.currentState == PlayerAnimState::Dodge;
             bool isCharging  = animSet.currentState == PlayerAnimState::Charge;
+            bool isKicking   = animSet.currentState == PlayerAnimState::Kick;
+
+            //-------------------------------------------------------------
+            // 反撃キックはスローを打ち消して実時間で進める（周りが止まった中を高速で詰める）
+            //-------------------------------------------------------------
+            const WorldTimeContext* worldTime     = registry.HasContext<WorldTimeContext>() ? &registry.GetContext<WorldTimeContext>() : nullptr;
+            const float             realDeltaTime = worldTime ? worldTime->realDeltaTime : deltaTime;
+            const float             timeScale     = worldTime ? std::max(worldTime->timeScale, 0.05f) : 1.0f;
+            const BossCombatParams& combatParams  = GetBossCombatParams();
+            if(isKicking)
+                player.kickTimer += realDeltaTime;
 
             if(isAttacking) {
                 animSet.attackTimer += deltaTime;
@@ -413,6 +514,29 @@ namespace CombatAndroid::ECS {
             const bool isChargeWeapon = hasWeapon && registry.GetComponent<WeaponComponent>(player.weaponEntity).chargeAttackEnabled;
             const bool isComboWeapon  = hasWeapon && !isChargeWeapon;
             const bool isIdleForAttack = !isAttacking && !isDodging && !isCharging;
+
+            //-------------------------------------------------------------
+            // 反撃の構え（ジャスト回避の直後）の左クリックは、通常の攻撃の代わりに反撃キックになる。
+            // 回避の途中でも出せる（回避した直後に押すのが自然なので、前転をキャンセルして蹴る）
+            //-------------------------------------------------------------
+#if defined(_DEBUG)
+            //-------------------------------------------------------------
+            // 自動の動作確認用：環境変数 COMBAT_TEST_COUNTER があれば、回避を始めた瞬間に反撃の構えを付ける
+            // （入力を外から送る確認では、ジャスト回避の瞬間を狙えないため）
+            //-------------------------------------------------------------
+            static const bool s_testCounter = std::getenv("COMBAT_TEST_COUNTER") != nullptr;
+            if(s_testCounter && dodgeJustPressed && player.counterReadyTimer <= 0.0f) {
+                player.counterReadyTimer = combatParams.counterWindow;
+                player.counterTarget = registry.HasComponent<SoftTargetComponent>(entity) ? registry.GetComponent<SoftTargetComponent>(entity).target : entt::null;
+            }
+#endif
+
+            bool kickJustStarted = false;
+            if(attackJustPressed && player.counterReadyTimer > 0.0f && !isKicking) {
+                kickJustStarted   = true;
+                attackJustPressed = false;
+            }
+            const bool kickFinished = isKicking && player.kickTimer >= std::max(combatParams.kickClipEnd - combatParams.kickClipStart, 0.1f);
 
             bool chargeJustStarted = false;
             bool attackJustStarted = false;
@@ -488,7 +612,30 @@ namespace CombatAndroid::ECS {
                 transform.dirty    = true;
             };
 
-            if(dodgeJustStarted) {
+            if(kickJustStarted) {
+                //-------------------------------------------------------------
+                // 反撃キックへ入る。飛び先は回避した攻撃の相手（居なければ今の狙い）。
+                // 世界をスローにし、反撃の構えはキックの当たりで消費する
+                //-------------------------------------------------------------
+                player.kickTimer   = 0.0f;
+                player.kickHitDone = false;
+                player.kickTarget  = player.counterTarget;
+                if(player.kickTarget == entt::null || !registry.IsValid(player.kickTarget) || !registry.HasComponent<EnemyComponent>(player.kickTarget)
+                   || registry.GetComponent<HealthComponent>(player.kickTarget).isDead)
+                    player.kickTarget = registry.HasComponent<SoftTargetComponent>(entity) ? registry.GetComponent<SoftTargetComponent>(entity).target : entt::null;
+                animSet.bufferedInput    = BufferedInput::None;
+                animSet.attackComboIndex = 0;
+                if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                    eventBus->Publish(PlayerCounterKickEvent{entity, combatParams.kickSlowScale, combatParams.kickSlowHold, combatParams.kickSlowEaseOut});
+#if defined(_DEBUG)
+                Tsukino::Core::Log::Info(std::string("CounterKick start target=") + (player.kickTarget != entt::null ? "yes" : "none"));
+#endif
+                desiredState = PlayerAnimState::Kick;
+            } else if(isKicking && !kickFinished) {
+                desiredState = PlayerAnimState::Kick;    // 蹴り終わるまでキャンセルしない
+            } else if(isKicking && kickFinished) {
+                animSet.bufferedInput = BufferedInput::None;    // 移動判定のまま待機・走りへ戻る
+            } else if(dodgeJustStarted) {
                 // 回避は最優先。ただし攻撃中・回避中・溜め中は上のdodgeJustStartedが立たないため、
                 // ここへ来るのは「何もしていない状態から回避を始める」場合だけ……のはずだが、
                 // 溜め中（isCharging）はisAttacking扱いではないため、溜め中に回避を押すとここへ来て
@@ -552,6 +699,7 @@ namespace CombatAndroid::ECS {
             bool willBeAttacking = IsAttackState(desiredState);
             bool willBeDodging   = desiredState == PlayerAnimState::Dodge;
             bool willBeCharging  = desiredState == PlayerAnimState::Charge;
+            bool willBeKicking   = desiredState == PlayerAnimState::Kick;
 
             //-------------------------------------------------------------
             // 攻撃中・溜め攻撃中は移動させない（PlayerSystemが今フレーム書き込んだ
@@ -560,7 +708,34 @@ namespace CombatAndroid::ECS {
             // （エンジンはクリップのルートモーションをTransformへ適用しないため、
             //   前転の前進はここでCharacterControllerへ与える必要がある）
             //-------------------------------------------------------------
-            if(willBeAttacking || willBeCharging) {
+            if(willBeKicking) {
+                //-------------------------------------------------------------
+                // 反撃キック：最初の kickDashSeconds の間、相手の手前まで一直線に詰める。
+                // 世界はスローなので、速さはスローの倍率で割って実時間の速さにする
+                //-------------------------------------------------------------
+                cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
+                if(player.kickTarget != entt::null && registry.IsValid(player.kickTarget)
+                   && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(player.kickTarget)) {
+                    hlslpp::float3 toTarget = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(player.kickTarget).position - transform.position;
+                    toTarget.y              = 0.0f;
+                    const float distance    = hlslpp::length(toTarget);
+                    if(distance > 1.0f) {
+                        const hlslpp::float3 dir = toTarget / distance;
+                        transform.rotation       = hlslpp::quaternion::rotation_y(std::atan2(static_cast<float>(dir.x), static_cast<float>(dir.z)));
+                        transform.dirty          = true;
+
+                        float bodyRadius = 0.0f;
+                        if(const auto* enemy = registry.try_get<EnemyComponent>(player.kickTarget))
+                            bodyRadius = enemy->bodyRadius;
+                        const float gap = distance - bodyRadius - combatParams.kickStopDistance;
+                        if(player.kickTimer < combatParams.kickDashSeconds && gap > 0.0f && distance < combatParams.kickMaxDistance) {
+                            // このフレームで詰めすぎない速さ（実時間でgapを越えない）
+                            const float speed = std::min(combatParams.kickDashSpeed, gap / std::max(realDeltaTime, 1e-4f));
+                            cc.moveInput      = dir * (speed / timeScale);
+                        }
+                    }
+                }
+            } else if(willBeAttacking || willBeCharging) {
                 cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
             } else if(willBeDodging) {
                 cc.moveInput = animSet.dodgeDirection * player.dodgeSpeed;
@@ -573,7 +748,7 @@ namespace CombatAndroid::ECS {
             if(desiredState != animSet.currentState) {
                 if(IsAttackState(desiredState))
                     PlaySound(registry, SoundId::Swing);
-                else if(desiredState == PlayerAnimState::Dodge)
+                else if(desiredState == PlayerAnimState::Dodge || desiredState == PlayerAnimState::Kick)
                     PlaySound(registry, SoundId::Dodge);
             }
 
@@ -600,6 +775,20 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(willBeCharging) {
                 animPlayer.playback_speed = player.chargePlaybackSpeed;
+            }
+
+            //-------------------------------------------------------------
+            // 反撃キックはスローを打ち消して等速に見せる。蹴りの瞬間に当たりを出す
+            //-------------------------------------------------------------
+            if(willBeKicking) {
+                animPlayer.playback_speed = 1.0f / timeScale;
+                if(!player.kickHitDone && player.kickTimer >= combatParams.kickImpactTime) {
+                    player.kickHitDone = true;
+                    ApplyKickHit(registry, entity, player, transform);
+#if defined(_DEBUG)
+                    Tsukino::Core::Log::Info("CounterKick hit t=" + std::to_string(player.kickTimer));
+#endif
+                }
             }
 
             //-------------------------------------------------------------
@@ -660,7 +849,7 @@ namespace CombatAndroid::ECS {
             // 取り直す。ここに置いているのは、上の解放処理まで含めて今フレームの
             // playback_speedが確定した後だからである
             //-------------------------------------------------------------
-            bool speedOverrideEnded = (isCharging && !willBeCharging) || (isDodging && !willBeDodging);
+            bool speedOverrideEnded = (isCharging && !willBeCharging) || (isDodging && !willBeDodging) || (isKicking && !willBeKicking);
             if(speedOverrideEnded) {
                 if(auto* hitStop = registry.try_get<HitStopComponent>(entity))
                     hitStop->baseAnimSpeed = animPlayer.playback_speed;
@@ -706,7 +895,8 @@ namespace CombatAndroid::ECS {
             //               無敵は回避の前半だけなので、終わり際に敵と重なったままなら被弾する
             //-------------------------------------------------------------
             player.isDodging    = willBeDodging;
-            player.isInvincible = willBeDodging && animSet.dodgeTimer < player.dodgeInvincibleDuration;
+            // 反撃キックの間は無敵（スローの中で詰める途中に殴られないように）
+            player.isInvincible = (willBeDodging && animSet.dodgeTimer < player.dodgeInvincibleDuration) || willBeKicking;
             player.isCharging    = willBeCharging;    // PlayerSystem（次フレーム）が向き直り・武器切り替えの抑制に読む
 
 #if defined(_DEBUG)
