@@ -57,11 +57,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  調整値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  調整値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const EnemyWeaponDropParams& GetParams() {
-            static const EnemyWeaponDropParams s_params = LoadSystemParams<EnemyWeaponDropParams>("EnemyWeaponDrop");
-            return s_params;
+            return GetSystemParams<EnemyWeaponDropParams>("EnemyWeaponDrop");
         }
 
         //-------------------------------------------------------------

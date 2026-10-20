@@ -1,11 +1,14 @@
 //-------------------------------------------------------------
 //! @file   TableJson.hpp
 //! @brief  調整値テーブル（Assets/Tables/*.json）の読み書きの共通処理
-//! @note   テーブルは起動後の初回参照で1度だけ読む（各Get*Tableの関数内static）。
+//! @note   テーブルは起動後の初回参照で読む（各Get*Tableの関数内staticの Tsukino::IO::HotReloadable）。
+//!         Debug ビルドでは保存し直すと読み直す（エンジンの Tsukino::IO::HotReloadable / HotReload）。
 //!         書式は「ルートキー → 種類名（enumの名前）→ 値」。種類名の並びは各テーブルの.cppが持つ
 //-------------------------------------------------------------
 #pragma once
+#include <Tsukino/Core/IO/HotReloadable.hpp>
 #include <Tsukino/Core/Log.hpp>
+#include <Tsukino/Core/Path.hpp>
 
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
@@ -13,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -48,16 +52,27 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
-    //! @brief  Systemの調整値を Tables/Systems/<name>.json（ルートキー <name>）から読む関数
-    //! @param  name [in] System名（例: "ExpOrb"）
+    //! @brief  テーブルJSONのパスを作る関数
+    //! @param  fileName [in] kTableRootからのファイル名（例: "Skills.json"）
+    //! @return kTableRootを付けたパス（Tsukino::IO::HotReloadable / HotReload::Watch に渡す）
+    //-------------------------------------------------------------
+    inline Tsukino::Core::Path TablePath(const std::string& fileName) {
+        return Tsukino::Core::Path(std::string(kTableRoot) + fileName);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  Systemの調整値を Tables/Systems/<name>.json（ルートキー <name>）から得る関数
+    //! @param  name [in] System名（例: "ExpOrb"）。文字列リテラルを渡す
     //! @return 読んだ値。ファイルが無い・壊れているときは T の既定値（＝コード側の値）のまま
-    //! @note   T は既定値を持つ構造体で、load() の中は LoadField で読む（キーが欠けても既定値で続行する）
+    //! @note   T は既定値を持つ構造体で、load() の中は LoadField で読む（キーが欠けても既定値で続行する）。
+    //!         T ごとに1つのキャッシュを持つ（Tは各Systemの無名namespaceの型）。Debugでは保存し直すと読み直す
     //-------------------------------------------------------------
     template <class T>
-    T LoadSystemParams(const char* name) {
-        T params{};
-        (void)LoadTableJson((std::string("Systems/") + name + ".json").c_str(), name, params);
-        return params;
+    const T& GetSystemParams(const char* name) {
+        static Tsukino::IO::HotReloadable<T> s_table(TablePath(std::string("Systems/") + name + ".json"), [name](T& params) {
+            return LoadTableJson((std::string("Systems/") + name + ".json").c_str(), name, params);
+        });
+        return s_table.Get();
     }
 
     //-------------------------------------------------------------

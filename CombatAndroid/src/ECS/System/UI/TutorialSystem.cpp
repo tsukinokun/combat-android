@@ -120,11 +120,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const TutorialParams& GetParams() {
-            static const TutorialParams s_params = LoadSystemParams<TutorialParams>("Tutorial");
-            return s_params;
+            return GetSystemParams<TutorialParams>("Tutorial");
         }
 
         //! 1文字の幅を見積もる基準（.dfont の Size。UiTextSize.cpp の基準と同じ）

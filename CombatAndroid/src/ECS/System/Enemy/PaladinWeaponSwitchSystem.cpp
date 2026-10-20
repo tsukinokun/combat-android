@@ -49,11 +49,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  調整値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  調整値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const PaladinWeaponSwitchParams& GetParams() {
-            static const PaladinWeaponSwitchParams s_params = LoadSystemParams<PaladinWeaponSwitchParams>("PaladinWeaponSwitch");
-            return s_params;
+            return GetSystemParams<PaladinWeaponSwitchParams>("PaladinWeaponSwitch");
         }
 
         //-------------------------------------------------------------

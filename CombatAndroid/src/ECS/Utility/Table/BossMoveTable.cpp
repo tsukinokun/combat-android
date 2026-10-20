@@ -6,6 +6,7 @@
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 
+#include <Tsukino/Core/IO/HotReload.hpp>
 #include <Tsukino/Core/Log.hpp>
 
 #include <cereal/types/vector.hpp>
@@ -131,12 +132,51 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "chaseStopRange", set.chaseStopRange);
     }
 
+    namespace {
+        //-------------------------------------------------------------
+        //! @brief  Bosses/<key>.json を読み、書き間違いを警告する関数
+        //! @param  key [in]  ボスの名前
+        //! @param  set [out] 読み込み先（既定値のもの）
+        //! @return 読めたか
+        //-------------------------------------------------------------
+        bool LoadBossMoveSet(const std::string& key, BossMoveSet& set) {
+            if(!LoadTableJson(("Bosses/" + key + ".json").c_str(), "Boss", set))
+                return false;
+            if(set.moves.empty())
+                Tsukino::Core::Log::Error("BossMoveTable: no moves in Bosses/" + key + ".json");
+
+            // 技の判定が終わるより先に技を終えると判定が出ない。表の書き間違いを早めに知らせる
+            for(const BossMoveDef& move : set.moves) {
+                if(move.kind == BossMoveKind::Charge && move.chargeStart + move.chargeDuration > move.length)
+                    Tsukino::Core::Log::Warn("BossMoveTable: " + key + "." + move.name + " ends before its charge (length < chargeStart + chargeDuration)");
+                if(move.kind == BossMoveKind::Strike && move.hitbox.start + move.hitbox.duration > move.length)
+                    Tsukino::Core::Log::Warn("BossMoveTable: " + key + "." + move.name + " ends before its hitbox (length < start + duration)");
+            }
+            return true;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  技の数と名前の並びが同じかを調べる関数
+        //! @note   湧いたボスは技の番号でクリップ・クールタイムを持つ（BossMoveSetComponent）。
+        //!         読み直しで並びが変わるとその番号がずれるので、並びの変更は再起動を求める
+        //-------------------------------------------------------------
+        bool HasSameMoveList(const BossMoveSet& lhs, const BossMoveSet& rhs) {
+            if(lhs.moves.size() != rhs.moves.size())
+                return false;
+            for(size_t i = 0; i < lhs.moves.size(); ++i) {
+                if(lhs.moves[i].name != rhs.moves[i].name || lhs.moves[i].clip != rhs.moves[i].clip)
+                    return false;
+            }
+            return true;
+        }
+    }    // namespace
+
     //-------------------------------------------------------------
     //! @brief ボスの技の表を得る
     //-------------------------------------------------------------
     const BossMoveSet& GetBossMoveSet(const std::string& key) {
         static std::mutex                         s_mutex;
-        static std::map<std::string, BossMoveSet> s_sets;
+        static std::map<std::string, BossMoveSet> s_sets;    // mapの要素は差し替えても動かないので、返した参照はそのまま使える
 
         std::lock_guard<std::mutex> lock(s_mutex);
         auto it = s_sets.find(key);
@@ -144,19 +184,25 @@ namespace CombatAndroid::ECS {
             return it->second;
 
         BossMoveSet set;
-        (void)LoadTableJson(("Bosses/" + key + ".json").c_str(), "Boss", set);
-        if(set.moves.empty())
-            Tsukino::Core::Log::Error("BossMoveTable: no moves in Bosses/" + key + ".json");
+        (void)LoadBossMoveSet(key, set);
+        BossMoveSet& stored = s_sets.emplace(key, std::move(set)).first->second;
 
-        // 技の判定が終わるより先に技を終えると判定が出ない。表の書き間違いを早めに知らせる
-        for(const BossMoveDef& move : set.moves) {
-            if(move.kind == BossMoveKind::Charge && move.chargeStart + move.chargeDuration > move.length)
-                Tsukino::Core::Log::Warn("BossMoveTable: " + key + "." + move.name + " ends before its charge (length < chargeStart + chargeDuration)");
-            if(move.kind == BossMoveKind::Strike && move.hitbox.start + move.hitbox.duration > move.length)
-                Tsukino::Core::Log::Warn("BossMoveTable: " + key + "." + move.name + " ends before its hitbox (length < start + duration)");
-        }
+        // 保存し直したら読み直す（Debugのみ）。技の数値はその場で効き、技の並びの変更は拒否する
+        Tsukino::IO::HotReload::Watch(TablePath("Bosses/" + key + ".json"), [key, &stored] {
+            BossMoveSet reloaded;
+            if(!LoadBossMoveSet(key, reloaded) || reloaded.moves.empty())
+                return false;
+            if(!HasSameMoveList(stored, reloaded)) {
+                Tsukino::Core::Log::Warn("BossMoveTable: moves were added, removed, renamed or got another clip in Bosses/" + key
+                                         + ".json. Restart required");
+                return false;
+            }
 
-        return s_sets.emplace(key, std::move(set)).first->second;
+            std::lock_guard<std::mutex> reloadLock(s_mutex);
+            stored = std::move(reloaded);
+            return true;
+        });
+        return stored;
     }
 
     //-------------------------------------------------------------

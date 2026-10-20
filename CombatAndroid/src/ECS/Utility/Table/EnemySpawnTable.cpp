@@ -90,20 +90,20 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  抽選テーブルを Assets/Tables/EnemySpawn.json から読む関数
-        //! @return EnemyTypeIdの並び順のテーブル（JSONに無い敵は比重0＝抽選に出ない）
+        //! @param  data [out] EnemyTypeIdの並び順のテーブル（JSONに無い敵は比重0＝抽選に出ない）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        EnemySpawnTableData LoadEnemySpawnTable() {
-            EnemySpawnTableData data = MakeEnemySpawnTableSkeleton();
-            (void)LoadTableJson(kEnemySpawnFile, kEnemySpawnRoot, data);
-            return data;
+        bool LoadEnemySpawnTable(EnemySpawnTableData& data) {
+            data = MakeEnemySpawnTableSkeleton();
+            return LoadTableJson(kEnemySpawnFile, kEnemySpawnRoot, data);
         }
 
         //-------------------------------------------------------------
-        //! @brief  抽選テーブルを得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  抽選テーブルを得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const EnemySpawnTableData& GetEnemySpawnTableData() {
-            static const EnemySpawnTableData s_data = LoadEnemySpawnTable();
-            return s_data;
+            static Tsukino::IO::HotReloadable<EnemySpawnTableData> s_table(TablePath(kEnemySpawnFile), LoadEnemySpawnTable);
+            return s_table.Get();
         }
     }    // namespace
 

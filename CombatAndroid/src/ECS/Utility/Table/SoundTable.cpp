@@ -67,23 +67,22 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  効果音の表を Assets/Tables/Sounds.json から読む関数
-        //! @return SoundIdの並び順の表（JSONに無い音はパスが空＝鳴らない）
+        //! @param  data [out] SoundIdの並び順の表（JSONに無い音はパスが空＝鳴らない）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        SoundTableData LoadSoundTable() {
-            SoundTableData data;
+        bool LoadSoundTable(SoundTableData& data) {
             for(size_t i = 0; i < data.entries.size(); ++i)
                 data.entries[i].id = static_cast<SoundId>(i);
 
-            (void)LoadTableJson(kSoundTableFile, kSoundTableRoot, data);
-            return data;
+            return LoadTableJson(kSoundTableFile, kSoundTableRoot, data);
         }
 
         //-------------------------------------------------------------
-        //! @brief  効果音の表を得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  効果音の表を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const SoundTableData& GetSoundTableData() {
-            static const SoundTableData s_data = LoadSoundTable();
-            return s_data;
+            static Tsukino::IO::HotReloadable<SoundTableData> s_table(TablePath(kSoundTableFile), LoadSoundTable);
+            return s_table.Get();
         }
     }    // namespace
 

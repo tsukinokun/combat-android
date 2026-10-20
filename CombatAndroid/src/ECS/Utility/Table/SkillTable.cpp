@@ -100,23 +100,22 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  スキルテーブルを Assets/Tables/Skills.json から読む関数
-        //! @return SkillIdの並び順のテーブル
+        //! @param  data [out] SkillIdの並び順のテーブル
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        SkillTableData LoadSkillTable() {
-            SkillTableData data;
+        bool LoadSkillTable(SkillTableData& data) {
             for(size_t i = 0; i < data.entries.size(); ++i)
                 data.entries[i].id = static_cast<SkillId>(i);
 
-            (void)LoadTableJson(kSkillTableFile, kSkillTableRoot, data);
-            return data;
+            return LoadTableJson(kSkillTableFile, kSkillTableRoot, data);
         }
 
         //-------------------------------------------------------------
-        //! @brief  スキルテーブルを得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  スキルテーブルを得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const SkillTableData& GetSkillTableData() {
-            static const SkillTableData s_data = LoadSkillTable();
-            return s_data;
+            static Tsukino::IO::HotReloadable<SkillTableData> s_table(TablePath(kSkillTableFile), LoadSkillTable);
+            return s_table.Get();
         }
     }    // namespace
 

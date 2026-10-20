@@ -43,11 +43,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const ScreenFadeParams& GetParams() {
-            static const ScreenFadeParams s_params = LoadSystemParams<ScreenFadeParams>("ScreenFade");
-            return s_params;
+            return GetSystemParams<ScreenFadeParams>("ScreenFade");
         }
     }    // namespace
 

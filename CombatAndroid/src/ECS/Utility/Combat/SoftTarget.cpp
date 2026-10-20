@@ -30,8 +30,7 @@ namespace CombatAndroid::ECS {
     //! @brief  調整値を得る
     //-------------------------------------------------------------
     const SoftTargetParams& GetSoftTargetParams() {
-        static const SoftTargetParams s_params = LoadSystemParams<SoftTargetParams>("SoftTarget");
-        return s_params;
+        return GetSystemParams<SoftTargetParams>("SoftTarget");
     }
 
     //-------------------------------------------------------------

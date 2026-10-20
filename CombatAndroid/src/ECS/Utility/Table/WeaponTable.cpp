@@ -81,23 +81,22 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  武器テーブルを Assets/Tables/WeaponLevels.json から読む関数
-        //! @return WeaponIdの並び順のテーブル（読めなかった武器は攻撃力0のまま）
+        //! @param  data [out] WeaponIdの並び順のテーブル（読めなかった武器は攻撃力0のまま）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        WeaponTableData LoadWeaponTable() {
-            WeaponTableData data;
+        bool LoadWeaponTable(WeaponTableData& data) {
             for(size_t i = 0; i < data.entries.size(); ++i)
                 data.entries[i].id = static_cast<WeaponId>(i);
 
-            (void)LoadTableJson(kWeaponTableFile, kWeaponTableRoot, data);
-            return data;
+            return LoadTableJson(kWeaponTableFile, kWeaponTableRoot, data);
         }
 
         //-------------------------------------------------------------
-        //! @brief  武器テーブルを得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  武器テーブルを得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const WeaponTableData& GetWeaponTableData() {
-            static const WeaponTableData s_data = LoadWeaponTable();
-            return s_data;
+            static Tsukino::IO::HotReloadable<WeaponTableData> s_table(TablePath(kWeaponTableFile), LoadWeaponTable);
+            return s_table.Get();
         }
     }    // namespace
 

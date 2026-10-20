@@ -95,26 +95,26 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  エリートの設定を Assets/Tables/Elite.json から読む関数
-        //! @return 読んだ設定（読めなかった項目は既定値＝強化なし）
+        //! @param  settings [out] 読んだ設定（読めなかった項目は既定値＝強化なし）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        EliteSettings LoadEliteSettings() {
-            EliteSettings settings;
+        bool LoadEliteSettings(EliteSettings& settings) {
             settings.displayNames.fill(kFallbackDisplayName);
-            (void)LoadTableJson(kEliteFile, kEliteRoot, settings);
+            const bool loaded = LoadTableJson(kEliteFile, kEliteRoot, settings);
 
             // 閾値だけ伸ばすと一撃で怯まない硬さが体力以上に跳ね上がる（EnemyDifficultyTableと同じ約束）
             if(settings.thresholdScale > settings.healthScale)
                 Tsukino::Core::Log::Error("Elite.json: thresholdScale must not exceed healthScale");
-            return settings;
+            return loaded;
         }
     }    // namespace
 
     //-------------------------------------------------------------
-    //! @brief エリートの設定を得る（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+    //! @brief エリートの設定を得る（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
     //-------------------------------------------------------------
     const EliteSettings& GetEliteSettings() {
-        static const EliteSettings s_settings = LoadEliteSettings();
-        return s_settings;
+        static Tsukino::IO::HotReloadable<EliteSettings> s_table(TablePath(kEliteFile), LoadEliteSettings);
+        return s_table.Get();
     }
 
     //-------------------------------------------------------------

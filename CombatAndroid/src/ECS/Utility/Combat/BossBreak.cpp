@@ -46,8 +46,7 @@ namespace CombatAndroid::ECS {
     //! @brief 駆け引きの調整値を得る
     //-------------------------------------------------------------
     const BossCombatParams& GetBossCombatParams() {
-        static const BossCombatParams s_params = LoadSystemParams<BossCombatParams>("BossCombat");
-        return s_params;
+        return GetSystemParams<BossCombatParams>("BossCombat");
     }
 
     //-------------------------------------------------------------

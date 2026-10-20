@@ -160,11 +160,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const GameLogParams& GetParams() {
-            static const GameLogParams s_params = LoadSystemParams<GameLogParams>("GameLog");
-            return s_params;
+            return GetSystemParams<GameLogParams>("GameLog");
         }
 
         //! ウィンドウが取れなかったときのフォールバック（他の画面固定UIと同じ割り切り）

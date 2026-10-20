@@ -113,11 +113,11 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  危険度テーブルを Assets/Tables/EnemyDifficulty.json から読む関数
-        //! @return 読んだテーブル（読めなければ「危険度1だけ・倍率1.0」のまま）
+        //! @param  data [out] 読んだテーブル（読めなければ「危険度1だけ・倍率1.0」のまま）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        EnemyDifficultyData LoadDifficultyTable() {
-            EnemyDifficultyData data;
-            (void)LoadTableJson(kDifficultyFile, kDifficultyRoot, data);
+        bool LoadDifficultyTable(EnemyDifficultyData& data) {
+            const bool loaded = LoadTableJson(kDifficultyFile, kDifficultyRoot, data);
 
             if(data.ranks.empty()) {
                 Tsukino::Core::Log::Error("EnemyDifficulty.json: ranks is empty");
@@ -126,15 +126,15 @@ namespace CombatAndroid::ECS {
 
             data.continuation.unlockTimeSeconds = data.rankIntervalSeconds;
             ValidateDifficultyTable(data);
-            return data;
+            return loaded;
         }
 
         //-------------------------------------------------------------
-        //! @brief  危険度テーブルを得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  危険度テーブルを得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const EnemyDifficultyData& GetDifficultyData() {
-            static const EnemyDifficultyData s_data = LoadDifficultyTable();
-            return s_data;
+            static Tsukino::IO::HotReloadable<EnemyDifficultyData> s_table(TablePath(kDifficultyFile), LoadDifficultyTable);
+            return s_table.Get();
         }
     }    // namespace
 

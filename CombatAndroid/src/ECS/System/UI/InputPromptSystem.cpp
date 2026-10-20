@@ -56,11 +56,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const InputPromptParams& GetParams() {
-            static const InputPromptParams s_params = LoadSystemParams<InputPromptParams>("InputPrompt");
-            return s_params;
+            return GetSystemParams<InputPromptParams>("InputPrompt");
         }
 
         //-------------------------------------------------------------

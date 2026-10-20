@@ -87,15 +87,14 @@ namespace CombatAndroid::ECS {
 
         //-------------------------------------------------------------
         //! @brief  進化の表を Assets/Tables/WeaponEvolution.json から読む関数
-        //! @return WeaponIdの並び順の表（JSONに無い武器は進化しない）
+        //! @param  data [out] WeaponIdの並び順の表（JSONに無い武器は進化しない）
+        //! @return 読めたか（false のときはホットリロードで前の値のままにする）
         //-------------------------------------------------------------
-        WeaponEvolutionData LoadWeaponEvolution() {
-            WeaponEvolutionData data;
+        bool LoadWeaponEvolution(WeaponEvolutionData& data) {
             for(size_t i = 0; i < data.entries.size(); ++i)
                 data.entries[i].weaponId = static_cast<WeaponId>(i);
 
-            (void)LoadTableJson(kEvolutionFile, kEvolutionRoot, data);
-            return data;
+            return LoadTableJson(kEvolutionFile, kEvolutionRoot, data);
         }
 
         //! 進化した瞬間に武器へ焼く発光の長さ（秒）。PickupSystemはレベルアップ発光の長さ（0.45秒）で
@@ -103,11 +102,11 @@ namespace CombatAndroid::ECS {
         constexpr float kEvolveFlashDuration = 1.2f;
 
         //-------------------------------------------------------------
-        //! @brief  進化の表を得る関数（初回の呼び出しで1度だけ読む。関数内staticの初期化はスレッド安全）
+        //! @brief  進化の表を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const WeaponEvolutionData& GetWeaponEvolutionData() {
-            static const WeaponEvolutionData s_data = LoadWeaponEvolution();
-            return s_data;
+            static Tsukino::IO::HotReloadable<WeaponEvolutionData> s_table(TablePath(kEvolutionFile), LoadWeaponEvolution);
+            return s_table.Get();
         }
     }    // namespace
 

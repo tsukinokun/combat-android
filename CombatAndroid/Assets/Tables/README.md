@@ -1,7 +1,8 @@
 # Tables
 
-ゲームの調整値テーブル。起動後、そのテーブルが初めて参照されたときに1度だけ読む（`ECS/Utility/Table/TableJson.hpp` の `LoadTableJson`）。
-**数値を変えるだけなら再ビルドは要らない**（ゲームを起動し直せば反映される）。
+ゲームの調整値テーブル。起動後、そのテーブルが初めて参照されたときに読む（`ECS/Utility/Table/TableJson.hpp` の `LoadTableJson`）。
+**数値を変えるだけなら再ビルドは要らない**。Debug ビルドなら起動したまま保存し直すだけで反映される（下の「ホットリロード」）。
+Release は起動し直せば反映される。
 
 - 書式は「ルートキー → 種類名 → 値」。種類名は C++ の enum と同じ綴り（`Warhammer` `Greed` `SmallZombie` など）。
   名前の並びは各 `*Table.cpp` の名前配列（`kWeaponKeys` など）が持つ
@@ -80,11 +81,59 @@ JSON の書式の補足：
 
 1. 無名 namespace の `constexpr` を、既定値つきの構造体 `<名前>Params` のメンバへ移す（**既定値は元の値のまま**。コメントも移す）
 2. `load()` を書き、全メンバを `LoadField` で読む。キー名は `k` を外した lowerCamel（`kFallSafetyDuration` → `fallSafetyDuration`）
-3. `GetParams()` で `LoadSystemParams<T>("<名前>")`（`TableJson.hpp`）を関数内 static に1度だけ読み、使う側は `params.xxx`。
+3. `GetParams()` で `return GetSystemParams<T>("<名前>");`（`TableJson.hpp`）を返し、使う側は毎回 `GetParams()` から `params.xxx` を読む
+   （メンバ変数やラムダへ値を写すと、ホットリロードしても変わらない）。
    `Initialize` があればそこで1度呼んでおく（初回フレームでファイルを読まないため）
 4. `Systems/<名前>.json` をルートキー `<名前>` で書く。色などのベクトルは `{ "x":…, "y":…, "z":… }`（Prefab と同じ書式）
 
 キーが欠けていてもコードの既定値で動く。ファイルが無い・壊れているときは `Table not found` / `Table is broken` がログに出る。
+
+## ホットリロード（Debug のみ）
+
+Debug ビルドで起動している間、テーブルの JSON を保存し直すと 0.5〜1 秒で読み直す。再起動は要らない。
+仕組みはエンジン側にある（どのゲームでも使える）。変更の検知は `Tsukino::IO::FileWatcher`（更新時刻のポーリング）、
+読み直しと差分のログは `Tsukino::IO::HotReload`、値のキャッシュは `Tsukino::IO::HotReloadable<T>`。
+`EngineAPI::Update` がシーンの更新の前にだけ読み直すので、システムの途中で値が変わることはない。
+起動直後のロード画面の間は止めてある（`LoadingScene.cpp`）。
+有効にするかは `DebugFeatures.hpp` の `TSUKINO_ENABLE_HOT_RELOAD`（Debug の既定。`TSUKINO_DISABLE_HOT_RELOAD` で落とせる）。
+このゲーム側に残っているのは、表の置き場所（`TablePath`）と `GetSystemParams<T>`（`TableJson.hpp`）、ボスの技の並びの検査だけ。
+
+`Logs/Tsukino.log` にはこう出る。
+
+```
+[Info] Hot reloaded: CombatAndroid/Assets/Tables/Bosses/Vampire.json
+[Info] Hot reload changed: CombatAndroid/Assets/Tables/Bosses/Vampire.json  break.downSeconds: 4 -> 6.5
+```
+
+- `Hot reload changed:` は前に読めた中身との差分で、1回に最大20行まで出す。中身が同じなら `(no value changed)` と出る
+- **JSON が壊れていたら前の値のまま動き続ける**（`Table is broken` と `Hot reload failed, keeping previous values`）。
+  直して保存すれば読み直す
+- まだ一度も参照されていない表（例：出てくる前のボスの `Bosses/<名前>.json`）は監視していないが、初めて参照されたときに最新の中身を読むので困らない
+
+**AI が実行中に値を調整するとき**は、`bin\Debug\CombatAndroid.exe --autostart` を起動したまま JSON を書き換え、
+`Logs/Tsukino.log` の `Hot reload changed:` の行で、意図した値が入ったかを確かめる。
+画面は見えないので、挙動まで確かめたいときは、その値を読んでいる箇所に一時的なログを足す（確かめたら消す）。
+ボスを早く出したいときは `Systems/BossDirector.json` の `midBossSeconds` を小さくし、`midBoss` の `prefab` / `behavior` を出したいボスにすればよい
+（これもホットリロードで効く）。終わったら JSON を元に戻すこと。
+
+### その場で反映されるもの・されないもの
+
+「次から」と書いたものは、読み直した後に作られた・計算し直された分から効く（今いる敵や持っている武器は前の値のまま）。
+
+| ファイル | 反映 |
+|---|---|
+| `Systems/*.json` | その場で反映される。例外は `EnemyAnimation` と `PlayerAnimation`。システムを作ったときにクリップの切り替えへ値を写すので、**次の走行から**（シーンを作り直したとき） |
+| `Bosses/<名前>.json` | 技の数値（長さ・判定・予兆・クールタイム・距離・突進・弾）、激昂、`break`（体勢ゲージ・ダウン秒数）、`turnSpeed` などはその場で反映される。**技の数・並び・名前・`clip` を変えたときは読み直しを拒否する**（`Restart required` が出る。湧いたボスは技の番号でクリップとクールタイムを持っているため）。この変更は再起動で反映する |
+| `EnemySpawn.json` | その場で反映される（次の抽選から） |
+| `EnemyDifficulty.json` | 危険度の段の時刻はその場で反映される。HP などの倍率は湧いたときに敵へ掛けるので、**次に湧く敵から** |
+| `Elite.json` | 出現率・同時数はその場で反映される。強化倍率は**次に湧くエリートから** |
+| `WeaponLevels.json` / `WeaponEvolution.json` | 武器のダメージは拾ったときやレベルが上がったとき（`RecalculateWeaponStats`）に計算するので、**次に拾う・上がる・進化する武器から**。表示名などはその場で反映される |
+| `Skills.json` | カードの説明文・絵はその場で反映される。効果量はスキルを取ったとき（`RecalculateSkillStats`）に計算するので、**次にスキルを取ったときから** |
+| `Sounds.json` | 音量・最短間隔はその場で反映される。`path` は初めて鳴らしたときに読んだものを使い続けるので、**再起動が要る** |
+| `UiTextSize.json` | 文字を作り直したときから（すでに出ている文字はそのまま） |
+| Prefab（`Assets/Prefabs/`）・`PaladinWeaponAttacks.json` | 対象外。生成時にしか読まないので**再起動が要る** |
+
+新しく表を足すときは、関数内 `static const` で値を覚えず、`Tsukino::IO::HotReloadable<T>`（パスは `TablePath`）か `GetSystemParams<T>` を使えば同じように読み直せる。
 
 ## 数値を触るときの約束
 

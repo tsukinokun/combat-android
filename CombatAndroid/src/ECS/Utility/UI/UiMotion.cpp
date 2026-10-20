@@ -97,8 +97,7 @@ namespace CombatAndroid::ECS {
     //! @brief  UIの動きの既定値を得る関数
     //-------------------------------------------------------------
     const UiMotionParams& GetUiMotionParams() {
-        static const UiMotionParams s_params = LoadSystemParams<UiMotionParams>("UiMotion");
-        return s_params;
+        return GetSystemParams<UiMotionParams>("UiMotion");
     }
 
     //-------------------------------------------------------------

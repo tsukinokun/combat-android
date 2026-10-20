@@ -38,11 +38,10 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  チューニング値を得る関数（初回の呼び出しで1度だけ読む）
+        //! @brief  チューニング値を得る関数（初回の呼び出しで読む。Debugでは保存し直すと読み直す）
         //-------------------------------------------------------------
         const PlayerDamageEffectParams& GetParams() {
-            static const PlayerDamageEffectParams s_params = LoadSystemParams<PlayerDamageEffectParams>("PlayerDamageEffect");
-            return s_params;
+            return GetSystemParams<PlayerDamageEffectParams>("PlayerDamageEffect");
         }
 
         //! @brief 画面フラッシュに使うテクスチャ（WhitePixel.png）の実ピクセルサイズ。

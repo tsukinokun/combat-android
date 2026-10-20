@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
+#include <Tsukino/Core/IO/HotReload.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 
 #include <Tsukino/EngineIntegration/ECS/System/CameraSystem.hpp>
@@ -125,6 +126,8 @@ namespace CombatAndroid {
         // この画面を描きながら（Getしながら）裏でLoadしてよい。
         // テクスチャの変換はWIC（COM）を使うため、このスレッドでもCOMを初期化する
         //--------------------------------------------------------------
+        // 裏スレッドが読んでいるテーブルを、メインスレッドのホットリロードで書き換えないよう止めておく
+        Tsukino::IO::HotReload::SetPaused(true);
         m_steps = CombatAndroid::ECS::BuildPreloadSteps(*context);
         m_worker = std::thread([this] {
             const HRESULT comResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -183,6 +186,7 @@ namespace CombatAndroid {
         m_cancel.store(true);
         if(m_worker.joinable())
             m_worker.join();
+        Tsukino::IO::HotReload::SetPaused(false);
     }
 
     //-------------------------------------------------------------
