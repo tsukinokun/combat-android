@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/EnemyBody.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -178,9 +179,11 @@ namespace CombatAndroid::ECS {
         // 敵の体の足元と頭頂を画面へ写して、枠の高さと中心を決める。
         // カプセルは extent.x=半径・extent.y=半分の高さ（CollisionComponent）。カプセルが無い敵は人の背丈で代用する
         //-------------------------------------------------------------
+        // 横の位置はカプセルの中心（ダウン中のボスは胴体が根元から離れ、カプセルがそちらへ付いていく）
         const auto&    targetTransform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(target);
-        hlslpp::float3 bottom          = targetTransform.position;
-        hlslpp::float3 top             = targetTransform.position + hlslpp::float3(0.0f, 180.0f, 0.0f);
+        hlslpp::float3 bottom          = GetEnemyBodyCenter(registry, target);
+        bottom.y                       = targetTransform.position.y;
+        hlslpp::float3 top             = bottom + hlslpp::float3(0.0f, 180.0f, 0.0f);
         if(const auto* collision = registry.try_get<Tsukino::BuiltIn::ECS::CollisionComponent>(target);
            collision && collision->type == Tsukino::BuiltIn::ECS::ColliderType::Capsule) {
             const float centerY = targetTransform.position.y + collision->offsetPosition.y;

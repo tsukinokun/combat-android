@@ -17,6 +17,10 @@
             "value": "null"
         },
         {
+            "key": "BoneFollowColliderComponent",
+            "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/BoneFollowColliderComponent.json"
+        },
+        {
             "key": "CollisionComponent",
             "value": "CombatAndroid/Assets/Prefabs/Enemy/Spider/CollisionComponent.json"
         },

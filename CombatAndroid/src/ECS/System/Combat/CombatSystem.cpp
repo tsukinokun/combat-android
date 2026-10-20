@@ -31,6 +31,7 @@
 #include <Tsukino/BuiltIn/ECS/Component/EffectComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
+#include <Tsukino/EngineIntegration/ECS/BoneLookup.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/EffectSystem.hpp>
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
@@ -121,41 +122,6 @@ namespace CombatAndroid::ECS {
             float              lifeStealRatio;    //!< スキル「嫉妬」の吸収割合
             bool               piercing;          //!< 貫通するか（falseなら1体で消滅する）
         };
-
-        //-------------------------------------------------------------
-        //! @brief  エンティティのModelComponentが指すモデルに対し、名前でボーンのnodeIndexを解決する。
-        //!         WeaponComponentの手ボーン追従・EnemyAttackHitboxComponentの両方が使う共通ロジック。
-        //!         resolvedAgainstModelが対象モデルと一致していれば何もしない（毎フレームの名前検索を避ける）
-        //! @param  ctx                  [in]     アセットマネージャを引くためのエンジンコンテキスト
-        //! @param  registry             [in]     ECSレジストリ
-        //! @param  modelEntity          [in]     ModelComponentを持つエンティティ（ボーンの持ち主）
-        //! @param  boneName             [in]     解決したいボーン名
-        //! @param  resolvedAgainstModel [in,out] 最後に解決した時点のモデルハンドル（キャッシュキー）
-        //! @param  outNodeIndex         [in,out] 解決結果のnodeIndex（見つからなければUINT32_MAXのまま）
-        //-------------------------------------------------------------
-        void ResolveBoneNodeIndex(Tsukino::EngineIntegration::EngineContext* ctx, Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity modelEntity,
-                                  const std::string& boneName, Tsukino::Asset::AssetHandle& resolvedAgainstModel, Tsukino::u32& outNodeIndex) {
-            if(!ctx || !ctx->assetManager || !registry.HasComponent<Tsukino::BuiltIn::ECS::ModelComponent>(modelEntity))
-                return;
-
-            auto& model = registry.GetComponent<Tsukino::BuiltIn::ECS::ModelComponent>(modelEntity);
-            if(resolvedAgainstModel == model.modelHandle)
-                return;    // 既に同じモデルに対して解決済み
-
-            auto asset = ctx->assetManager->Get(model.modelHandle);
-            if(!asset || asset->GetType() != Tsukino::Asset::AssetType::Model)
-                return;
-
-            auto modelAsset = std::static_pointer_cast<Tsukino::Asset::ModelAsset>(asset);
-            outNodeIndex     = UINT32_MAX;
-            for(Tsukino::u32 i = 0; i < modelAsset->modelData.nodes.size(); ++i) {
-                if(modelAsset->modelData.nodes[i].name == boneName) {
-                    outNodeIndex = i;
-                    break;
-                }
-            }
-            resolvedAgainstModel = model.modelHandle;    // アセットが読めた時点で確定（見つからなければUINT32_MAXのまま）
-        }
 
         //-------------------------------------------------------------
         //! @brief  点と線分の間の最短距離の2乗を求める
@@ -328,7 +294,7 @@ namespace CombatAndroid::ECS {
                 // （再生中のクリップのnode配列ではない。クリップ側は名前でチャンネルを引くためだけに
                 // 使われ、ノードindex空間はモデル側で固定される）。そのため解決もModelComponent側の
                 // ノード一覧に対して行い、再生中のクリップが切り替わっても再解決は不要になる
-                ResolveBoneNodeIndex(ctx, registry, weapon.owner, weapon.handBoneName, weapon.resolvedAgainstModel, weapon.handBoneNodeIndex);
+                Tsukino::BuiltIn::ECS::ResolveBoneNodeIndex(ctx, registry, weapon.owner, weapon.handBoneName, weapon.resolvedAgainstModel, weapon.handBoneNodeIndex);
 
                 // isAttackingがfalse/trueへ瞬時に切り替わっても追従先の「目標」自体が不連続にジャンプ
                 // しないよう、0(非攻撃)↔1(攻撃)の連続値attackBlendを指数減衰で追従させ、
@@ -1015,7 +981,7 @@ namespace CombatAndroid::ECS {
             if(!ctx)
                 return;
 
-            ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.boneName, hitbox.resolvedAgainstModel, hitbox.boneNodeIndex);
+            Tsukino::BuiltIn::ECS::ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.boneName, hitbox.resolvedAgainstModel, hitbox.boneNodeIndex);
             if(hitbox.boneNodeIndex == UINT32_MAX
                || !registry.HasComponent<Tsukino::BuiltIn::ECS::NodeWorldMatrixComponent>(enemyEntity))
                 return;
@@ -1042,7 +1008,7 @@ namespace CombatAndroid::ECS {
             bool           isCapsuleMode = !hitbox.endBoneName.empty();
             hlslpp::float3 hitEnd        = hitStart;
             if(isCapsuleMode) {
-                ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.endBoneName, hitbox.resolvedAgainstModelEnd, hitbox.endBoneNodeIndex);
+                Tsukino::BuiltIn::ECS::ResolveBoneNodeIndex(ctx, registry, enemyEntity, hitbox.endBoneName, hitbox.resolvedAgainstModelEnd, hitbox.endBoneNodeIndex);
                 if(hitbox.endBoneNodeIndex == UINT32_MAX || hitbox.endBoneNodeIndex >= enemyMatrices.matrices.size())
                     return;
 

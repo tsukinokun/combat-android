@@ -85,6 +85,7 @@
 #include <Tsukino/EngineIntegration/ECS/System/PhysicsSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/ModelSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/AnimationSystem.hpp>
+#include <Tsukino/EngineIntegration/ECS/System/BoneFollowColliderSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/LightSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/SkyAtmosphereSystem.hpp>
 #include <Tsukino/EngineIntegration/ECS/System/FogSystem.hpp>
@@ -178,6 +179,7 @@ namespace CombatAndroid {
         // その回のフレームのレベルアップを確定させた後に読めればよいので、同じ並びでよい
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::WeaponLevelDebugSystem>(), (int)ECS::SystemPriority::WeaponGripDebug);
 #endif
+        m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::BoneFollowColliderSystem>(), (int)ECS::SystemPriority::BoneFollowCollider);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::CombatSystem>(), (int)ECS::SystemPriority::WeaponAttach);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ProjectileSystem>(), (int)ECS::SystemPriority::Projectile);
         // ボスの弾（蜘蛛の糸弾）。プレイヤーにだけ当たり、ダメージと鈍足を与える

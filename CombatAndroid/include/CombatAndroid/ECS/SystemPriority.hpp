@@ -65,6 +65,9 @@ namespace CombatAndroid::ECS {
         WeaponGripDebug,  // （デバッグビルドのみ）握り位置調整はisAttackingを上書きするため、
                           // PlayerAnimationSystem（Gameplay）が今フレームのisAttackingを確定させた後、
                           // CombatSystem（WeaponAttach）がそれを読む前に割り込む
+        BoneFollowCollider, // 当たり判定のカプセルをボーンへ寄せる（エンジンのBoneFollowColliderSystem。蜘蛛のダウンで胴体が根元から離れるため）。
+                          // AnimationSystem（Gameplay）が今フレームのボーン行列を書いた後に読み、カプセルの位置を使う
+                          // CombatSystem（WeaponAttach）とPhysicsの同期より前に置く。逆だと判定が1フレーム遅れて付いてくる
         WeaponAttach,     // 武器の追従（ボーンアタッチ）はAnimationSystemが今フレームのボーン姿勢を書き込んだ後に行う
         Projectile,       // 斬撃弾の移動と当たり判定。弾を生成するCombatSystem（WeaponAttach）の後、
                           // ヒットの結果を読むHealthBar/DamageNumberの前に置く。この並びでないと

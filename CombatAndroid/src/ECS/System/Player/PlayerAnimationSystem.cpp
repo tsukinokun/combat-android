@@ -25,6 +25,7 @@
 #include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/SoftTarget.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/EnemyBody.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/AnimationControllerComponent.hpp>
@@ -162,7 +163,8 @@ namespace CombatAndroid::ECS {
             for(entt::entity enemyEntity : view) {
                 if(view.get<HealthComponent>(enemyEntity).isDead)
                     continue;
-                hlslpp::float3 toEnemy = view.get<Tsukino::BuiltIn::ECS::TransformComponent>(enemyEntity).position - center;
+                // ボスはダウン中に胴体が根元から離れるので、根元ではなく体の中心（当たり判定のカプセル）で測る
+                hlslpp::float3 toEnemy = GetEnemyBodyCenter(registry, enemyEntity) - center;
                 toEnemy.y              = 0.0f;
                 const float reach      = params.kickRadius + view.get<EnemyComponent>(enemyEntity).bodyRadius;
                 const bool  isTarget   = enemyEntity == player.kickTarget;
@@ -719,7 +721,7 @@ namespace CombatAndroid::ECS {
                 cc.moveInput = hlslpp::float3(0.0f, 0.0f, 0.0f);
                 if(player.kickTarget != entt::null && registry.IsValid(player.kickTarget)
                    && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(player.kickTarget)) {
-                    hlslpp::float3 toTarget = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(player.kickTarget).position - transform.position;
+                    hlslpp::float3 toTarget = GetEnemyBodyCenter(registry, player.kickTarget) - transform.position;
                     toTarget.y              = 0.0f;
                     const float distance    = hlslpp::length(toTarget);
                     if(distance > 1.0f) {

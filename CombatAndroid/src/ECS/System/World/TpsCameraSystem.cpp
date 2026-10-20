@@ -13,6 +13,7 @@
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/Save/GameSettings.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/EnemyBody.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
@@ -271,7 +272,7 @@ namespace CombatAndroid::ECS {
                 if(m_pendingKickTarget != entt::null && registry.IsValid(m_pendingKickTarget)
                    && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingKickTarget)) {
                     hlslpp::float3 toTarget =
-                        registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingKickTarget).position - targetTransform.position;
+                        GetEnemyBodyCenter(registry, m_pendingKickTarget) - targetTransform.position;
                     toTarget.y = 0.0f;
                     if(static_cast<float>(hlslpp::length(toTarget)) > 1.0f) {
                         // 真後ろから見るyaw（カメラはプレイヤーから相手と反対側に置く）から、今のカメラに近い側の横へ回り込む

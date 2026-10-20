@@ -1,0 +1,7 @@
+{
+    "BoneFollowColliderComponent": {
+        "boneName": "Bone",
+        "followHeight": false,
+        "followSpeed": 12.0
+    }
+}
