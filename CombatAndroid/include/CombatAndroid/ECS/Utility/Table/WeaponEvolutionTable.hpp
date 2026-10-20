@@ -27,7 +27,7 @@ namespace CombatAndroid::ECS {
     struct WeaponEvolutionEntry {
         WeaponId     weaponId           = WeaponId::Warhammer;    //!< 進化する武器
         SkillId      requiredSkill      = SkillId::Greed;         //!< 条件になる大罪スキル
-        int          requiredSkillLevel = kMaxSkillLevel + 1;     //!< そのスキルに要るレベル（武器側は常にkMaxWeaponLevel）。既定値は「進化しない」
+        int          requiredSkillLevel = kMaxSkillLevel + 1;     //!< そのスキルに要るレベル（武器側は常にkWeaponEvolveLevel）。既定値は「進化しない」
         std::wstring displayName;                                 //!< 進化後の名前（取得ログ・スキルカードの案内に出す）
 
         float damageScale                    = 1.0f;    //!< 基礎ダメージの倍率（RecalculateWeaponStatsが掛ける）

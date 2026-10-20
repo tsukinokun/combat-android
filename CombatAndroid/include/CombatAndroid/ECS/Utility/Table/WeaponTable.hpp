@@ -32,7 +32,10 @@ namespace CombatAndroid::ECS {
     };
 
     //! @brief 1つの武器がレベルアップできる回数の上限（＝テーブルに定義する段階数）
-    inline constexpr int kMaxWeaponLevel = 5;
+    inline constexpr int kMaxWeaponLevel = 10;
+
+    //! @brief 武器が進化できるようになるレベル。最大レベルより手前にして、進化した後もまだ伸ばせるようにする
+    inline constexpr int kWeaponEvolveLevel = 5;
 
     //-------------------------------------------------------------
     //! @struct WeaponLevelEntry

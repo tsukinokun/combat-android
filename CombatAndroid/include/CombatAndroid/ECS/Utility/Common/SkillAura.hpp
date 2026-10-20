@@ -21,7 +21,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     struct DominantSkill {
         SkillId id     = SkillId::Count;    //!< 主の罪
-        int     level  = 0;                 //!< その取得段階（1〜kMaxSkillLevel）
+        int     level  = 0;                 //!< その取得段階（1〜そのスキルの最大レベル）
         float   levelT = 0.0f;              //!< レベルを0〜1へ直した値（0=Lv1、1=最大レベル）。強さの補間に使う
     };
 

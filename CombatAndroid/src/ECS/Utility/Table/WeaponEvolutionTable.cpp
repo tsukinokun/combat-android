@@ -159,7 +159,7 @@ namespace CombatAndroid::ECS {
 
         for(Tsukino::ECS::Entity weaponEntity : player->weaponInventory) {
             auto* weapon = registry.try_get<WeaponComponent>(weaponEntity);
-            if(!weapon || weapon->evolved || weapon->level < kMaxWeaponLevel)
+            if(!weapon || weapon->evolved || weapon->level < kWeaponEvolveLevel)
                 continue;
 
             const WeaponEvolutionEntry& entry = GetWeaponEvolution(weapon->weaponId);

@@ -82,7 +82,7 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 色欲（移動速度）と怠惰（自動回復）のスキル値を引く。
+            // 怠惰（自動回復）のスキル値を引く。
             // スキルを持たないプレイヤーでも動くよう、既定は等倍・回復なしにしておく
             //-------------------------------------------------------------
             float skillMoveSpeedMultiplier = 1.0f;
@@ -94,8 +94,6 @@ namespace CombatAndroid::ECS {
             }
 
             if(auto* skills = registry.try_get<PlayerSkillComponent>(entity)) {
-                skillMoveSpeedMultiplier *= skills->moveSpeedMultiplier;
-
                 //-------------------------------------------------------------
                 // 怠惰：何もしていなくても毎秒回復する。
                 // スキル選択メニュー中はこのSystem自体が冒頭で早期リターンしているため、
@@ -157,7 +155,7 @@ namespace CombatAndroid::ECS {
 
                 // Shift押下中はスプリント（PlayerAnimationSystemがFastRun状態の判定に使う）
                 player.isSprinting  = inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Shift);
-                // 色欲（スキル）の倍率は通常移動・スプリントのどちらにも等しく乗せる
+                // 鈍足の倍率は通常移動・スプリントのどちらにも等しく乗せる
                 float currentSpeed = (player.isSprinting ? player.moveSpeed * player.sprintSpeedMultiplier : player.moveSpeed)
                                      * skillMoveSpeedMultiplier;
 

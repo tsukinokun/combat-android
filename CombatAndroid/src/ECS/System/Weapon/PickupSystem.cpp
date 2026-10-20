@@ -246,7 +246,7 @@ namespace CombatAndroid::ECS {
                     }
                     targetWeapon.levelUpFlashTimer = params.levelUpFlashDuration;
 
-                    // 最大レベルに届いた武器が進化条件を満たしていれば進化させる
+                    // 進化できるレベル（kWeaponEvolveLevel）に届いた武器が進化条件を満たしていれば進化させる
                     // （進化した武器はここで発光を長いものに焼き直す）
                     TryEvolvePlayerWeapons(registry, playerEntity);
                 }

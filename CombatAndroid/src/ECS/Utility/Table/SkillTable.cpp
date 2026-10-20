@@ -20,7 +20,7 @@
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     // SkillLevelEntry / SkillTableEntry のcerealシリアライズ定義。
-    // 段は "levels": [Lv1, Lv2, ...] の配列で持つ（段の数はkMaxSkillLevelと一致させる）
+    // 段は "levels": [Lv1, Lv2, ...] の配列で持つ。段の数がそのスキルの最大レベルになる（1〜kMaxSkillLevel）
     //-------------------------------------------------------------
     template <class Archive>
     void save(Archive& archive, const SkillLevelEntry& level) {
@@ -55,10 +55,11 @@ namespace CombatAndroid::ECS {
 
         std::vector<SkillLevelEntry> levels;
         LoadField(archive, "levels", levels);
-        if(levels.size() != entry.levels.size())
-            Tsukino::Core::Log::Error("Skills.json: levels of " + WideToUtf8(entry.displayName) + " must have "
+        if(levels.empty() || levels.size() > entry.levels.size())
+            Tsukino::Core::Log::Error("Skills.json: levels of " + WideToUtf8(entry.displayName) + " must have 1 to "
                                       + std::to_string(kMaxSkillLevel) + " levels");
 
+        entry.maxLevel = std::clamp(static_cast<int>(levels.size()), 1, kMaxSkillLevel);
         for(size_t i = 0; i < std::min(levels.size(), entry.levels.size()); ++i)
             entry.levels[i] = levels[i];
     }
@@ -157,6 +158,13 @@ namespace CombatAndroid::ECS {
     }
 
     //-------------------------------------------------------------
+    //! @brief スキルの最大レベルを引く
+    //-------------------------------------------------------------
+    int GetSkillMaxLevel(SkillId id) {
+        return GetSkillEntry(id).maxLevel;
+    }
+
+    //-------------------------------------------------------------
     //! @brief まだカンストしていないスキルから選択肢を重複なく抽選する
     //-------------------------------------------------------------
     int PickSkillCandidates(std::mt19937&                                              rng,
@@ -169,7 +177,7 @@ namespace CombatAndroid::ECS {
         int                                                       availableCount = 0;
 
         for(const SkillTableEntry& entry : GetSkillTableData().entries) {
-            if(currentLevels[static_cast<size_t>(entry.id)] >= kMaxSkillLevel)
+            if(currentLevels[static_cast<size_t>(entry.id)] >= entry.maxLevel)
                 continue;    // カンスト済みは候補から外す
             available[static_cast<size_t>(availableCount)] = entry.id;
             ++availableCount;
@@ -201,7 +209,7 @@ namespace CombatAndroid::ECS {
         skills.attackMultiplier      = 1.0f;
         skills.damageTakenMultiplier = 1.0f;
         skills.lifeStealRatio        = 0.0f;
-        skills.moveSpeedMultiplier   = 1.0f;
+        skills.maxHealthBonus        = 0.0f;
         skills.healPerSecond         = 0.0f;
 
         for(const SkillTableEntry& entry : GetSkillTableData().entries) {
@@ -211,7 +219,7 @@ namespace CombatAndroid::ECS {
 
             // 段階は累積ではなく「その段階の値がそのまま今の効果」という定義なので、
             // levels[level-1]だけを見ればよい（Lv3を取ったらLv1とLv2の分は足さない）
-            const SkillLevelEntry& levelEntry = entry.levels[static_cast<size_t>(std::min(level, kMaxSkillLevel) - 1)];
+            const SkillLevelEntry& levelEntry = entry.levels[static_cast<size_t>(std::min(level, entry.maxLevel) - 1)];
             const float            value      = levelEntry.value;
 
             switch(entry.id) {
@@ -233,7 +241,7 @@ namespace CombatAndroid::ECS {
                 skills.lifeStealRatio = value;
                 break;
             case SkillId::Lust:
-                skills.moveSpeedMultiplier = 1.0f + value;
+                skills.maxHealthBonus = value;
                 break;
             case SkillId::Sloth:
                 skills.healPerSecond = value;

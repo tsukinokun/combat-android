@@ -31,13 +31,14 @@ namespace CombatAndroid::ECS {
         Wrath,        //!< 憤怒：攻撃力が上がる
         Pride,        //!< 傲慢：被ダメージを軽減する
         Envy,         //!< 嫉妬：与えたダメージの一部をHPへ変換する
-        Lust,         //!< 色欲：移動速度が上がる
+        Lust,         //!< 色欲：最大HPが上がる
         Sloth,        //!< 怠惰：常時HPが回復するが、その代わり攻撃力が下がる
         Count,
     };
 
-    //! @brief 1つのスキルを取得できる回数の上限（＝テーブルに定義する段階数）
-    inline constexpr int kMaxSkillLevel = 5;
+    //! @brief 1つのスキルが持てる段階数の上限（表の段の入れ物の大きさ）。
+    //!        スキルごとの実際の上限は表に書いた段の数で、GetSkillMaxLevelで引く
+    inline constexpr int kMaxSkillLevel = 10;
 
     //! @brief レベルアップ時に一度に提示する選択肢の最大数
     inline constexpr int kSkillChoiceMax = 3;
@@ -46,7 +47,8 @@ namespace CombatAndroid::ECS {
     //! @struct SkillLevelEntry
     //! @brief  スキル1段階ぶんの効果
     //! @note   valueの意味はSkillIdごとに異なる：
-    //!         Greed/Wrath/Pride/Lustは「加減する割合」（0.20で±20%）、
+    //!         Greed/Wrath/Prideは「加減する割合」（0.20で±20%）、
+    //!         Lustは「最大HPへ足す量」、
     //!         Gluttonyは「ソウル1個あたりに回復するHP」、
     //!         Envyは「与ダメージのうちHPへ変換する割合」、
     //!         Slothは「1秒あたりに回復するHP」。
@@ -72,8 +74,11 @@ namespace CombatAndroid::ECS {
         std::string    iconTexturePath;              //!< HUDの取得済み一覧に出すアイコン（正方形）
         hlslpp::float4 panelColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);    //!< 上の2枚に乗算する色。絵はグレースケールなので、この色がスキルの色になる
 
-        //! そのスキルの段階ごとの効果。levels[0]が1回目の取得（Lv1）に対応する
+        //! そのスキルの段階ごとの効果。levels[0]が1回目の取得（Lv1）に対応する（使うのは先頭のmaxLevel段だけ）
         std::array<SkillLevelEntry, kMaxSkillLevel> levels{};
+
+        //! このスキルの最大レベル（＝表に書いた段の数）。攻撃系は高く、回復系は低く抑える
+        int maxLevel = kMaxSkillLevel;
     };
 
     //-------------------------------------------------------------
@@ -107,6 +112,14 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     [[nodiscard]]
     const SkillTableEntry& GetSkillEntry(SkillId id);
+
+    //-------------------------------------------------------------
+    //! @brief  スキルの最大レベルを引く関数（表に書いた段の数）
+    //! @param  id [in] スキルの種類
+    //! @return 最大レベル（1以上）
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    int GetSkillMaxLevel(SkillId id);
 
     //-------------------------------------------------------------
     //! @brief  まだカンストしていないスキルから選択肢を重複なく抽選する関数

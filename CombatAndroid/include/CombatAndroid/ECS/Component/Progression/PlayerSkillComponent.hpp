@@ -17,7 +17,7 @@ namespace CombatAndroid::ECS {
     //!         セーブ／ロードは持たない
     //-------------------------------------------------------------
     struct PlayerSkillComponent {
-        //! 各スキルの取得段階。0=未取得、上限はkMaxSkillLevel。添字はSkillIdをintにキャストした値
+        //! 各スキルの取得段階。0=未取得、上限はスキルごとの最大レベル（GetSkillMaxLevel）。添字はSkillIdをintにキャストした値
         std::array<int, static_cast<size_t>(SkillId::Count)> levels{};
 
         //! 最後に取得したスキル（未取得ならCount）。SkillSelectSystemが決定時に書き、
@@ -39,7 +39,7 @@ namespace CombatAndroid::ECS {
 
         float damageTakenMultiplier = 1.0f;    //!< 傲慢：CombatSystemが被ダメージに掛ける（1.0未満で軽減）
         float lifeStealRatio        = 0.0f;    //!< 嫉妬：CombatSystemが与ダメージに掛けてHPへ変換する割合
-        float moveSpeedMultiplier   = 1.0f;    //!< 色欲：PlayerSystemが移動速度に掛ける
+        float maxHealthBonus        = 0.0f;    //!< 色欲：最大HPへ足す量。SkillSelectSystemが取得の瞬間に差分をHealthComponentへ反映する
         float healPerSecond         = 0.0f;    //!< 怠惰：PlayerSystemが毎秒回復させるHP
     };
 

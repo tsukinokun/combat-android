@@ -31,7 +31,9 @@ namespace CombatAndroid::ECS {
         DominantSkill result;
         result.id     = *dominant;
         result.level  = bestLevel;
-        result.levelT = (kMaxSkillLevel > 1) ? static_cast<float>(bestLevel - 1) / static_cast<float>(kMaxSkillLevel - 1) : 1.0f;
+        // そのスキルの最大レベルで1になる（最大レベルはスキルごとに違う）
+        const int maxLevel = GetSkillMaxLevel(*dominant);
+        result.levelT      = (maxLevel > 1) ? std::min(static_cast<float>(bestLevel - 1) / static_cast<float>(maxLevel - 1), 1.0f) : 1.0f;
         return result;
     }
 

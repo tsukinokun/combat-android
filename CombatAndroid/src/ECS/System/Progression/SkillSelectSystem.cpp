@@ -9,6 +9,7 @@
 #include <CombatAndroid/ECS/Component/Progression/SkillSelectComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HitStopComponent.hpp>
 #include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Event/UI/GameLogEvent.hpp>
@@ -399,7 +400,7 @@ namespace CombatAndroid::ECS {
                 std::wstring levelText = L"Lv.";
                 levelText += std::to_wstring(level + 1);
                 levelText += L" / ";
-                levelText += std::to_wstring(kMaxSkillLevel);
+                levelText += std::to_wstring(GetSkillMaxLevel(id));
 
                 // 持っている武器の進化条件になっているスキルなら、進化先を添えて気付かせる
                 const std::wstring evolutionHint = FindEvolutionHint(registry, player, id);
@@ -695,9 +696,17 @@ namespace CombatAndroid::ECS {
                 const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];
-                acquiredLevel      = std::min(acquiredLevel + 1, kMaxSkillLevel);
+                acquiredLevel      = std::min(acquiredLevel + 1, GetSkillMaxLevel(acquiredId));
                 skills.lastAcquired = acquiredId;
+
+                // 色欲：最大HPが増えた分だけ、最大値と今のHPを一緒に上げる（バーが空いて見えないように）
+                const float previousMaxHealthBonus = skills.maxHealthBonus;
                 RecalculateSkillStats(skills);
+                if(auto* health = registry.try_get<HealthComponent>(entity); health && !health->isDead) {
+                    const float gained = skills.maxHealthBonus - previousMaxHealthBonus;
+                    health->maxHealth += gained;
+                    health->currentHealth = std::min(health->currentHealth + std::max(gained, 0.0f), health->maxHealth);
+                }
 
                 //-------------------------------------------------------------
                 // 画面右の取得ログへ流す。メニューを閉じるまではdeltaTimeが0のため

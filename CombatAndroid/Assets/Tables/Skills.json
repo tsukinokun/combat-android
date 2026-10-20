@@ -35,6 +35,31 @@
                     "description": "ソウルから得るEXP +100%",
                     "value": 1.0,
                     "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +120%",
+                    "value": 1.2,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +140%",
+                    "value": 1.4,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +160%",
+                    "value": 1.6,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +180%",
+                    "value": 1.8,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウルから得るEXP +200%",
+                    "value": 2.0,
+                    "value2": 0.0
                 }
             ]
         },
@@ -50,8 +75,28 @@
             },
             "levels": [
                 {
+                    "description": "ソウル取得時 HPを1回復",
+                    "value": 1.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを2回復",
+                    "value": 2.0,
+                    "value2": 0.0
+                },
+                {
                     "description": "ソウル取得時 HPを3回復",
                     "value": 3.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを4回復",
+                    "value": 4.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを5回復",
+                    "value": 5.0,
                     "value2": 0.0
                 },
                 {
@@ -60,18 +105,23 @@
                     "value2": 0.0
                 },
                 {
+                    "description": "ソウル取得時 HPを7回復",
+                    "value": 7.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "ソウル取得時 HPを8回復",
+                    "value": 8.0,
+                    "value2": 0.0
+                },
+                {
                     "description": "ソウル取得時 HPを9回復",
                     "value": 9.0,
                     "value2": 0.0
                 },
                 {
-                    "description": "ソウル取得時 HPを12回復",
-                    "value": 12.0,
-                    "value2": 0.0
-                },
-                {
-                    "description": "ソウル取得時 HPを15回復",
-                    "value": 15.0,
+                    "description": "ソウル取得時 HPを10回復",
+                    "value": 10.0,
                     "value2": 0.0
                 }
             ]
@@ -111,6 +161,31 @@
                     "description": "攻撃力 +75%",
                     "value": 0.75,
                     "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +90%",
+                    "value": 0.9,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +105%",
+                    "value": 1.05,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +120%",
+                    "value": 1.2,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +135%",
+                    "value": 1.35,
+                    "value2": 0.0
+                },
+                {
+                    "description": "攻撃力 +150%",
+                    "value": 1.5,
+                    "value2": 0.0
                 }
             ]
         },
@@ -149,6 +224,31 @@
                     "description": "被ダメージ -30%",
                     "value": 0.3,
                     "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -32%",
+                    "value": 0.32,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -34%",
+                    "value": 0.34,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -36%",
+                    "value": 0.36,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -38%",
+                    "value": 0.38,
+                    "value2": 0.0
+                },
+                {
+                    "description": "被ダメージ -40%",
+                    "value": 0.4,
+                    "value2": 0.0
                 }
             ]
         },
@@ -164,8 +264,28 @@
             },
             "levels": [
                 {
+                    "description": "与ダメージの1%をHPに変換",
+                    "value": 0.01,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの2%をHPに変換",
+                    "value": 0.02,
+                    "value2": 0.0
+                },
+                {
                     "description": "与ダメージの3%をHPに変換",
                     "value": 0.03,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの4%をHPに変換",
+                    "value": 0.04,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの5%をHPに変換",
+                    "value": 0.05,
                     "value2": 0.0
                 },
                 {
@@ -174,18 +294,23 @@
                     "value2": 0.0
                 },
                 {
+                    "description": "与ダメージの7%をHPに変換",
+                    "value": 0.07,
+                    "value2": 0.0
+                },
+                {
+                    "description": "与ダメージの8%をHPに変換",
+                    "value": 0.08,
+                    "value2": 0.0
+                },
+                {
                     "description": "与ダメージの9%をHPに変換",
                     "value": 0.09,
                     "value2": 0.0
                 },
                 {
-                    "description": "与ダメージの12%をHPに変換",
-                    "value": 0.12,
-                    "value2": 0.0
-                },
-                {
-                    "description": "与ダメージの15%をHPに変換",
-                    "value": 0.15,
+                    "description": "与ダメージの10%をHPに変換",
+                    "value": 0.1,
                     "value2": 0.0
                 }
             ]
@@ -202,28 +327,53 @@
             },
             "levels": [
                 {
-                    "description": "移動速度 +8%",
-                    "value": 0.08,
+                    "description": "最大HP +20",
+                    "value": 20.0,
                     "value2": 0.0
                 },
                 {
-                    "description": "移動速度 +16%",
-                    "value": 0.16,
+                    "description": "最大HP +40",
+                    "value": 40.0,
                     "value2": 0.0
                 },
                 {
-                    "description": "移動速度 +24%",
-                    "value": 0.24,
+                    "description": "最大HP +60",
+                    "value": 60.0,
                     "value2": 0.0
                 },
                 {
-                    "description": "移動速度 +32%",
-                    "value": 0.32,
+                    "description": "最大HP +80",
+                    "value": 80.0,
                     "value2": 0.0
                 },
                 {
-                    "description": "移動速度 +40%",
-                    "value": 0.4,
+                    "description": "最大HP +100",
+                    "value": 100.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "最大HP +120",
+                    "value": 120.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "最大HP +140",
+                    "value": 140.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "最大HP +160",
+                    "value": 160.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "最大HP +180",
+                    "value": 180.0,
+                    "value2": 0.0
+                },
+                {
+                    "description": "最大HP +200",
+                    "value": 200.0,
                     "value2": 0.0
                 }
             ]
@@ -240,28 +390,53 @@
             },
             "levels": [
                 {
-                    "description": "毎秒 HP+0.6 / 攻撃力 -5%",
-                    "value": 0.6,
+                    "description": "毎秒 HP+0.2 / 攻撃力 -3%",
+                    "value": 0.2,
+                    "value2": 0.03
+                },
+                {
+                    "description": "毎秒 HP+0.4 / 攻撃力 -5%",
+                    "value": 0.4,
                     "value2": 0.05
                 },
                 {
-                    "description": "毎秒 HP+1.2 / 攻撃力 -8%",
-                    "value": 1.2,
+                    "description": "毎秒 HP+0.6 / 攻撃力 -6%",
+                    "value": 0.6,
+                    "value2": 0.06
+                },
+                {
+                    "description": "毎秒 HP+0.8 / 攻撃力 -8%",
+                    "value": 0.8,
                     "value2": 0.08
                 },
                 {
-                    "description": "毎秒 HP+1.8 / 攻撃力 -11%",
-                    "value": 1.8,
+                    "description": "毎秒 HP+1.0 / 攻撃力 -9%",
+                    "value": 1.0,
+                    "value2": 0.09
+                },
+                {
+                    "description": "毎秒 HP+1.2 / 攻撃力 -11%",
+                    "value": 1.2,
                     "value2": 0.11
                 },
                 {
-                    "description": "毎秒 HP+2.4 / 攻撃力 -14%",
-                    "value": 2.4,
+                    "description": "毎秒 HP+1.4 / 攻撃力 -12%",
+                    "value": 1.4,
+                    "value2": 0.12
+                },
+                {
+                    "description": "毎秒 HP+1.6 / 攻撃力 -14%",
+                    "value": 1.6,
                     "value2": 0.14
                 },
                 {
-                    "description": "毎秒 HP+3.0 / 攻撃力 -17%",
-                    "value": 3.0,
+                    "description": "毎秒 HP+1.8 / 攻撃力 -15%",
+                    "value": 1.8,
+                    "value2": 0.15
+                },
+                {
+                    "description": "毎秒 HP+2.0 / 攻撃力 -17%",
+                    "value": 2.0,
                     "value2": 0.17
                 }
             ]
