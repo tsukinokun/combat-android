@@ -262,6 +262,7 @@ namespace CombatAndroid::ECS {
                                 params.bandRollDegrees, result.cleared ? params.clearBandColor : params.deadBandColor);
             PlaceUiText(registry, result.titleEntity, screenCenterX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display),
                         result.cleared ? L"CLEAR" : L"GAME OVER", result.cleared ? params.clearTitleColor : params.deadTitleColor);
+            UiIdle(registry, result.titleEntity, 1.0f, true);    // 見出しを止まったままにしない
 
             const std::array<std::wstring, kRunResultStatRowCount> labels = {L"生存時間", L"撃破数", L"到達レベル", L"危険度"};
             for(int i = 0; i < kRunResultStatRowCount; ++i) {

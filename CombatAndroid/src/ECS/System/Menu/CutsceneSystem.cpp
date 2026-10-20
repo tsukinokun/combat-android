@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/World/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
@@ -323,6 +324,7 @@ namespace CombatAndroid::ECS {
                       barHeight, kLetterboxColor);
         PlaceUiText(registry, cutscene->skipHintTextEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, GetUiTextScale(UiTextSize::Body),
                    L"決定 / Esc でスキップ", kSkipHintColor);
+        UiPulse(registry, cutscene->skipHintTextEntity, 0.8f, true);    // 案内を止まったままにしない（ムービー中なので実時間）
 
         //-------------------------------------------------------------
         // ショットの進行。durationを超えたら次へ、最後まで終えたら停止する

@@ -427,6 +427,7 @@ namespace CombatAndroid::ECS {
             PlaceUiBandFromLeft(registry, ctx, progress.announceBandEntity, screenCenterX + params.bandTailX, titleY, params.bandHeight, params.bandRollDegrees, progress.announceFinal ? params.finalBandColor : params.midBandColor);
             PlaceUiText(registry, progress.announceTitleEntity, screenCenterX, titleY, GetUiTextScale(UiTextSize::Display), progress.announceTitle,
                         params.titleColor);
+            UiIdle(registry, progress.announceTitleEntity, 1.0f, true);    // 出ている間は止まったままにしない
 
             // 出始めだけ動きを付ける（カットシーン中は世界が止まっているので実時間で動かす）
             if(firstFrame) {

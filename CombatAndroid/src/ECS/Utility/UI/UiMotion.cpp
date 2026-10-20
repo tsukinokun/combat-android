@@ -40,6 +40,8 @@ namespace CombatAndroid::ECS {
             Pulse,
             SlideX,
             SlideY,
+            IdleBob,
+            IdleTilt,
         };
 
         constexpr std::uint32_t ToTag(UiMotionTag tag) {
@@ -91,6 +93,10 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "pulseAmount", params.pulseAmount);
         LoadField(archive, "pulsePeriod", params.pulsePeriod);
         LoadField(archive, "slideDuration", params.slideDuration);
+        LoadField(archive, "idleBob", params.idleBob);
+        LoadField(archive, "idlePeriod", params.idlePeriod);
+        LoadField(archive, "idleTilt", params.idleTilt);
+        LoadField(archive, "idleTiltPeriod", params.idleTiltPeriod);
     }
 
     //-------------------------------------------------------------
@@ -273,6 +279,40 @@ namespace CombatAndroid::ECS {
                                   EaseType::InOutSine, unscaledTime);
         tween.loop = UITweenLoop::PingPong;
         UITweenUtility::Play(registry, entity, tween);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  ゆらゆらさせる
+    //-------------------------------------------------------------
+    void UiIdle(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float amountScale, bool unscaledTime) {
+        if(entity == entt::null || !registry.IsValid(entity) || UITweenUtility::IsPlaying(registry, entity, ToTag(UiMotionTag::IdleBob)))
+            return;
+
+        const UiMotionParams& params = GetUiMotionParams();
+
+        // 上下は0から上へ浮いて戻る（始めた瞬間に位置が飛ばないように0から始める）
+        UITween bob = MakeTween(UiMotionTag::IdleBob, UITweenProperty::OffsetY, 0.0f, -params.idleBob * amountScale, params.idlePeriod, 0.0f,
+                                EaseType::InOutSine, unscaledTime);
+        bob.loop = UITweenLoop::PingPong;
+        UITweenUtility::Play(registry, entity, bob);
+
+        // 傾きは左右へ振る。振れ幅が小さいので、始めの一瞬のずれは目に付かない
+        constexpr float kDegToRad = 3.14159265f / 180.0f;
+        const float     tilt      = params.idleTilt * amountScale * kDegToRad;
+        UITween sway = MakeTween(UiMotionTag::IdleTilt, UITweenProperty::Rotation, -tilt, tilt, params.idleTiltPeriod, 0.0f, EaseType::InOutSine,
+                                 unscaledTime);
+        sway.loop = UITweenLoop::PingPong;
+        UITweenUtility::Play(registry, entity, sway);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  ゆらゆらを止める
+    //-------------------------------------------------------------
+    void UiStopIdle(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity) {
+        if(entity == entt::null || !registry.IsValid(entity))
+            return;
+        UITweenUtility::Stop(registry, entity, ToTag(UiMotionTag::IdleBob));
+        UITweenUtility::Stop(registry, entity, ToTag(UiMotionTag::IdleTilt));
     }
 
     //-------------------------------------------------------------

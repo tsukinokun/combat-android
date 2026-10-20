@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/Scene/CombatAndroidScene.hpp>
 #include <CombatAndroid/Scene/TitleScene.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
@@ -124,6 +125,7 @@ namespace CombatAndroid::ECS {
             PlaceUiBandFromLeft(registry, context, pause.bandEntity, columnX + params.bandTailX, titleY, params.bandHeight, params.bandRollDegrees,
                                 params.bandColor);
             PlaceUiText(registry, pause.titleEntity, columnX, titleY, GetUiTextScale(UiTextSize::Display), L"PAUSE", params.titleColor);
+            UiIdle(registry, pause.titleEntity, 1.0f, true);    // 見出しを止まったままにしない（ポーズ中なので実時間）
             ShowGameMenu(registry, context, pause.menu, columnX, screenCenterY + params.menuTopOffsetY, kMenuLabels, pause.cursorIndex);
         }
 
@@ -197,6 +199,11 @@ namespace CombatAndroid::ECS {
                 ClearAllHitStop(registry);
                 SuppressAllMoveInput(registry);
                 RefreshUi(registry, *ctx, pause);
+
+                // 開いた瞬間だけ、帯と見出しを横から滑り込ませる（選択肢の動きはShowGameMenuが付ける）
+                UiAppear(registry, pause.bandEntity, UiAppearDesc{.slideX = -240.0f, .unscaledTime = true});
+                UiAppear(registry, pause.titleEntity,
+                         UiAppearDesc{.slideX = -GetUiMotionParams().appearSlide * 2.0f, .duration = GetUiMotionParams().appearDuration * 1.5f, .unscaledTime = true});
                 continue;
             }
 

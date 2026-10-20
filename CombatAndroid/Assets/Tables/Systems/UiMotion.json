@@ -11,6 +11,10 @@
         "punchDuration": 0.3,
         "pulseAmount": 0.06,
         "pulsePeriod": 0.9,
-        "slideDuration": 0.14
+        "slideDuration": 0.14,
+        "idleBob": 6.0,
+        "idlePeriod": 1.4,
+        "idleTilt": 0.8,
+        "idleTiltPeriod": 2.3
     }
 }

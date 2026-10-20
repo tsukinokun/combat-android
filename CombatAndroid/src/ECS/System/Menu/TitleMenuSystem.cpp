@@ -294,6 +294,7 @@ namespace CombatAndroid::ECS {
                 PlaceUiBandFromLeft(registry, context, title.bandEntity, columnX + params.bandTailX, screenCenterY + params.titleOffsetY, params.bandHeight,
                                     params.bandRollDegrees, params.bandColor);
                 PlaceUiText(registry, title.titleEntity, columnX, screenCenterY + params.titleOffsetY, GetUiTextScale(UiTextSize::Display), L"人造人間0号機", params.titleColor);
+                UiIdle(registry, title.titleEntity, 1.0f, true);    // ゲーム名を止まったままにしない
                 if(auto* titleFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(title.titleEntity))
                     titleFont->maxWidth = screenWidth * params.titleMaxWidthRatio;
                 PlaceUiText(registry, title.bestEntity, screenWidth - params.bestMarginRight, screenHeight - params.bestMarginBottom, GetUiTextScale(UiTextSize::Small), FormatBestRecord(), params.bestColor);

@@ -33,6 +33,10 @@ namespace CombatAndroid::ECS {
         float pulseAmount       = 0.06f;     //!< 呼吸の拡大率の振れ幅
         float pulsePeriod       = 0.9f;      //!< 呼吸の片道の秒数
         float slideDuration     = 0.14f;     //!< 選択帯などが前の位置から今の位置へ移る秒数
+        float idleBob           = 6.0f;      //!< ゆらゆらの上下の振れ幅（ピクセル）
+        float idlePeriod        = 1.4f;      //!< ゆらゆらの上下の片道の秒数
+        float idleTilt          = 0.8f;      //!< ゆらゆらの傾きの振れ幅（度。左右に振る）
+        float idleTiltPeriod    = 2.3f;      //!< ゆらゆらの傾きの片道の秒数（上下と周期をずらして機械的に見えないようにする）
     };
 
     //-------------------------------------------------------------
@@ -114,6 +118,20 @@ namespace CombatAndroid::ECS {
     //! @brief  呼吸させる（ゆっくり拡大縮小を繰り返す）。UiStopPulseまで続く
     //-------------------------------------------------------------
     void UiPulse(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float amountScale = 1.0f, bool unscaledTime = false);
+
+    //-------------------------------------------------------------
+    //! @brief  ゆらゆらさせる（ゆっくり浮き沈みしながら、わずかに傾く）。UiStopIdleまで続く
+    //! @param  amountScale  [in] 振れ幅に掛ける倍率（小さい文字は控えめに）
+    //! @param  unscaledTime [in] メニュー中・スロー中も実時間で進めるか
+    //! @note   見出しを止まったままにしないための待機中の動き。出現・弾む・呼吸と重ねて使える。
+    //!         すでにゆらゆらしていれば何もしないので、毎フレーム呼んでもよい
+    //-------------------------------------------------------------
+    void UiIdle(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity, float amountScale = 1.0f, bool unscaledTime = false);
+
+    //-------------------------------------------------------------
+    //! @brief  ゆらゆらを止める
+    //-------------------------------------------------------------
+    void UiStopIdle(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity entity);
 
     //-------------------------------------------------------------
     //! @brief  呼吸を止める

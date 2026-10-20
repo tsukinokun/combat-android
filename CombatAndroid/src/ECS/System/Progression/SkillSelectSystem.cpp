@@ -333,6 +333,7 @@ namespace CombatAndroid::ECS {
             StretchSpriteRotated(registry, context, select.bandEntity, screenCenterX, titleY, screenWidth * 1.4f, params.bandHeight,
                                  params.bandRollDegrees * std::numbers::pi_v<float> / 180.0f, params.bandColor);
             PlaceUiText(registry, select.titleEntity, titleX, titleY, GetUiTextScale(UiTextSize::Display), L"LEVEL UP!", params.titleColor);
+            UiIdle(registry, select.titleEntity, 1.0f, true);    // 見出しを止まったままにしない（メニュー中なので実時間）
 
             const int cursorIndex = std::clamp(select.cursorIndex, 0, std::max(select.candidateCount - 1, 0));
 

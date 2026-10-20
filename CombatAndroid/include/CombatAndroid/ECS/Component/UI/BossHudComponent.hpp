@@ -26,5 +26,6 @@ namespace CombatAndroid::ECS {
         float                trailHoldTimer  = 0.0f;          //!< 減ってから帯が縮み始めるまでの残り秒
         float                lastHpRatio     = 1.0f;          //!< 前のフレームのHPの割合（減った瞬間を見分ける）
         float                pulseTime       = 0.0f;          //!< 枠の脈打ち・ダウン中の点滅に使う経過秒
+        bool                 wasBroken       = false;         //!< 前のフレームでダウンしていたか（ダウンした瞬間に名前を弾ませる）
     };
 }    // namespace CombatAndroid::ECS

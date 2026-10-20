@@ -14,6 +14,7 @@
 #include <CombatAndroid/ECS/Utility/Table/BossMoveTable.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
+#include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
@@ -185,6 +186,8 @@ namespace CombatAndroid::ECS {
             hud.trailRatio     = hpRatio;
             hud.lastHpRatio    = hpRatio;
             hud.trailHoldTimer = 0.0f;
+            hud.wasBroken      = false;
+            UiAppearFromBelow(registry, hud.nameEntity);    // 名前はいきなり出さず、下から滑り込ませる
         }
         hud.pulseTime += deltaTime;
 
@@ -229,6 +232,9 @@ namespace CombatAndroid::ECS {
         }
 
         const bool  broken     = moveSet->phase == BossActionPhase::Broken;
+        if(broken && !hud.wasBroken)
+            UiPunch(registry, hud.nameEntity, 1.5f);    // ダウンした瞬間を名前でも知らせる
+        hud.wasBroken = broken;
         const bool  opening    = broken || moveSet->phase == BossActionPhase::Recovery;
         float       gaugeRatio = moveSet->breakGauge / moveSet->breakGaugeMax;
         hlslpp::float4 gaugeColor = params.gaugeLowColor + (params.gaugeHighColor - params.gaugeLowColor) * gaugeRatio;

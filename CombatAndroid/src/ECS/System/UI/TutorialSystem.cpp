@@ -347,6 +347,12 @@ namespace CombatAndroid::ECS {
             const int              stepIndex = static_cast<int>(tutorial.step);
             const TutorialStepDef& def       = kStepDefs[stepIndex];
             const bool             isGoal    = tutorial.step == TutorialStep::Goal;
+
+            // 最後の目標は操作の案内と違って読み終えるまで待たないので、板ごと控えめにゆらゆらさせて目を引く
+            if(isGoal)
+                UiIdle(registry, tutorial.panelEntity, 0.5f);
+            else
+                UiStopIdle(registry, tutorial.panelEntity);
             const bool             isDone    = tutorial.doneTimer >= 0.0f;
 
             const float panelWidth = FitPanelWidth(def.text);
