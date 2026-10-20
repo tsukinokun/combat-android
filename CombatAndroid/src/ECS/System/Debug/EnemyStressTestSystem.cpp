@@ -11,6 +11,8 @@
 #include <CombatAndroid/ECS/Component/Enemy/EnemyHeldWeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/Debug/EnemyStressTestComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
+#include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Utility/Spawn/EnemySpawner.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
@@ -109,8 +111,19 @@ namespace CombatAndroid::ECS {
         //---------------------------------------------------------
         // 自動ベンチマークの予約を拾う（--stress-benchmark 付きで起動された場合）
         //---------------------------------------------------------
-        if(s_AutoBenchmarkRequested && !m_benchmarkStarted) {
+        // オープニングのムービー中は待つ（ムービーの絵を計測しても、遊んでいる間の重さにならない）
+        if(s_AutoBenchmarkRequested && !m_benchmarkStarted && !IsCutsceneActive(registry)) {
             m_benchmarkStarted   = true;
+
+            // 湧かせた敵に倒されるとゲームオーバーで時間が止まり、計測が先へ進まなくなる。
+            // 計測の間はプレイヤーを倒されないだけのHPにしておく
+            auto playerView = registry.View<PlayerComponent, HealthComponent>();
+            for(entt::entity playerEntity : playerView) {
+                HealthComponent& health = playerView.get<HealthComponent>(playerEntity);
+                health.maxHealth        = 1.0e9f;
+                health.currentHealth    = health.maxHealth;
+            }
+
             m_benchmarkPhase     = BenchmarkPhase::Warmup;
             m_benchmarkStepIndex = 0;
             m_benchmarkElapsed   = 0.0f;

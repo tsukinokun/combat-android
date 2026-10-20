@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
+#include <Tsukino/Core/DebugTools/DebugFeatures.hpp>
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 #include <Tsukino/EngineIntegration/Scene/GameSceneManager.hpp>
 
@@ -405,15 +406,21 @@ namespace CombatAndroid::ECS {
                 }
             }
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(TSUKINO_ENABLE_STRESS_TEST)
             //-------------------------------------------------------------
             // 自動の動作確認用：起動引数に --autostart があれば、最初の1回だけ「はじめる」を選んだことにする
-            // （入力を外から送れない環境でも、ムービーやボス戦まで進められるように）
+            // （入力を外から送れない環境でも、ムービーやボス戦まで進められるように）。
+            // 負荷試験の自動計測（--stress-benchmark）も同じく進める。計測はReleaseで行うので、こちらはReleaseでも効かせる
             //-------------------------------------------------------------
             static bool s_autoStartChecked = false;
             if(!s_autoStartChecked) {
                 s_autoStartChecked = true;
-                if(std::strstr(GetCommandLineA(), "--autostart") != nullptr) {
+#ifdef _DEBUG
+                const bool autoStart = std::strstr(GetCommandLineA(), "--autostart") != nullptr || std::strstr(GetCommandLineA(), "--stress-benchmark") != nullptr;
+#else
+                const bool autoStart = std::strstr(GetCommandLineA(), "--stress-benchmark") != nullptr;
+#endif
+                if(autoStart) {
                     RequestTitleLaunch(registry);
                     continue;
                 }

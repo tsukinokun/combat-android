@@ -10,6 +10,10 @@
         "outlineWidth": 2.0,
         "defaultSpawnHeight": 120.0,
         "damageColor": { "x": 1.0, "y": 0.92, "z": 0.35, "w": 1.0 },
-        "outlineColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 }
+        "outlineColor": { "x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0 },
+        "tiers": [
+            { "minDamage": 100.0, "color": { "x": 1.0, "y": 0.6, "z": 0.2, "w": 1.0 }, "scale": 1.35, "lifetimeScale": 1.15 },
+            { "minDamage": 250.0, "color": { "x": 1.0, "y": 0.28, "z": 0.22, "w": 1.0 }, "scale": 1.7, "lifetimeScale": 1.35 }
+        ]
     }
 }

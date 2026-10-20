@@ -23,5 +23,6 @@ namespace CombatAndroid::ECS {
         float lifetime = 0.0f;     //!< 消えるまでの総時間（秒）
 
         hlslpp::float4 baseColor = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);    //!< フェード前の基準色
+        float          sizeScale = 1.0f;                                     //!< 文字の大きさの倍率（重いダメージほど大きい）
     };
 }    // namespace CombatAndroid::ECS

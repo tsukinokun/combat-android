@@ -18,14 +18,36 @@
 
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 
+#include <cereal/types/vector.hpp>
+
 #include <hlsl++.h>
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <vector>
 #include <string>
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     namespace {
+        //-------------------------------------------------------------
+        //! @struct DamageNumberTier
+        //! @brief  重いダメージの見せ方1段ぶん。minDamage以上のヒットはこの色・大きさで出す
+        //-------------------------------------------------------------
+        struct DamageNumberTier {
+            float          minDamage     = 0.0f;                                     //!< この段になる最小のダメージ
+            hlslpp::float4 color         = hlslpp::float4(1.0f, 1.0f, 1.0f, 1.0f);   //!< 数値の色
+            float          scale         = 1.0f;                                     //!< 文字の大きさの倍率
+            float          lifetimeScale = 1.0f;                                     //!< 表示時間の倍率（大きい数字は少し長く見せる）
+        };
+
+        template <class Archive>
+        void load(Archive& archive, DamageNumberTier& tier) {
+            LoadField(archive, "minDamage", tier.minDamage);
+            LoadField(archive, "color", tier.color);
+            LoadField(archive, "scale", tier.scale);
+            LoadField(archive, "lifetimeScale", tier.lifetimeScale);
+        }
+
         //-------------------------------------------------------------
         //! @struct DamageNumberParams
         //! @brief  演出のチューニング値（Assets/Tables/Systems/DamageNumber.json。ここの初期値はJSONにキーが無いときの既定値）
@@ -51,6 +73,13 @@ namespace CombatAndroid::ECS {
             // 数値の色（温かい黄）と縁取りの色
             hlslpp::float4 damageColor  = hlslpp::float4(1.0f, 0.92f, 0.35f, 1.0f);
             hlslpp::float4 outlineColor = hlslpp::float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+            // 重いダメージの段（minDamageの小さい順）。当てはまる一番上の段の色・大きさで出し、
+            // どの段にも届かなければ damageColor・等倍で出す
+            std::vector<DamageNumberTier> tiers = {
+                {100.0f, hlslpp::float4(1.0f, 0.6f, 0.2f, 1.0f), 1.35f, 1.15f},
+                {250.0f, hlslpp::float4(1.0f, 0.28f, 0.22f, 1.0f), 1.7f, 1.35f},
+            };
         };
 
         template <class Archive>
@@ -66,6 +95,21 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "defaultSpawnHeight", params.defaultSpawnHeight);
             LoadField(archive, "damageColor", params.damageColor);
             LoadField(archive, "outlineColor", params.outlineColor);
+            LoadField(archive, "tiers", params.tiers);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  ダメージ量に当てはまる一番上の段を探す関数
+        //! @return 当てはまる段。どの段にも届かなければ nullptr
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        const DamageNumberTier* FindTier(const DamageNumberParams& params, float damage) {
+            const DamageNumberTier* found = nullptr;
+            for(const DamageNumberTier& tier : params.tiers) {
+                if(damage >= tier.minDamage && (!found || tier.minDamage >= found->minDamage))
+                    found = &tier;
+            }
+            return found;
         }
 
         //-------------------------------------------------------------
@@ -175,13 +219,17 @@ namespace CombatAndroid::ECS {
             Tsukino::BuiltIn::ECS::WorldAnchorComponent& anchor       = view.get<Tsukino::BuiltIn::ECS::WorldAnchorComponent>(slotEntity);
             Tsukino::BuiltIn::ECS::FontComponent&        font         = view.get<Tsukino::BuiltIn::ECS::FontComponent>(slotEntity);
 
+            // 重いダメージほど色を変え、大きく・少し長く出す
+            const DamageNumberTier* tier = FindTier(params, pending.damage);
+
             damageNumber.active    = true;
             damageNumber.elapsed   = 0.0f;
-            damageNumber.lifetime  = params.lifetime;
-            damageNumber.baseColor = params.damageColor;
+            damageNumber.lifetime  = params.lifetime * (tier ? tier->lifetimeScale : 1.0f);
+            damageNumber.baseColor = tier ? tier->color : params.damageColor;
+            damageNumber.sizeScale = tier ? tier->scale : 1.0f;
 
             font.text            = std::to_wstring(static_cast<int>(pending.damage + 0.5f));
-            font.color           = params.damageColor;
+            font.color           = damageNumber.baseColor;
             font.outlineColor    = params.outlineColor;
             font.outlineWidth    = params.outlineWidth;
             font.horizontalAlign = Tsukino::BuiltIn::ECS::HorizontalAlign::Center;
@@ -197,8 +245,9 @@ namespace CombatAndroid::ECS {
             anchor.worldOffset           = hlslpp::float3(0.0f, 0.0f, 0.0f);
             anchor.screenOffset          = hlslpp::float2(0.0f, 0.0f);
 
-            transform.scale = hlslpp::float3(params.popStartScale, params.popStartScale, 1.0f);
-            transform.dirty = true;
+            const float startScale = params.popStartScale * damageNumber.sizeScale;
+            transform.scale        = hlslpp::float3(startScale, startScale, 1.0f);
+            transform.dirty        = true;
         }
 
         m_pending.clear();
@@ -234,7 +283,7 @@ namespace CombatAndroid::ECS {
             // 拡大率。FontRendererSystemはworldMatrixのX軸長（＝scale.x）を
             // フォントの拡大率として読むため、scaleへ書けばそのまま文字サイズになる
             //-------------------------------------------------------------
-            float popScale  = EvaluatePopScale(t);
+            float popScale  = EvaluatePopScale(t) * damageNumber.sizeScale;
             transform.scale = hlslpp::float3(popScale, popScale, 1.0f);
             transform.dirty = true;
 
