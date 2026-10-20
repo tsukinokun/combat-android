@@ -7,6 +7,7 @@
 
 #include <Tsukino/Core/ECS/Registry/Registry.hpp>
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
+#include <CombatAndroid/ECS/Utility/Table/EnemySpawnTable.hpp>
 
 #include <hlsl++.h>
 
@@ -217,5 +218,8 @@ namespace CombatAndroid::ECS {
         //! 経過秒数は本Systemでは持たず、RunClockComponent（RunClockSystemが進める）を読む。
         //! HUDへ出す危険度と、実際に湧く敵へ適用される危険度を必ず一致させるため
         float m_spawnTimer = 0.0f;
+
+        //! 種類ごとに、この走行で一度でも湧かせたか（EnemySpawn.json の guaranteeFirstAtSeconds の判定に使う）
+        std::array<bool, static_cast<size_t>(EnemyTypeId::Count)> m_spawnedOnce{};
     };
 }    // namespace CombatAndroid::ECS

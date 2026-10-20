@@ -20,20 +20,32 @@ namespace CombatAndroid::ECS {
         Move = 0,       //!< WASDで移動
         Attack,         //!< 左クリックで攻撃
         Dodge,          //!< Spaceで回避
-        Pickup,         //!< Fで武器を拾う
-        Switch,         //!< ホイールで武器を切り替える（2本以上持っていないときは飛ばす）
         Goal,           //!< 目標（群れを生き延び、夜の主を討て）を出して終わる
         Count,
     };
 
     //-------------------------------------------------------------
-    //! @enum   ChargeHintState
-    //! @brief  バトルアックスの溜め攻撃の案内の状態。手順の流れとは別に、拾った時点で出す
+    //! @enum   TutorialHint
+    //! @brief  手順の流れとは別に、その場面が来たときに出す案内（番号は付けない）
+    //! @note   開始時は武器が落ちていないので、拾う・切り替える・溜めるは手に入ったときに教える。
+    //!         同時に条件がそろったらこの並びで1つずつ出す
     //-------------------------------------------------------------
-    enum class ChargeHintState : int {
-        Waiting = 0,    //!< まだ溜め攻撃できる武器を拾っていない
-        Showing,        //!< 案内を出している（最大段階まで溜めるまで出し続ける）
-        Done,           //!< 最大段階まで溜めた（以後は出さない）
+    enum class TutorialHint : int {
+        Pickup = 0,    //!< 拾える武器が初めて地面に現れた → 触れて拾う
+        Switch,        //!< 手持ちが2本になった → ホイールで切り替える
+        Charge,        //!< バトルアックスを持った → 長押しで溜め攻撃
+        Count,
+    };
+
+    //-------------------------------------------------------------
+    //! @enum   TutorialHintState
+    //! @brief  場面の案内1つの状態
+    //-------------------------------------------------------------
+    enum class TutorialHintState : int {
+        Waiting = 0,    //!< まだ場面が来ていない
+        Pending,        //!< 場面が来た（ほかの案内が出ていれば、それが消えるのを待つ）
+        Showing,        //!< 出している（できるまで出し続ける）
+        Done,           //!< できた（以後は出さない）
     };
 
     //-------------------------------------------------------------
@@ -49,34 +61,37 @@ namespace CombatAndroid::ECS {
         float        moveTime  = 0.0f;                  //!< 移動の手順で、実際に歩いた合計秒数
         bool         finished  = false;                 //!< 全部終わったか（以後は何も出さない）
 
-        //! 手順を出した瞬間の手持ち。拾った・切り替えたの判定に「始めた時点からの変化」を使う
-        int inventorySizeAtStep     = 0;
-        int selectedWeaponAtStep    = 0;
-
         Tsukino::ECS::Entity panelEntity   = entt::null;    //!< 画面下の半透明の板（Sprite）
         Tsukino::ECS::Entity textEntity    = entt::null;    //!< 案内の文（Font）
-        Tsukino::ECS::Entity counterEntity = entt::null;    //!< 「操作 2 / 5」（Font）
+        Tsukino::ECS::Entity counterEntity = entt::null;    //!< 「操作 2 / 3」（Font）
 
         //! 手順ごとのキー表示（Goalは使わない）
         std::array<InputPromptWidget, static_cast<size_t>(TutorialStep::Count)> prompts{};
 
         //-------------------------------------------------------------
-        // バトルアックスの溜め攻撃の案内。手順の流れには入れず、拾った時点で番号無しで出す。
+        // 場面の案内（拾う・切り替える・溜める）。手順の流れには入れず、場面が来た時点で番号無しで出す。
+        // 一度に出すのは1つだけなので、板と文は共用し、キー表示だけ案内ごとに持つ。
         // 手順の案内が出ている間はその上に積む
         //-------------------------------------------------------------
-        ChargeHintState      chargeHintState     = ChargeHintState::Waiting;
-        float                chargeHintDoneTimer = -1.0f;         //!< 最大段階まで溜めてからの経過秒数（0以上の間は「OK」を出して消えるのを待つ）
-        Tsukino::ECS::Entity chargeHintPanel     = entt::null;    //!< 案内の板（Sprite）
-        Tsukino::ECS::Entity chargeHintText      = entt::null;    //!< 案内の文（Font）
-        InputPromptWidget    chargeHintPrompt{};                  //!< マウス＋長押しゲージ
+        std::array<TutorialHintState, static_cast<size_t>(TutorialHint::Count)> hintStates{};
+        std::array<InputPromptWidget, static_cast<size_t>(TutorialHint::Count)> hintPrompts{};    //!< キー表示（拾うは無し）
+        int                  activeHint    = -1;            //!< 出している案内（TutorialHintの番号。-1なら無し）
+        float                hintDoneTimer = -1.0f;         //!< できてからの経過秒数（0以上の間は「OK」を出して消えるのを待つ）
+        Tsukino::ECS::Entity hintPanel     = entt::null;    //!< 案内の板（Sprite）
+        Tsukino::ECS::Entity hintText      = entt::null;    //!< 案内の文（Font）
+
+        //! 案内を出した瞬間の手持ち。拾った・切り替えたの判定に「出した時点からの変化」を使う
+        int hintInventorySize   = 0;
+        int hintWeaponLevelSum  = 0;    //!< 手持ちの武器レベルの合計（同じ種類を拾うとレベルが上がるだけなので、それも拾ったとみなす）
+        int hintSelectedWeapon  = 0;
 
         //-------------------------------------------------------------
         // 動き（UiMotion）のための表示状態。隠したら倒し、次に出すときにまた滑り込ませる
         //-------------------------------------------------------------
         int   shownStep        = -1;       //!< 板を出してある手順（変わったら板を下から滑り込ませる。-1なら隠れている）
         bool  stepsFadingOut   = false;    //!< 目標を出し終えて、手順の板が消えていく途中か
-        bool  chargeHintShown  = false;    //!< 溜め攻撃の案内を出してあるか
-        bool  chargeHintFading = false;    //!< 溜め攻撃の案内が消えていく途中か
-        float chargeHintLastY  = 0.0f;     //!< 溜め攻撃の案内を前回置いたY（積む位置が変わったら滑らせて移す）
+        bool  hintShown        = false;    //!< 場面の案内を出してあるか
+        bool  hintFading       = false;    //!< 場面の案内が消えていく途中か
+        float hintLastY        = 0.0f;     //!< 場面の案内を前回置いたY（積む位置が変わったら滑らせて移す）
     };
 }    // namespace CombatAndroid::ECS

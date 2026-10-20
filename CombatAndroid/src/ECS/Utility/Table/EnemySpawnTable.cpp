@@ -14,17 +14,19 @@
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
-    // EnemySpawnTableEntryのcerealシリアライズ定義（JSONが持つのは比重と解禁秒数だけ）
+    // EnemySpawnTableEntryのcerealシリアライズ定義（JSONが持つのは比重・解禁秒数・最初の1体を保証する秒数）
     //-------------------------------------------------------------
     template <class Archive>
     void save(Archive& archive, const EnemySpawnTableEntry& entry) {
-        archive(cereal::make_nvp("weight", entry.weight), cereal::make_nvp("unlockTimeSeconds", entry.unlockTimeSeconds));
+        archive(cereal::make_nvp("weight", entry.weight), cereal::make_nvp("unlockTimeSeconds", entry.unlockTimeSeconds),
+                cereal::make_nvp("guaranteeFirstAtSeconds", entry.guaranteeFirstAtSeconds));
     }
 
     template <class Archive>
     void load(Archive& archive, EnemySpawnTableEntry& entry) {
         LoadField(archive, "weight", entry.weight);
         LoadField(archive, "unlockTimeSeconds", entry.unlockTimeSeconds);
+        LoadField(archive, "guaranteeFirstAtSeconds", entry.guaranteeFirstAtSeconds);
     }
 
     namespace {

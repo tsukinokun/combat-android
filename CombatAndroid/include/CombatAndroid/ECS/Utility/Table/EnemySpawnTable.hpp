@@ -56,6 +56,7 @@ namespace CombatAndroid::ECS {
         EnemyConfigFactory makeConfig = nullptr;              //!< 生成パラメータを作る関数
         float              weight            = 0.0f;         //!< 相対比重。0以下で抽選対象外（実装途中の敵を差し込んでおける）
         float              unlockTimeSeconds = 0.0f;         //!< 経過時間がこの値を超えるまで抽選対象に入らない（0で最初から）
+        float              guaranteeFirstAtSeconds = -1.0f;  //!< 経過時間がこの値を超えてもまだ一度も湧いていなければ、抽選より先に1体出す（負なら保証しない）
     };
 
     //-------------------------------------------------------------

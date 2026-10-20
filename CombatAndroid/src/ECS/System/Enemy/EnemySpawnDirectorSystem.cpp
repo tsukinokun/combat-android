@@ -14,16 +14,19 @@
 #include <CombatAndroid/ECS/Component/Enemy/PaladinArsenalComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
+#include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/SpawnedEnemyComponent.hpp>
 #include <CombatAndroid/ECS/Event/UI/GameLogEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Spawn/EliteEnemy.hpp>
 #include <CombatAndroid/ECS/Utility/Table/EnemyDifficultyTable.hpp>
 #include <CombatAndroid/ECS/Utility/Table/EnemySpawnTable.hpp>
 #include <CombatAndroid/ECS/Utility/Spawn/EnemySpawner.hpp>
+#include <CombatAndroid/ECS/Utility/Table/WeaponTable.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
+#include <Tsukino/Core/Log.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/ModelComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -31,8 +34,11 @@
 #include <entt/entt.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <string>
 #include <utility>
+#include <vector>
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
@@ -149,11 +155,50 @@ namespace CombatAndroid::ECS {
                                             float                 elapsedSeconds,
                                             int                   dangerRank,
                                             SectorCounts&         sectorCounts) {
-        const EnemySpawnTableEntry* entry = PickEnemyType(m_rng, elapsedSeconds);
+        //-----------------------------------------------------
+        // 最初の1体の保証（EnemySpawn.json の guaranteeFirstAtSeconds）。
+        // Paladinは比重が小さく、最初の武器がいつ手に入るか運任せになるため、決まった頃に必ず1体出す
+        //-----------------------------------------------------
+        const EnemySpawnTableEntry* entry      = nullptr;
+        bool                        guaranteed = false;
+        for(const EnemySpawnTableEntry& candidate : GetEnemySpawnTable()) {
+            if(candidate.guaranteeFirstAtSeconds >= 0.0f && elapsedSeconds >= candidate.guaranteeFirstAtSeconds
+               && !m_spawnedOnce[static_cast<size_t>(candidate.id)]) {
+                entry      = &candidate;
+                guaranteed = true;
+                break;
+            }
+        }
+        if(!entry)
+            entry = PickEnemyType(m_rng, elapsedSeconds);
         if(!entry)
             return;
+        m_spawnedOnce[static_cast<size_t>(entry->id)] = true;
 
         EnemySpawnConfig config = entry->makeConfig(context, ResolveSpawnPosition(playerPosition, sectorCounts));
+
+        // 保証で出す武器持ちには、プレイヤーがまだ持っていない武器を持たせる（初めて拾ったとき必ず手持ちが増えるように）
+        if(guaranteed && config.hasHeldWeapon) {
+            std::array<bool, static_cast<size_t>(WeaponId::Count)> owned{};
+            auto playerView = registry.View<PlayerComponent>();
+            for(entt::entity playerEntity : playerView) {
+                for(Tsukino::ECS::Entity weaponEntity : playerView.get<PlayerComponent>(playerEntity).weaponInventory) {
+                    if(const auto* weapon = registry.try_get<WeaponComponent>(weaponEntity))
+                        owned[static_cast<size_t>(weapon->weaponId)] = true;
+                }
+                break;
+            }
+            std::vector<WeaponId> unowned;
+            for(int i = 0; i < static_cast<int>(WeaponId::Count); ++i) {
+                if(!owned[static_cast<size_t>(i)])
+                    unowned.push_back(static_cast<WeaponId>(i));
+            }
+            if(!unowned.empty()) {
+                std::uniform_int_distribution<size_t> weaponDist(0, unowned.size() - 1);
+                config.heldWeaponId = unowned[weaponDist(m_rng)];
+            }
+            Tsukino::Core::Log::Info(std::string("EnemySpawn: guaranteed first ") + entry->debugName + " weapon=" + GetWeaponKey(config.heldWeaponId));
+        }
 
         // 索敵距離の上書き。種類ごとの既定値（600）のままだとフォグの外から
         // 近づいてこないため、テーブルに何が増えてもここで一律に効かせる

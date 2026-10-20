@@ -10,7 +10,8 @@
         },
         "Paladin": {
             "weight": 5.0,
-            "unlockTimeSeconds": 60.0
+            "unlockTimeSeconds": 40.0,
+            "guaranteeFirstAtSeconds": 40.0
         }
     }
 }

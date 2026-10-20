@@ -15,7 +15,7 @@ Release は起動し直せば反映される。
 | `WeaponLevels.json` | `WeaponTable.cpp` | 武器の表示名と、Lv1〜5 の基礎ダメージ（`damage` は `kMaxWeaponLevel` 個ちょうど） |
 | `WeaponEvolution.json` | `WeaponEvolutionTable.cpp` | 進化の条件（スキル名とLv）と、進化後の名前・倍率。倍率 1.0 / 貫通段階 0 は「変えない」 |
 | `Skills.json` | `SkillTable.cpp` | スキルの名前・カード絵・アイコン・色と、Lv1〜5 の説明文と効果量（`levels` は `kMaxSkillLevel` 個ちょうど） |
-| `EnemySpawn.json` | `EnemySpawnTable.cpp` | 敵ごとの出現比重と解禁秒数 |
+| `EnemySpawn.json` | `EnemySpawnTable.cpp` | 敵ごとの出現比重と解禁秒数、最初の1体を確実に出す秒数（`guaranteeFirstAtSeconds`、任意） |
 | `EnemyDifficulty.json` | `EnemyDifficultyTable.cpp` | 危険度ランクごとの倍率と、終端より先の1段ぶんの増分 |
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |

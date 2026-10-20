@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/RunClockComponent.hpp>
 #include <CombatAndroid/ECS/Component/UI/TutorialComponent.hpp>
+#include <CombatAndroid/ECS/Component/Weapon/PickupComponent.hpp>
 #include <CombatAndroid/ECS/Component/Weapon/WeaponComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
@@ -49,17 +50,23 @@ namespace CombatAndroid::ECS {
             {L"W A S D で移動（Shift でダッシュ）", L"WASD", false, false},
             {L"左クリックで攻撃（続けて押すと連撃）", nullptr, true, false},
             {L"Space で回避（転がっている間は無敵）", L"SPACE", false, false},
-            {L"落ちている武器に近づくと拾える", nullptr, false, false},
-            {L"マウスホイールで武器を切り替える", nullptr, true, false},
             {L"迫りくる群れを生き延び、夜の主を討て！", nullptr, false, false},
         };
         static_assert(std::size(kStepDefs) == static_cast<size_t>(TutorialStep::Count), "kStepDefsはTutorialStepの並びと揃えること");
 
-        //! 「操作 n / 5」の分母（目標の表示は操作ではないので数えない）
+        //! 「操作 n / 3」の分母（目標の表示は操作ではないので数えない）
         constexpr int kOperationStepCount = static_cast<int>(TutorialStep::Goal);
 
-        //! バトルアックスを拾ったときに出す、溜め攻撃の案内（手順の流れとは別。番号は付けない）
-        const TutorialStepDef kChargeHintDef = {L"バトルアックスは左クリック長押しで溜め攻撃（ピンクで最大威力）", nullptr, true, true};
+        //-------------------------------------------------------------
+        // 場面の案内の表。TutorialHintの並びと揃えること。
+        // 開始時は武器が落ちていないので、武器まわりの操作はその場面が来たときに教える
+        //-------------------------------------------------------------
+        const TutorialStepDef kHintDefs[] = {
+            {L"光っている武器に触れると拾える（同じ武器ならレベルアップ）", nullptr, false, false},
+            {L"マウスホイールで武器を切り替える", nullptr, true, false},
+            {L"バトルアックスは左クリック長押しで溜め攻撃（ピンクで最大威力）", nullptr, true, true},
+        };
+        static_assert(std::size(kHintDefs) == static_cast<size_t>(TutorialHint::Count), "kHintDefsはTutorialHintの並びと揃えること");
 
         //! 溜め攻撃の案内を消す溜め段階（3＝最大。リムライトとゲージがピンク〜紫になる）
         constexpr int kChargeHintClearStage = 3;
@@ -170,15 +177,16 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  溜め攻撃の案内を隠す
+        //! @brief  場面の案内を隠す
         //-------------------------------------------------------------
-        void HideChargeHint(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
-            HideUiSprite(registry, tutorial.chargeHintPanel);
-            HideUiText(registry, tutorial.chargeHintText);
-            HideInputPrompt(registry, tutorial.chargeHintPrompt);
+        void HideHint(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
+            HideUiSprite(registry, tutorial.hintPanel);
+            HideUiText(registry, tutorial.hintText);
+            for(const InputPromptWidget& prompt : tutorial.hintPrompts)
+                HideInputPrompt(registry, prompt);
 
-            tutorial.chargeHintShown  = false;
-            tutorial.chargeHintFading = false;
+            tutorial.hintShown  = false;
+            tutorial.hintFading = false;
         }
 
         //-------------------------------------------------------------
@@ -186,7 +194,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void HideAll(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial) {
             HideSteps(registry, tutorial);
-            HideChargeHint(registry, tutorial);
+            HideHint(registry, tutorial);
         }
 
         //-------------------------------------------------------------
@@ -202,26 +210,71 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
-        //! @brief  次の手順へ進める。こなせない手順（持ち替える先が無い等）は飛ばす
+        //! @brief  手持ちの武器レベルの合計（同じ種類を拾うとレベルが上がるので、拾ったかの判定に使う）
         //-------------------------------------------------------------
-        void AdvanceStep(Tsukino::ECS::Registry& registry, TutorialComponent& tutorial, const PlayerComponent& player) {
-            int next = static_cast<int>(tutorial.step) + 1;
-
-            while(next < static_cast<int>(TutorialStep::Goal)) {
-                const TutorialStep candidate = static_cast<TutorialStep>(next);
-                if(candidate == TutorialStep::Switch && player.weaponInventory.size() < 2) {
-                    ++next;    // 1本しか持っていないので切り替えようが無い
-                    continue;
-                }
-                break;
+        [[nodiscard]]
+        int SumWeaponLevels(Tsukino::ECS::Registry& registry, const PlayerComponent& player) {
+            int sum = 0;
+            for(Tsukino::ECS::Entity weaponEntity : player.weaponInventory) {
+                if(const auto* weapon = registry.try_get<WeaponComponent>(weaponEntity))
+                    sum += weapon->level;
             }
+            return sum;
+        }
 
-            tutorial.step                 = static_cast<TutorialStep>(next);
-            tutorial.stepTimer            = 0.0f;
-            tutorial.doneTimer            = -1.0f;
-            tutorial.moveTime             = 0.0f;
-            tutorial.inventorySizeAtStep  = static_cast<int>(player.weaponInventory.size());
-            tutorial.selectedWeaponAtStep = player.selectedWeaponIndex;
+        //-------------------------------------------------------------
+        //! @brief  拾える武器が地面にあるか（落下中の武器はまだPickupComponentを持たない）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool HasPickupOnGround(Tsukino::ECS::Registry& registry) {
+            auto view = registry.View<PickupComponent>();
+            return view.begin() != view.end();
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  場面の案内の場面が来たか
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool IsHintTriggered(Tsukino::ECS::Registry& registry, TutorialHint hint, const PlayerComponent& player) {
+            switch(hint) {
+            case TutorialHint::Pickup:
+                return HasPickupOnGround(registry);
+            case TutorialHint::Switch:
+                return player.weaponInventory.size() >= 2;
+            case TutorialHint::Charge:
+                return HasChargeWeapon(registry, player);
+            default:
+                return false;
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  場面の案内をこなしたか（出した時点からの変化で見る）
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool IsHintDone(Tsukino::ECS::Registry& registry, const TutorialComponent& tutorial, TutorialHint hint, const PlayerComponent& player,
+                        const PlayerAnimationSetComponent& anim) {
+            switch(hint) {
+            case TutorialHint::Pickup:
+                return static_cast<int>(player.weaponInventory.size()) > tutorial.hintInventorySize
+                       || SumWeaponLevels(registry, player) > tutorial.hintWeaponLevelSum;
+            case TutorialHint::Switch:
+                return player.selectedWeaponIndex != tutorial.hintSelectedWeapon;
+            case TutorialHint::Charge:
+                return anim.currentState == PlayerAnimState::Charge && ResolveChargeStage(anim.chargeTimer, player) >= kChargeHintClearStage;
+            default:
+                return false;
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  次の手順へ進める
+        //-------------------------------------------------------------
+        void AdvanceStep(TutorialComponent& tutorial) {
+            tutorial.step      = static_cast<TutorialStep>(static_cast<int>(tutorial.step) + 1);
+            tutorial.stepTimer = 0.0f;
+            tutorial.doneTimer = -1.0f;
+            tutorial.moveTime  = 0.0f;
         }
 
         //-------------------------------------------------------------
@@ -241,10 +294,6 @@ namespace CombatAndroid::ECS {
                        || anim.currentState == PlayerAnimState::Attack3;
             case TutorialStep::Dodge:
                 return anim.currentState == PlayerAnimState::Dodge;
-            case TutorialStep::Pickup:
-                return static_cast<int>(player.weaponInventory.size()) > tutorial.inventorySizeAtStep;
-            case TutorialStep::Switch:
-                return player.selectedWeaponIndex != tutorial.selectedWeaponAtStep;
             default:
                 return false;
             }
@@ -284,12 +333,12 @@ namespace CombatAndroid::ECS {
             } else if(tutorial.doneTimer >= 0.0f) {
                 tutorial.doneTimer += deltaTime;
                 if(tutorial.doneTimer >= params.doneHold)
-                    AdvanceStep(registry, tutorial, player);
+                    AdvanceStep(tutorial);
             } else if(IsStepDone(tutorial, player, anim, deltaTime)) {
                 tutorial.doneTimer = 0.0f;
                 UiPunch(registry, tutorial.panelEntity, 0.6f, true);    // できた手ごたえ
             } else if(tutorial.stepTimer >= params.stepTimeout) {
-                AdvanceStep(registry, tutorial, player);
+                AdvanceStep(tutorial);
             }
 
             //-------------------------------------------------------------
@@ -358,16 +407,20 @@ namespace CombatAndroid::ECS {
             tutorial.prompts[static_cast<size_t>(i)] = CreateInputPromptWidget(registry, context, desc);
         }
 
-        // 溜め攻撃の案内（拾ったときに出す）
-        tutorial.chargeHintPanel = CreateUiRectEntity(registry, context, UI::kTutorialPanel);
-        tutorial.chargeHintText  = CreateUiTextEntity(registry, UI::kTutorialText, UiTextAlign::Left);
-        {
+        // 場面の案内（拾う・切り替える・溜める）。板と文は共用、キー表示は案内ごと
+        tutorial.hintPanel = CreateUiRectEntity(registry, context, UI::kTutorialPanel);
+        tutorial.hintText  = CreateUiTextEntity(registry, UI::kTutorialText, UiTextAlign::Left);
+        for(int i = 0; i < static_cast<int>(TutorialHint::Count); ++i) {
+            const TutorialStepDef& def = kHintDefs[i];
+            if(!def.keyLabel && !def.useMouse)
+                continue;    // キー表示の無い案内（拾う）は作らない
+
             InputPromptDesc desc;
-            desc.keyLabel                = L"";
-            desc.useMouse                = kChargeHintDef.useMouse;
-            desc.useHoldRing             = kChargeHintDef.useHold;
-            desc.sortOrderBase           = UI::kTutorialPromptBase;
-            tutorial.chargeHintPrompt    = CreateInputPromptWidget(registry, context, desc);
+            desc.keyLabel      = def.keyLabel ? def.keyLabel : L"";
+            desc.useMouse      = def.useMouse;
+            desc.useHoldRing   = def.useHold;
+            desc.sortOrderBase = UI::kTutorialPromptBase;
+            tutorial.hintPrompts[static_cast<size_t>(i)] = CreateInputPromptWidget(registry, context, desc);
         }
 
         // 文字とキー表示は板の動き（滑り込み・弾み・フェード）に追従させる
@@ -375,8 +428,9 @@ namespace CombatAndroid::ECS {
         UiFollow(registry, tutorial.counterEntity, tutorial.panelEntity);
         for(const InputPromptWidget& prompt : tutorial.prompts)
             UiFollowPrompt(registry, prompt, tutorial.panelEntity);
-        UiFollow(registry, tutorial.chargeHintText, tutorial.chargeHintPanel);
-        UiFollowPrompt(registry, tutorial.chargeHintPrompt, tutorial.chargeHintPanel);
+        UiFollow(registry, tutorial.hintText, tutorial.hintPanel);
+        for(const InputPromptWidget& prompt : tutorial.hintPrompts)
+            UiFollowPrompt(registry, prompt, tutorial.hintPanel);
 
         // Prefab（System/Tutorial）は実行時状態だけの束。組み立てた中身を入れる
         registry.GetComponent<TutorialComponent>(InstantiatePrefab(registry, context, "System/Tutorial")) = tutorial;
@@ -409,7 +463,8 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<TutorialComponent>();
         for(auto entity : view) {
             TutorialComponent& tutorial = view.get<TutorialComponent>(entity);
-            if(tutorial.finished && tutorial.chargeHintState == ChargeHintState::Done)
+            if(tutorial.finished
+               && std::all_of(tutorial.hintStates.begin(), tutorial.hintStates.end(), [](TutorialHintState state) { return state == TutorialHintState::Done; }))
                 continue;
 
             //-------------------------------------------------------------
@@ -429,67 +484,101 @@ namespace CombatAndroid::ECS {
             UpdateSteps(registry, *ctx, tutorial, *player, *anim, deltaTime, panelCenterX, panelCenterY);
 
             //-------------------------------------------------------------
-            // 溜め攻撃の案内。手順の流れとは別に、溜め攻撃できる武器を拾った時点で出し、
-            // 最大段階（ピンク）まで溜めたら「OK」を少し見せて消す。時間切れは無い。
+            // 場面の案内。手順の流れとは別に、その場面が来た時点で出し（拾える武器が現れた・2本目を持った・
+            // バトルアックスを持った）、できたら「OK」を少し見せて消す。時間切れは無い。
+            // 一度に出すのは1つだけで、同時に場面が来たらTutorialHintの並びで順に出す。
             // 手順の案内が出ている間は、その上に積む
             //-------------------------------------------------------------
-            if(tutorial.chargeHintState == ChargeHintState::Waiting && HasChargeWeapon(registry, *player))
-                tutorial.chargeHintState = ChargeHintState::Showing;
+            for(int i = 0; i < static_cast<int>(TutorialHint::Count); ++i) {
+                TutorialHintState& state = tutorial.hintStates[static_cast<size_t>(i)];
+                if(state == TutorialHintState::Waiting && IsHintTriggered(registry, static_cast<TutorialHint>(i), *player))
+                    state = TutorialHintState::Pending;
+            }
 
-            if(tutorial.chargeHintState != ChargeHintState::Showing) {
-                HideChargeHint(registry, tutorial);
+            // 拾える武器が消えたら、拾う案内はいったん下げて、次に現れたらまた出す
+            if(tutorial.activeHint == static_cast<int>(TutorialHint::Pickup) && tutorial.hintDoneTimer < 0.0f && !HasPickupOnGround(registry)) {
+                tutorial.hintStates[static_cast<size_t>(TutorialHint::Pickup)] = TutorialHintState::Waiting;
+                tutorial.activeHint                                            = -1;
+                HideHint(registry, tutorial);
+            }
+
+            if(tutorial.activeHint < 0) {
+                for(int i = 0; i < static_cast<int>(TutorialHint::Count); ++i) {
+                    if(tutorial.hintStates[static_cast<size_t>(i)] != TutorialHintState::Pending)
+                        continue;
+                    tutorial.activeHint                         = i;
+                    tutorial.hintStates[static_cast<size_t>(i)] = TutorialHintState::Showing;
+                    tutorial.hintDoneTimer                      = -1.0f;
+                    tutorial.hintInventorySize                  = static_cast<int>(player->weaponInventory.size());
+                    tutorial.hintWeaponLevelSum                 = SumWeaponLevels(registry, *player);
+                    tutorial.hintSelectedWeapon                 = player->selectedWeaponIndex;
+                    break;
+                }
+            }
+
+            if(tutorial.activeHint < 0) {
+                HideHint(registry, tutorial);
                 continue;
             }
 
-            const bool isCharging = anim->currentState == PlayerAnimState::Charge;
-            if(tutorial.chargeHintDoneTimer >= 0.0f) {
-                tutorial.chargeHintDoneTimer += deltaTime;
-                if(tutorial.chargeHintDoneTimer >= params.doneHold) {
-                    // 「OK!」を見せ終えたら、フェードで消してから隠す
-                    if(!tutorial.chargeHintFading) {
-                        tutorial.chargeHintFading = true;
-                        UiDisappear(registry, tutorial.chargeHintPanel, true);
-                    } else if(!UiIsVisibilityAnimating(registry, tutorial.chargeHintPanel)) {
-                        tutorial.chargeHintState = ChargeHintState::Done;
-                        HideChargeHint(registry, tutorial);
-                        UiResetVisibility(registry, tutorial.chargeHintPanel);
+            const TutorialHint     hint = static_cast<TutorialHint>(tutorial.activeHint);
+            const TutorialStepDef& def  = kHintDefs[tutorial.activeHint];
+            if(tutorial.hintDoneTimer >= 0.0f) {
+                tutorial.hintDoneTimer += deltaTime;
+                if(tutorial.hintDoneTimer >= params.doneHold) {
+                    // 「OK!」を見せ終えたら、フェードで消してから隠す。次の案内は板が消えきってから出す
+                    if(!tutorial.hintFading) {
+                        tutorial.hintFading = true;
+                        UiDisappear(registry, tutorial.hintPanel, true);
+                    } else if(!UiIsVisibilityAnimating(registry, tutorial.hintPanel)) {
+                        tutorial.hintStates[static_cast<size_t>(tutorial.activeHint)] = TutorialHintState::Done;
+                        tutorial.activeHint                                           = -1;
+                        HideHint(registry, tutorial);
+                        UiResetVisibility(registry, tutorial.hintPanel);
                         continue;
                     }
                 }
-            } else if(isCharging && ResolveChargeStage(anim->chargeTimer, *player) >= kChargeHintClearStage) {
-                tutorial.chargeHintDoneTimer = 0.0f;
-                UiPunch(registry, tutorial.chargeHintPanel, 0.8f, true);    // ピンクまで溜めた手ごたえ
+            } else if(IsHintDone(registry, tutorial, hint, *player, *anim)) {
+                tutorial.hintDoneTimer = 0.0f;
+                UiPunch(registry, tutorial.hintPanel, 0.8f, true);    // できた手ごたえ
             }
 
-            const bool  hintDone = tutorial.chargeHintDoneTimer >= 0.0f;
+            const bool  hintDone = tutorial.hintDoneTimer >= 0.0f;
             const float hintY    = tutorial.finished ? panelCenterY : panelCenterY + params.stackOffsetY;
 
-            const float hintWidth = FitPanelWidth(kChargeHintDef.text);
+            const float hintWidth = FitPanelWidth(def.text);
             const float panelLeft = panelCenterX - hintWidth * 0.5f;
-            StretchSprite(registry, *ctx, tutorial.chargeHintPanel, panelCenterX, hintY, hintWidth, params.panelHeight, params.panelColor);
+            StretchSprite(registry, *ctx, tutorial.hintPanel, panelCenterX, hintY, hintWidth, params.panelHeight, params.panelColor);
 
             //-------------------------------------------------------------
             // 出した瞬間は下から滑り込ませる。手順の案内が終わって積む位置が下がったときは、
             // 前の位置から滑らせて移す（いきなり飛ばない）
             //-------------------------------------------------------------
-            if(!tutorial.chargeHintShown) {
-                tutorial.chargeHintShown = true;
-                UiAppearFromBelow(registry, tutorial.chargeHintPanel, 0.0f, true);
-            } else if(hintY != tutorial.chargeHintLastY) {
-                UiSlideFrom(registry, tutorial.chargeHintPanel, 0.0f, tutorial.chargeHintLastY - hintY, true);
+            if(!tutorial.hintShown) {
+                tutorial.hintShown = true;
+                UiAppearFromBelow(registry, tutorial.hintPanel, 0.0f, true);
+            } else if(hintY != tutorial.hintLastY) {
+                UiSlideFrom(registry, tutorial.hintPanel, 0.0f, tutorial.hintLastY - hintY, true);
             }
-            tutorial.chargeHintLastY = hintY;
+            tutorial.hintLastY = hintY;
 
-            std::wstring hintText = kChargeHintDef.text;
+            std::wstring hintText = def.text;
             if(hintDone)
                 hintText += kDoneSuffix;
-            PlaceUiText(registry, tutorial.chargeHintText, panelLeft + params.textInsetX, hintY, GetUiTextScale(UiTextSize::Body), hintText,
+            PlaceUiText(registry, tutorial.hintText, panelLeft + params.textInsetX, hintY, GetUiTextScale(UiTextSize::Body), hintText,
                         hintDone ? params.doneColor : params.textColor);
 
-            InputPromptStyle style;
-            if(isCharging)
-                style.holdProgress = 1.0f;    // 溜めている間はゲージを満たして見せる
-            ShowInputPromptAtScreen(registry, *ctx, tutorial.chargeHintPrompt, panelLeft + params.promptInsetX, hintY, style);
+            for(int i = 0; i < static_cast<int>(TutorialHint::Count); ++i) {
+                const InputPromptWidget& prompt = tutorial.hintPrompts[static_cast<size_t>(i)];
+                if(i != tutorial.activeHint) {
+                    HideInputPrompt(registry, prompt);
+                    continue;
+                }
+                InputPromptStyle style;
+                if(hint == TutorialHint::Charge && anim->currentState == PlayerAnimState::Charge)
+                    style.holdProgress = 1.0f;    // 溜めている間はゲージを満たして見せる
+                ShowInputPromptAtScreen(registry, *ctx, prompt, panelLeft + params.promptInsetX, hintY, style);
+            }
         }
     }
 }    // namespace CombatAndroid::ECS

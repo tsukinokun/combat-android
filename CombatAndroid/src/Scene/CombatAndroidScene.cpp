@@ -341,7 +341,7 @@ namespace CombatAndroid {
                                             playerTransform.position, playerEntity);
 
         // 切り替え対象の武器一覧（PlayerSystemがマウスホイール入力でここを順送りする）。
-        // 初期状態はwarhammerのみ。他の武器はワールドに落ちており、Fキーで拾うとここに増える
+        // 初期状態はwarhammerのみ。他の武器は敵（Paladin・エリート）が落とし、触れて拾うとここに増える
         player.weaponInventory     = {warhammerEntity};
         player.selectedWeaponIndex = 0;
         player.weaponEntity        = warhammerEntity;
@@ -359,21 +359,6 @@ namespace CombatAndroid {
             warhammerWeapon.floatEnabled  = true;
             warhammerWeapon.floatSelected = true;
         }
-
-        //--------------------------------------------------------------
-        // 地面に落ちている武器の生成（Fキーで拾える）。
-        // ownerを設定しないため、CombatSystemの追従処理（owner != entt::nullが条件）には入らず
-        // その場に留まる。PickupSystemが範囲内・最近傍の1本だけを強調し、Fキーで
-        // WeaponComponent::ownerをプレイヤーへ設定して浮遊武器へ昇格させる。
-        // 動作確認用に近い位置へまとめて置き、「同時に範囲内でも1つだけ光る」ことを
-        // 確認できるようにしている
-        //--------------------------------------------------------------
-        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Greatsword,
-                                        hlslpp::float3(250.0f, 10.0f, 0.0f));
-        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Battleaxe,
-                                        hlslpp::float3(300.0f, 10.0f, 100.0f));
-        CombatAndroid::ECS::SpawnWeapon(registry, *context, CombatAndroid::ECS::WeaponId::Warhammer,
-                                        hlslpp::float3(340.0f, 10.0f, 0.0f));
 
         //--------------------------------------------------------------
         // 敵はここでは置かない。実行中の湧き（サバイバー化）は EnemySpawnDirectorSystem が担当し、
