@@ -17,6 +17,7 @@
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerChargeEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerCounterKickEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerJustDodgeEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/CombatHit.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
@@ -528,6 +529,8 @@ namespace CombatAndroid::ECS {
             if(s_testCounter && dodgeJustPressed && player.counterReadyTimer <= 0.0f) {
                 player.counterReadyTimer = combatParams.counterWindow;
                 player.counterTarget = registry.HasComponent<SoftTargetComponent>(entity) ? registry.GetComponent<SoftTargetComponent>(entity).target : entt::null;
+                if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                    eventBus->Publish(PlayerJustDodgeEvent{entity, player.counterTarget});
             }
 #endif
 
@@ -626,7 +629,7 @@ namespace CombatAndroid::ECS {
                 animSet.bufferedInput    = BufferedInput::None;
                 animSet.attackComboIndex = 0;
                 if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
-                    eventBus->Publish(PlayerCounterKickEvent{entity, combatParams.kickSlowScale, combatParams.kickSlowHold, combatParams.kickSlowEaseOut});
+                    eventBus->Publish(PlayerCounterKickEvent{entity, player.kickTarget, combatParams.kickSlowScale, combatParams.kickSlowHold, combatParams.kickSlowEaseOut});
 #if defined(_DEBUG)
                 Tsukino::Core::Log::Info(std::string("CounterKick start target=") + (player.kickTarget != entt::null ? "yes" : "none"));
 #endif

@@ -59,6 +59,23 @@ namespace CombatAndroid::ECS {
         float       kickSlowScale   = 0.2f;      //!< キックの間の世界の時間の倍率
         float       kickSlowHold    = 0.7f;      //!< スローを保つ秒
         float       kickSlowEaseOut = 0.35f;     //!< スローから戻す秒
+
+        // カメラワーク（TpsCameraSystem）。秒・速さはすべて実時間
+        float justDodgeCamHold          = 0.35f;    //!< ジャスト回避で寄ったまま保つ秒
+        float justDodgeCamInFrequency   = 7.0f;     //!< 寄るばねの速さ（Hz）
+        float justDodgeCamOutFrequency  = 2.2f;     //!< 戻るばねの速さ（Hz）
+        float justDodgeCamDistanceScale = 0.65f;    //!< 寄りきったときの距離の倍率
+        float justDodgeCamFovScale      = 0.85f;    //!< 寄りきったときの画角の倍率
+        float justDodgeCamTilt          = 0.18f;    //!< 寄るときに横へ回り込む角度（ラジアン。避けた相手が画面に入る側へ）
+        float kickCamHold          = 0.85f;    //!< キックの横からのカメラを保つ秒
+        float kickCamInFrequency   = 4.5f;     //!< 横へ回り込むばねの速さ（Hz）
+        float kickCamOutFrequency  = 1.6f;     //!< 元へ戻るばねの速さ（Hz）
+        float kickCamSideAngle     = 1.15f;    //!< 真後ろから横へ回り込む角度（ラジアン）
+        float kickCamDistanceScale = 0.8f;     //!< 横から撮るときの距離の倍率
+        float kickCamPitch         = 0.08f;    //!< 横から撮るときの見下ろし角（低めにして迫力を出す）
+        float kickCamLookHeight    = 150.0f;   //!< 横から撮るときの注視の高さ（腰のあたり）
+        float kickCamFovDash       = 1.18f;    //!< 詰めている間の画角の倍率（広げて速さを出す）
+        float kickCamFovImpact     = 0.85f;    //!< 蹴った後の画角の倍率（締めて当たりを強調する）
     };
 
     //-------------------------------------------------------------

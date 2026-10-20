@@ -12,6 +12,7 @@
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/Save/GameSettings.hpp>
+#include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
@@ -40,6 +41,25 @@ namespace CombatAndroid::ECS {
         m_finisherConnection = eventBus.Subscribe<PlayerFinisherEvent>([this](const PlayerFinisherEvent& event) { OnPlayerFinisher(event); });
         m_heavyStrikeConnection =
             eventBus.Subscribe<PlayerHeavyStrikeEvent>([this](const PlayerHeavyStrikeEvent& event) { OnPlayerHeavyStrike(event); });
+        m_justDodgeConnection = eventBus.Subscribe<PlayerJustDodgeEvent>([this](const PlayerJustDodgeEvent& event) { OnPlayerJustDodge(event); });
+        m_counterKickConnection =
+            eventBus.Subscribe<PlayerCounterKickEvent>([this](const PlayerCounterKickEvent& event) { OnPlayerCounterKick(event); });
+    }
+
+    //-------------------------------------------------------------
+    //! @brief ジャスト回避の通知ハンドラ
+    //-------------------------------------------------------------
+    void TpsCameraSystem::OnPlayerJustDodge(const PlayerJustDodgeEvent& event) {
+        m_pendingJustDodge = true;
+        m_pendingDodgeFrom = event.attacker;
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 反撃キックの通知ハンドラ
+    //-------------------------------------------------------------
+    void TpsCameraSystem::OnPlayerCounterKick(const PlayerCounterKickEvent& event) {
+        m_pendingKick       = true;
+        m_pendingKickTarget = event.target;
     }
 
     //-------------------------------------------------------------
@@ -95,6 +115,8 @@ namespace CombatAndroid::ECS {
             m_pendingShakeDamage     = 0.0f;
             m_pendingZoomImpactDelay = -1.0f;
             m_pendingStrikeShakeDelay = -1.0f;
+            m_pendingJustDodge        = false;
+            m_pendingKick             = false;
             return;
         }
 
@@ -214,10 +236,74 @@ namespace CombatAndroid::ECS {
                 tpsCamera.yaw += tpsCamera.deathOrbitSpeed * realDeltaTime;
 
             // 距離・回転中心の高さ・注視の高さ・見下ろし角を、寄りの量に応じて通常の値から寄せる
-            const float distance   = std::lerp(tpsCamera.distance, tpsCamera.distance * tpsCamera.deathDistanceScale, deathFocus);
+            float       distance   = std::lerp(tpsCamera.distance, tpsCamera.distance * tpsCamera.deathDistanceScale, deathFocus);
             const float height     = std::lerp(tpsCamera.height, tpsCamera.deathLookHeight, deathFocus);
-            const float lookHeight = std::lerp(tpsCamera.lookHeight, tpsCamera.deathLookHeight, deathFocus);
-            const float pitch      = std::lerp(tpsCamera.pitch, tpsCamera.deathPitch, deathFocus);
+            float       lookHeight = std::lerp(tpsCamera.lookHeight, tpsCamera.deathLookHeight, deathFocus);
+            float       pitch      = std::lerp(tpsCamera.pitch, tpsCamera.deathPitch, deathFocus);
+
+            //-------------------------------------------------------------
+            // ジャスト回避と反撃キックのカメラワーク。マウスで回した向き（tpsCamera.yaw）はそのまま持ち、
+            // 寄りの量に応じて一時的に向き・距離・角度・画角を寄せるので、量が0へ戻ればいつもの位置へ戻る。
+            // スローの中でも素早く動かしたいので、ばねは実時間で進める
+            //-------------------------------------------------------------
+            const BossCombatParams& combat = GetBossCombatParams();
+            auto wrapAngle = [](float a) { return std::remainder(a, kTwoPi); };
+
+            if(m_pendingJustDodge) {
+                m_pendingJustDodge          = false;
+                tpsCamera.justDodgeCamTimer = combat.justDodgeCamHold;
+                // 避けた相手が画面の内側に入るよう、相手のいる側へ少し回り込む
+                tpsCamera.justDodgeCamSide = 0.0f;
+                if(m_pendingDodgeFrom != entt::null && registry.IsValid(m_pendingDodgeFrom)
+                   && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingDodgeFrom)) {
+                    const hlslpp::float3 toAttacker =
+                        registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingDodgeFrom).position - targetTransform.position;
+                    // カメラの右向き（yaw=0で+X）との内積で左右を決める
+                    const float right = static_cast<float>(toAttacker.x) * std::cos(tpsCamera.yaw) + static_cast<float>(toAttacker.z) * std::sin(tpsCamera.yaw);
+                    tpsCamera.justDodgeCamSide = right >= 0.0f ? -1.0f : 1.0f;
+                }
+            }
+            if(m_pendingKick) {
+                m_pendingKick            = false;
+                tpsCamera.kickCamTimer   = combat.kickCamHold;
+                tpsCamera.kickCamElapsed = 0.0f;
+                tpsCamera.kickCamYaw     = tpsCamera.yaw;
+                if(m_pendingKickTarget != entt::null && registry.IsValid(m_pendingKickTarget)
+                   && registry.HasComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingKickTarget)) {
+                    hlslpp::float3 toTarget =
+                        registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(m_pendingKickTarget).position - targetTransform.position;
+                    toTarget.y = 0.0f;
+                    if(static_cast<float>(hlslpp::length(toTarget)) > 1.0f) {
+                        // 真後ろから見るyaw（カメラはプレイヤーから相手と反対側に置く）から、今のカメラに近い側の横へ回り込む
+                        const float behindYaw = std::atan2(-static_cast<float>(toTarget.x), static_cast<float>(toTarget.z));
+                        const float sideA     = behindYaw + combat.kickCamSideAngle;
+                        const float sideB     = behindYaw - combat.kickCamSideAngle;
+                        tpsCamera.kickCamYaw  = std::fabs(wrapAngle(sideA - tpsCamera.yaw)) <= std::fabs(wrapAngle(sideB - tpsCamera.yaw)) ? sideA : sideB;
+                    }
+                }
+            }
+
+            tpsCamera.justDodgeCamTimer = std::max(tpsCamera.justDodgeCamTimer - realDeltaTime, 0.0f);
+            tpsCamera.kickCamTimer      = std::max(tpsCamera.kickCamTimer - realDeltaTime, 0.0f);
+            tpsCamera.kickCamElapsed += realDeltaTime;
+            {
+                const bool dodgeHeld = tpsCamera.justDodgeCamTimer > 0.0f;
+                Spring::Step(tpsCamera.justDodgeCamAmount, tpsCamera.justDodgeCamVelocity, dodgeHeld ? 1.0f : 0.0f,
+                             dodgeHeld ? combat.justDodgeCamInFrequency : combat.justDodgeCamOutFrequency, 1.0f, realDeltaTime);
+                const bool kickHeld = tpsCamera.kickCamTimer > 0.0f;
+                Spring::Step(tpsCamera.kickCamAmount, tpsCamera.kickCamVelocity, kickHeld ? 1.0f : 0.0f,
+                             kickHeld ? combat.kickCamInFrequency : combat.kickCamOutFrequency, 1.0f, realDeltaTime);
+            }
+            const float dodgeCam = std::clamp(tpsCamera.justDodgeCamAmount, 0.0f, 1.0f) * (1.0f - deathFocus);
+            const float kickCam  = std::clamp(tpsCamera.kickCamAmount, 0.0f, 1.0f) * (1.0f - deathFocus);
+
+            const float cameraYaw = tpsCamera.yaw + wrapAngle(tpsCamera.kickCamYaw - tpsCamera.yaw) * kickCam
+                                    + tpsCamera.justDodgeCamSide * combat.justDodgeCamTilt * dodgeCam;
+            distance *= std::lerp(1.0f, combat.kickCamDistanceScale, kickCam) * std::lerp(1.0f, combat.justDodgeCamDistanceScale, dodgeCam);
+            pitch      = std::lerp(pitch, combat.kickCamPitch, kickCam);
+            lookHeight = std::lerp(lookHeight, combat.kickCamLookHeight, kickCam);
+            const float kickFov   = tpsCamera.kickCamElapsed < combat.kickImpactTime ? combat.kickCamFovDash : combat.kickCamFovImpact;
+            const float actionFov = std::lerp(1.0f, kickFov, kickCam) * std::lerp(1.0f, combat.justDodgeCamFovScale, dodgeCam);
 
             //-------------------------------------------------------------
             // yaw=0, pitch=0のとき-Z方向（後方）を基準とした球面座標でオフセットを求める
@@ -225,9 +311,9 @@ namespace CombatAndroid::ECS {
             float horizontalDist = distance * std::cos(pitch);
 
             hlslpp::float3 offset;
-            offset.x = horizontalDist * std::sin(tpsCamera.yaw);
+            offset.x = horizontalDist * std::sin(cameraYaw);
             offset.y = height + distance * std::sin(pitch);
-            offset.z = -horizontalDist * std::cos(tpsCamera.yaw);
+            offset.z = -horizontalDist * std::cos(cameraYaw);
 
             hlslpp::float3 desiredPosition = targetTransform.position + offset;
 
@@ -249,8 +335,9 @@ namespace CombatAndroid::ECS {
                 tpsCamera.hasFollowSpringState = true;
             } else {
                 // 倒れた後はリザルトで世界が止まってもカメラだけは回り続けるよう、実時間で追う
+                // 倒れた後と反撃キックの間（スローの中を実時間で詰めるプレイヤーを追う）は実時間で追う
                 Spring::Step(tpsCamera.followSpringPosition, tpsCamera.followSpringVelocity, desiredPosition, tpsCamera.followSpringFrequency,
-                           tpsCamera.followSpringDamping, targetDead ? realDeltaTime : deltaTime);
+                           tpsCamera.followSpringDamping, (targetDead || kickCam > 0.01f) ? realDeltaTime : deltaTime);
 
                 // 目標を下限で止めても、ばねは行き過ぎるので地面の下まで沈みうる。
                 // 床に当たったら下向きの速度を捨てて、跳ね返らずにそこへ留める
@@ -319,7 +406,7 @@ namespace CombatAndroid::ECS {
                 tpsCamera.hasBaseFov = true;
             }
             camera.fov = tpsCamera.baseFov * (1.0f + (tpsCamera.zoomFovScale - 1.0f) * tpsCamera.zoomAmount)
-                         * std::lerp(1.0f, tpsCamera.deathFovScale, deathFocus);
+                         * std::lerp(1.0f, tpsCamera.deathFovScale, deathFocus) * actionFov;
 
             //-------------------------------------------------------------
             // 被弾時と連撃最終段の揺れ。

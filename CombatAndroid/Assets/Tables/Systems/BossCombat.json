@@ -39,6 +39,21 @@
         "kickKnockbackStun": 0.6,
         "kickSlowScale": 0.2,
         "kickSlowHold": 0.7,
-        "kickSlowEaseOut": 0.35
+        "kickSlowEaseOut": 0.35,
+        "justDodgeCamHold": 0.35,
+        "justDodgeCamInFrequency": 7.0,
+        "justDodgeCamOutFrequency": 2.2,
+        "justDodgeCamDistanceScale": 0.65,
+        "justDodgeCamFovScale": 0.85,
+        "justDodgeCamTilt": 0.18,
+        "kickCamHold": 0.85,
+        "kickCamInFrequency": 4.5,
+        "kickCamOutFrequency": 1.6,
+        "kickCamSideAngle": 1.15,
+        "kickCamDistanceScale": 0.8,
+        "kickCamPitch": 0.08,
+        "kickCamLookHeight": 150.0,
+        "kickCamFovDash": 1.18,
+        "kickCamFovImpact": 0.85
     }
 }

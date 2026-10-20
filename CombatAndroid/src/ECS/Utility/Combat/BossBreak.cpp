@@ -8,6 +8,7 @@
 #include <CombatAndroid/ECS/Component/Player/PlayerAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerJustDodgeEvent.hpp>
 #include <CombatAndroid/ECS/Serialization/Common/SerializationHelper.hpp>
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 
@@ -56,6 +57,21 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "kickSlowScale", params.kickSlowScale);
         LoadField(archive, "kickSlowHold", params.kickSlowHold);
         LoadField(archive, "kickSlowEaseOut", params.kickSlowEaseOut);
+        LoadField(archive, "justDodgeCamHold", params.justDodgeCamHold);
+        LoadField(archive, "justDodgeCamInFrequency", params.justDodgeCamInFrequency);
+        LoadField(archive, "justDodgeCamOutFrequency", params.justDodgeCamOutFrequency);
+        LoadField(archive, "justDodgeCamDistanceScale", params.justDodgeCamDistanceScale);
+        LoadField(archive, "justDodgeCamFovScale", params.justDodgeCamFovScale);
+        LoadField(archive, "justDodgeCamTilt", params.justDodgeCamTilt);
+        LoadField(archive, "kickCamHold", params.kickCamHold);
+        LoadField(archive, "kickCamInFrequency", params.kickCamInFrequency);
+        LoadField(archive, "kickCamOutFrequency", params.kickCamOutFrequency);
+        LoadField(archive, "kickCamSideAngle", params.kickCamSideAngle);
+        LoadField(archive, "kickCamDistanceScale", params.kickCamDistanceScale);
+        LoadField(archive, "kickCamPitch", params.kickCamPitch);
+        LoadField(archive, "kickCamLookHeight", params.kickCamLookHeight);
+        LoadField(archive, "kickCamFovDash", params.kickCamFovDash);
+        LoadField(archive, "kickCamFovImpact", params.kickCamFovImpact);
     }
 
     //-------------------------------------------------------------
@@ -127,6 +143,10 @@ namespace CombatAndroid::ECS {
 
         player.counterReadyTimer = params.counterWindow;
         player.counterTarget     = attacker;
+
+        // カメラの寄り（毎回）。スローは下で、雑魚なら間を空けて掛ける
+        if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+            eventBus->Publish(PlayerJustDodgeEvent{playerEntity, attacker});
 
         //-------------------------------------------------------------
         // 大技と同じ「スロー＋カメラの寄り」を、待ち無しで掛ける。

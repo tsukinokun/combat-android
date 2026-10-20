@@ -16,6 +16,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     struct PlayerCounterKickEvent {
         entt::entity player;          //!< キックしたプレイヤー
+        entt::entity target;          //!< 詰める相手（居なければnull。カメラが横から撮る向きを決めるのに使う）
         float        slowScale;       //!< 遅くなりきったときの時間の倍率
         float        holdSeconds;     //!< その倍率を保つ秒（実時間）
         float        easeOutSeconds;  //!< 倍率1へ戻す秒（実時間）

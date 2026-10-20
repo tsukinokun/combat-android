@@ -6,7 +6,9 @@
 #pragma once
 #include <CombatAndroid/ECS/Event/Player/PlayerDamagedEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerFinisherEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerCounterKickEvent.hpp>
 #include <CombatAndroid/ECS/Event/Player/PlayerHeavyStrikeEvent.hpp>
+#include <CombatAndroid/ECS/Event/Player/PlayerJustDodgeEvent.hpp>
 
 #include <Tsukino/Core/ECS/System/ISystem.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
@@ -56,6 +58,16 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         void OnPlayerHeavyStrike(const PlayerHeavyStrikeEvent& event);
 
+        //-------------------------------------------------------------
+        //! @brief ジャスト回避の通知ハンドラ。次のUpdateで寄せる
+        //-------------------------------------------------------------
+        void OnPlayerJustDodge(const PlayerJustDodgeEvent& event);
+
+        //-------------------------------------------------------------
+        //! @brief 反撃キックの通知ハンドラ。次のUpdateで横からのカメラへ回り込む
+        //-------------------------------------------------------------
+        void OnPlayerCounterKick(const PlayerCounterKickEvent& event);
+
         //! 次のUpdateで揺れへ与えるダメージ量の合計
         //! @note 同じフレームに複数回被弾したら足し合わせる（倍率の上限はUpdateで掛ける）
         float m_pendingShakeDamage = 0.0f;
@@ -72,5 +84,12 @@ namespace CombatAndroid::ECS {
         Tsukino::ECS::ScopedConnection m_damagedConnection;              //!< PlayerDamagedEventの購読
         Tsukino::ECS::ScopedConnection m_finisherConnection;             //!< PlayerFinisherEventの購読
         Tsukino::ECS::ScopedConnection m_heavyStrikeConnection;          //!< PlayerHeavyStrikeEventの購読
+        Tsukino::ECS::ScopedConnection m_justDodgeConnection;            //!< PlayerJustDodgeEventの購読
+        Tsukino::ECS::ScopedConnection m_counterKickConnection;          //!< PlayerCounterKickEventの購読
+
+        bool         m_pendingJustDodge  = false;         //!< 今フレーム届いたジャスト回避
+        entt::entity m_pendingDodgeFrom  = entt::null;    //!< 避けた攻撃の相手
+        bool         m_pendingKick       = false;         //!< 今フレーム届いた反撃キック
+        entt::entity m_pendingKickTarget = entt::null;    //!< キックで詰める相手
     };
 }    // namespace CombatAndroid::ECS

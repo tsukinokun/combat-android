@@ -43,6 +43,19 @@ namespace CombatAndroid::ECS {
         hlslpp::float3 handoffLookAt   = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< カットシーンが終わった瞬間の注視点（内部状態）
         float          handoffFov      = 60.0f;                             //!< カットシーンが終わった瞬間の画角（内部状態）
 
+        //-------------------------------------------------------------
+        // ジャスト回避・反撃キックのカメラワーク（内部状態。調整値は BossCombat.json の justDodgeCam〜 / kickCam〜）
+        //-------------------------------------------------------------
+        float justDodgeCamAmount   = 0.0f;    //!< ジャスト回避の寄りの量（0〜1）
+        float justDodgeCamVelocity = 0.0f;
+        float justDodgeCamTimer    = 0.0f;    //!< 寄ったまま保つ残り秒
+        float justDodgeCamSide     = 0.0f;    //!< 回り込む向き（+1/-1。避けた相手が画面に入る側）
+        float kickCamAmount        = 0.0f;    //!< キックの横からのカメラの量（0〜1）
+        float kickCamVelocity      = 0.0f;
+        float kickCamTimer         = 0.0f;    //!< 横から撮ったまま保つ残り秒
+        float kickCamYaw           = 0.0f;    //!< 横から撮るときのyaw
+        float kickCamElapsed       = 0.0f;    //!< キックを始めてからの秒（蹴る前後で画角を変える）
+
         // --- 被弾時の揺れ（ばね） ---
         // 被弾の瞬間に、ばねで0へ引き戻される注視点のずれへ初速を与える。
         // 初速を与えるだけなので、揺れの形（振動数・減衰）はばねが決め、連続で被弾すれば
