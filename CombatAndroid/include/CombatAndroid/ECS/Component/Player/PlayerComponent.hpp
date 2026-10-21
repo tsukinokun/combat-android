@@ -64,6 +64,7 @@ namespace CombatAndroid::ECS {
         // --- 反撃キックの進行（PlayerAnimationSystemだけが書く） ---
         float                kickTimer   = 0.0f;          //!< キックに入ってからの実時間（秒）
         bool                 kickHitDone = false;         //!< このキックの当たりをもう出したか
+        bool                 kickQueued  = false;         //!< 回避中に反撃を押した。回避を最後まで再生してからキックする
         Tsukino::ECS::Entity kickTarget  = entt::null;    //!< このキックで詰める相手
 
         //! 雑魚でジャスト回避したときのスローを、次に掛けられるまでの残り秒（群れで連発させないため）。

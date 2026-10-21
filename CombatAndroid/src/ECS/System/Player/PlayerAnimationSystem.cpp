@@ -451,6 +451,7 @@ namespace CombatAndroid::ECS {
                 player.isDodging           = false;
                 player.isInvincible        = false;
                 player.isCharging          = false;    // Chargeで死亡した場合もOnExitがリムライトを消すため、ここでは公開フラグだけ落とす
+                player.kickQueued          = false;
 
                 if(player.weaponEntity != entt::null && registry.HasComponent<WeaponComponent>(player.weaponEntity))
                     registry.GetComponent<WeaponComponent>(player.weaponEntity).isAttacking = false;
@@ -520,7 +521,8 @@ namespace CombatAndroid::ECS {
 
             //-------------------------------------------------------------
             // 反撃の構え（ジャスト回避の直後）の左クリックは、通常の攻撃の代わりに反撃キックになる。
-            // 回避の途中でも出せる（回避した直後に押すのが自然なので、前転をキャンセルして蹴る）
+            // 回避の途中で押した場合は前転を打ち切らず、予約だけして回避を最後まで見せ、
+            // 回避が終わった瞬間にスローの中で蹴る（回避が終わってから押した場合はすぐ蹴る）
             //-------------------------------------------------------------
 #if defined(_DEBUG)
             //-------------------------------------------------------------
@@ -538,8 +540,11 @@ namespace CombatAndroid::ECS {
 
             bool kickJustStarted = false;
             if(attackJustPressed && player.counterReadyTimer > 0.0f && !isKicking) {
-                kickJustStarted   = true;
                 attackJustPressed = false;
+                if(isDodging)
+                    player.kickQueued = true;
+                else
+                    kickJustStarted = true;
             }
             const bool kickFinished = isKicking && player.kickTimer >= std::max(combatParams.kickClipEnd - combatParams.kickClipStart, 0.1f);
 
@@ -579,6 +584,13 @@ namespace CombatAndroid::ECS {
             // 回避の終了判定も攻撃段と同じ流儀（実クリップの再生完了＋保険のタイムアウト）で行う
             //-------------------------------------------------------------
             bool dodgeFinished = isDodging && (animPlayer.is_finished || animSet.dodgeTimer >= player.dodgeTimeoutSafety);
+
+            // 回避中に予約した反撃は、回避を最後まで再生し終えた瞬間に始める
+            // （押したのは構えの間なので、回避の間に構えの残り時間が切れていても出す）
+            if(player.kickQueued && dodgeFinished)
+                kickJustStarted = true;
+            else if(player.kickQueued && !isDodging)
+                player.kickQueued = false;    // 回避が別の理由で終わった（被弾など）。予約は捨てる
 
             //-------------------------------------------------------------
             // 溜め攻撃の解放判定。左クリックを離すか、chargeMaxDurationに達したら強制的に解放する。
@@ -624,6 +636,7 @@ namespace CombatAndroid::ECS {
                 //-------------------------------------------------------------
                 player.kickTimer   = 0.0f;
                 player.kickHitDone = false;
+                player.kickQueued  = false;
                 player.kickTarget  = player.counterTarget;
                 if(player.kickTarget == entt::null || !registry.IsValid(player.kickTarget) || !registry.HasComponent<EnemyComponent>(player.kickTarget)
                    || registry.GetComponent<HealthComponent>(player.kickTarget).isDead)
@@ -790,6 +803,9 @@ namespace CombatAndroid::ECS {
                 if(!player.kickHitDone && player.kickTimer >= combatParams.kickImpactTime) {
                     player.kickHitDone = true;
                     ApplyKickHit(registry, entity, player, transform);
+                    // 反撃の構えはこのキックで使い切る（ボスへの当たりはApplyBossHitModifiersが先に消費する。
+                    // 雑魚へのキックでも残さないと、構えの残り時間で2発目のキックが出てしまう）
+                    player.counterReadyTimer = 0.0f;
 #if defined(_DEBUG)
                     Tsukino::Core::Log::Info("CounterKick hit t=" + std::to_string(player.kickTimer));
 #endif
