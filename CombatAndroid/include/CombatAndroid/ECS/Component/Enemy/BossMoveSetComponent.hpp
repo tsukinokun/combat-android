@@ -21,6 +21,7 @@ namespace CombatAndroid::ECS {
         Move,         //!< 技を出している（予兆 → 判定 → 終わり）
         Recovery,     //!< 技の後の隙
         Broken,       //!< 体勢ゲージが満タンになってダウンしている（技を出さず、受けるダメージが増える）
+        Transform,    //!< 第二形態へ変身している（崩れ落ちてから浮き上がって大きくなる。この間はダメージを受けない）
     };
 
     //-------------------------------------------------------------
@@ -62,5 +63,18 @@ namespace CombatAndroid::ECS {
         float breakIdleTimer   = 0.0f;     //!< 最後に当てられてからの秒（一定時間たつとゲージが減り始める）
         int   breakCount       = 0;        //!< ダウンした回数（回数ごとに最大値を増やす）
         bool  breakPending     = false;    //!< ゲージが満タンになった。次のUpdateでダウンへ移る
+
+        // --- 第二形態。HPが0になったとき CombatHit が transformPending を立て、BossBehavior が変身させる ---
+        bool  secondFormUsed     = false;    //!< もう変身したか（変身は1回だけ）
+        bool  transformPending   = false;    //!< HPが0になった。次のUpdateで変身を始める
+        bool  transformAnnounced = false;    //!< 変身の告知（名前の帯・カメラ）をBossDirectorSystemが出したか
+        float transformFromScale = 1.0f;     //!< 変身前の見た目の拡大率（ここから倍率まで大きくする）
+        float pendingColliderScale = 1.0f;   //!< 当たり判定のカプセルへまだ掛けていない倍率（BossDirectorSystemがViewの外で掛けて1へ戻す）
+
+        // --- 空を飛ぶボス。BossBehavior が毎フレーム高さを目標へ寄せる ---
+        float altitude    = 0.0f;     //!< 地面からの今の高さ（揺れを除く）
+        float groundY     = 0.0f;     //!< 地面の高さ（湧いた位置の高さ）
+        bool  groundKnown = false;    //!< groundYを取ったか
+        float bobTime     = 0.0f;     //!< 上下の揺れの経過秒
     };
 }    // namespace CombatAndroid::ECS

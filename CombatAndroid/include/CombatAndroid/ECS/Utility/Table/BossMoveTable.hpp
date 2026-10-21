@@ -95,6 +95,10 @@ namespace CombatAndroid::ECS {
         float          orbitSpeed   = 300.0f;          //!< 旋回：回る速さ（ユニット/秒）
 
         int            enragedRepeat = 1;              //!< 激昂中に続けて出す回数
+
+        float          altitude          = -1.0f;      //!< 空を飛ぶボス：この技の間の高さ。負なら表の hoverHeight
+        std::string    projectilePrefab;               //!< 弾のPrefab（Assets/Prefabs/ からの相対名）。空なら Enemy/WebShot
+        bool           projectileAimDown = false;      //!< 弾：上下方向もプレイヤーの胸へ向けて撃つ（空中から撃ち下ろす）
     };
 
     //-------------------------------------------------------------
@@ -127,6 +131,21 @@ namespace CombatAndroid::ECS {
     };
 
     //-------------------------------------------------------------
+    //! @struct BossSecondForm
+    //! @brief  第二形態の定義。HPが0になったら倒れずに変身し、技の表を差し替えて戦い直す
+    //-------------------------------------------------------------
+    struct BossSecondForm {
+        std::string  key;                               //!< 第二形態の技の表の名前（Bosses/<key>.json）。空なら第二形態は無い
+        std::wstring displayName;                       //!< 第二形態の呼び名（告知の帯・ボスHUDに出す）
+        float        sizeMultiplier   = 1.4f;           //!< 体の大きさに掛ける倍率
+        float        healthRatio      = 1.0f;           //!< 戻すHP（最大HPに対する割合）
+        float        transformSeconds = 3.0f;           //!< 変身にかける秒数（無敵）
+        float        collapseSeconds  = 1.0f;           //!< 変身のうち、崩れ落ちている秒数（この後に浮き上がって大きくなる）
+        std::string  idleClip;                          //!< 第二形態の待機のクリップ。空なら今のまま
+        std::string  walkClip;                          //!< 第二形態の移動のクリップ。空なら今のまま
+    };
+
+    //-------------------------------------------------------------
     //! @struct BossMoveSet
     //! @brief  ボス1体ぶんの技の表
     //-------------------------------------------------------------
@@ -136,6 +155,16 @@ namespace CombatAndroid::ECS {
         BossBreakDef             breakDef;
         float                    turnSpeed      = 4.0f;    //!< 予兆の間にプレイヤーへ向き直る速さ（ラジアン/秒）
         float                    chaseStopRange = 180.0f;  //!< 追いかけるのをやめて立ち止まる距離
+        BossSecondForm           secondForm;
+
+        //-------------------------------------------------------------
+        // 空を飛ぶボス（hoverHeight > 0）。技の間は高く浮き、技の後の隙とダウン中は landAltitude まで降りる
+        //-------------------------------------------------------------
+        float hoverHeight   = 0.0f;      //!< 普段の高さ（大きさの倍率を掛ける前）。0なら地上のボス
+        float hoverBob      = 0.0f;      //!< 浮いている間の上下の揺れ幅
+        float hoverBobSpeed = 1.6f;      //!< 上下の揺れの速さ（ラジアン/秒）
+        float landAltitude  = 0.0f;      //!< 降りたときの高さ
+        float climbSpeed    = 4.0f;      //!< 目標の高さへ寄せる速さ（1/秒、指数で寄せる）
     };
 
     //-------------------------------------------------------------

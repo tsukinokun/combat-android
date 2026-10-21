@@ -47,5 +47,6 @@ namespace CombatAndroid::ECS {
         float                announceElapsed        = -1.0f;    //!< 告知を出してからの経過秒（実時間）。負なら出していない
         std::wstring         announceTitle;                     //!< 出しているボスの呼び名（例：「夜の聖騎士」）
         bool                 announceFinal = false;             //!< ラスボスの告知か（色を変える）
+        std::wstring         secondFormName;                    //!< 変身中のボスの第二形態の呼び名（変身し終えたときに告知する）
     };
 }    // namespace CombatAndroid::ECS

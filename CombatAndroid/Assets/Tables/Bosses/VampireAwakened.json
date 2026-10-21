@@ -1,0 +1,119 @@
+{
+    "Boss": {
+        "turnSpeed": 4.5,
+        "chaseStopRange": 350.0,
+        "hoverHeight": 300.0,
+        "hoverBob": 24.0,
+        "hoverBobSpeed": 1.6,
+        "landAltitude": 0.0,
+        "climbSpeed": 3.0,
+        "enrage": {
+            "healthRatio": 0.5,
+            "move": "",
+            "moveSpeedScale": 1.3,
+            "cooldownScale": 0.7
+        },
+        "break": {
+            "gaugeRatio": 0.12,
+            "growthPerBreak": 0.25,
+            "decayRatioPerSecond": 0.04,
+            "decayDelay": 2.0,
+            "downSeconds": 4.0,
+            "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Dying.fbx",
+            "clipEnd": 1.5,
+            "recoverSeconds": 0.7,
+            "recoverBlend": 0.4
+        },
+        "moves": [
+            {
+                "name": "BloodRain",
+                "kind": "Projectile",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Swiping.fbx",
+                "minRange": 0.0,
+                "maxRange": 1000.0,
+                "weight": 3.0,
+                "cooldown": 2.5,
+                "length": 1.8,
+                "recovery": 1.6,
+                "area": "None",
+                "hitbox": {
+                    "bone": "mixamorig:LeftHand",
+                    "radius": 30.0,
+                    "damage": 0.0,
+                    "start": 1.0,
+                    "duration": 0.1
+                },
+                "projectilePrefab": "Enemy/BloodShot",
+                "projectileAimDown": true,
+                "projectileCount": 5,
+                "projectileSpread": 50.0,
+                "projectileSpeed": 1100.0,
+                "projectileDamage": 14.0,
+                "projectileRadius": 50.0,
+                "projectileRange": 2600.0,
+                "slowSeconds": 0.0
+            },
+            {
+                "name": "Dive",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Jump Attack.fbx",
+                "minRange": 0.0,
+                "maxRange": 1200.0,
+                "weight": 2.0,
+                "cooldown": 5.0,
+                "length": 2.6,
+                "recovery": 1.8,
+                "area": "DiscAtTarget",
+                "altitude": 0.0,
+                "hitbox": {
+                    "bone": "mixamorig:Hips",
+                    "radius": 100.0,
+                    "damage": 40.0,
+                    "start": 1.45,
+                    "duration": 0.25
+                },
+                "leapStart": 0.5,
+                "leapEnd": 1.45,
+                "leapMaxDistance": 1200.0
+            },
+            {
+                "name": "Sweep",
+                "kind": "Charge",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Run.fbx",
+                "loopClip": true,
+                "minRange": 300.0,
+                "maxRange": 1000.0,
+                "weight": 1.5,
+                "cooldown": 6.0,
+                "length": 2.0,
+                "recovery": 1.4,
+                "area": "Line",
+                "altitude": 40.0,
+                "hitbox": {
+                    "bone": "mixamorig:Hips",
+                    "radius": 90.0,
+                    "damage": 30.0,
+                    "start": 0.9,
+                    "duration": 0.9
+                },
+                "chargeStart": 0.9,
+                "chargeDuration": 0.9,
+                "chargeSpeed": 1500.0
+            },
+            {
+                "name": "Orbit",
+                "kind": "Orbit",
+                "clip": "CombatAndroid/Assets/Anims/Vampire/Mutant Walking.fbx",
+                "minRange": 0.0,
+                "maxRange": 2000.0,
+                "weight": 1.0,
+                "cooldown": 7.0,
+                "length": 2.5,
+                "recovery": 0.3,
+                "area": "None",
+                "orbitSeconds": 2.5,
+                "orbitRadius": 450.0,
+                "orbitSpeed": 450.0
+            }
+        ]
+    }
+}

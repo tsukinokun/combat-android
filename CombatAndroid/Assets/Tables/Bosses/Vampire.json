@@ -2,6 +2,16 @@
     "Boss": {
         "turnSpeed": 4.0,
         "chaseStopRange": 100.0,
+        "secondForm": {
+            "key": "VampireAwakened",
+            "displayName": "真祖・紅き夜の伯爵",
+            "sizeMultiplier": 1.4,
+            "healthRatio": 1.0,
+            "transformSeconds": 3.0,
+            "collapseSeconds": 1.0,
+            "idleClip": "",
+            "walkClip": ""
+        },
         "enrage": {
             "healthRatio": 0.5,
             "move": "",

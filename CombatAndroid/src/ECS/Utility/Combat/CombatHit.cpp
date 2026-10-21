@@ -16,6 +16,8 @@
 #include <CombatAndroid/ECS/Component/World/TreeColliderComponent.hpp>
 #include <CombatAndroid/ECS/Event/World/TreeHitEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
+#include <CombatAndroid/ECS/Utility/Table/BossMoveTable.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/AnimationPlayerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -116,13 +118,22 @@ namespace CombatAndroid::ECS {
         if(std::find(hitRecord.begin(), hitRecord.end(), hitEntity) != hitRecord.end())
             return false;
 
+        // 第二形態へ変身している間（と、HPが0になって変身を待っている間）はダメージを受けない
+        auto* bossMoveSet = registry.try_get<BossMoveSetComponent>(hitEntity);
+        if(bossMoveSet && (bossMoveSet->phase == BossActionPhase::Transform || bossMoveSet->transformPending))
+            return false;
+
         // ボスなら、ダウン・後隙・反撃の倍率を掛けて体勢ゲージを溜める。以降の数値表示・吸収もこの値を使う
         dealtDamage = ApplyBossHitModifiers(registry, attacker, hitEntity, dealtDamage, breakScale);
 
         enemyHealth.currentHealth -= dealtDamage;
         if(enemyHealth.currentHealth <= 0.0f) {
             enemyHealth.currentHealth = 0.0f;
-            enemyHealth.isDead        = true;
+            // 第二形態が残っているボスは倒れずに変身する（BossBehaviorが次のUpdateで変身を始める）
+            if(bossMoveSet && !bossMoveSet->secondFormUsed && !GetBossMoveSet(bossMoveSet->key).secondForm.key.empty())
+                bossMoveSet->transformPending = true;
+            else
+                enemyHealth.isDead = true;
         }
         enemyHealth.hpBarVisibleTimer = kHpBarVisibleDuration;    // 被弾した瞬間だけ頭上HPバーを表示する
         hitRecord.push_back(hitEntity);

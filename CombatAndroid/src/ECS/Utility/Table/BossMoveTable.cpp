@@ -98,6 +98,21 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "orbitRadius", move.orbitRadius);
         LoadField(archive, "orbitSpeed", move.orbitSpeed);
         LoadField(archive, "enragedRepeat", move.enragedRepeat);
+        LoadField(archive, "altitude", move.altitude);
+        LoadField(archive, "projectilePrefab", move.projectilePrefab);
+        LoadField(archive, "projectileAimDown", move.projectileAimDown);
+    }
+
+    template <class Archive>
+    void load(Archive& archive, BossSecondForm& form) {
+        LoadField(archive, "key", form.key);
+        LoadWideField(archive, "displayName", form.displayName);
+        LoadField(archive, "sizeMultiplier", form.sizeMultiplier);
+        LoadField(archive, "healthRatio", form.healthRatio);
+        LoadField(archive, "transformSeconds", form.transformSeconds);
+        LoadField(archive, "collapseSeconds", form.collapseSeconds);
+        LoadField(archive, "idleClip", form.idleClip);
+        LoadField(archive, "walkClip", form.walkClip);
     }
 
     template <class Archive>
@@ -130,6 +145,12 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "break", set.breakDef);
         LoadField(archive, "turnSpeed", set.turnSpeed);
         LoadField(archive, "chaseStopRange", set.chaseStopRange);
+        LoadField(archive, "secondForm", set.secondForm);
+        LoadField(archive, "hoverHeight", set.hoverHeight);
+        LoadField(archive, "hoverBob", set.hoverBob);
+        LoadField(archive, "hoverBobSpeed", set.hoverBobSpeed);
+        LoadField(archive, "landAltitude", set.landAltitude);
+        LoadField(archive, "climbSpeed", set.climbSpeed);
     }
 
     namespace {

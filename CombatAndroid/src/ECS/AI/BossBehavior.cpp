@@ -15,6 +15,9 @@
 #include <CombatAndroid/ECS/Utility/Table/BossMoveTable.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
+#include <Tsukino/EngineIntegration/EngineContext.hpp>
+#include <Tsukino/Engine/Asset/AssetManager.hpp>
+#include <Tsukino/Core/Path.hpp>
 #include <Tsukino/Core/ECS/Event/EventBus.hpp>
 #include <Tsukino/Core/Log.hpp>
 
@@ -37,6 +40,19 @@ namespace CombatAndroid::ECS {
 
         //! 技がクリップの終わりを待たずに抜けられなくなった場合の保険（秒）。技の長さにこれを足して打ち切る
         constexpr float kMoveTimeoutMargin = 2.0f;
+
+        //! 撃ち下ろしの弾が狙うプレイヤーの胸の高さ（足元からのずれ）
+        constexpr float kPlayerChestHeight = 100.0f;
+
+        //-------------------------------------------------------------
+        //! @brief  行き過ぎてから戻る緩急（OutBack）。変身で体が大きくなるときに使う
+        //-------------------------------------------------------------
+        float EaseOutBack(float u) {
+            constexpr float c1 = 1.70158f;
+            constexpr float c3 = c1 + 1.0f;
+            const float     v  = u - 1.0f;
+            return 1.0f + c3 * v * v * v + c1 * v * v;
+        }
 
         //! 激昂中の連続攻撃で、1回目と2回目の間に挟む短い隙（秒）。
         //! Attackステートを一度抜けないと同じクリップを頭から再生し直せないため
@@ -201,6 +217,150 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  第二形態への変身を始める。技を打ち切り、倒れるクリップで崩れ落ちさせる（この間は無敵）
+        //-------------------------------------------------------------
+        void StartTransform(BehaviorContext<EnemyBlackboard>& context, BossMoveSetComponent& boss, const BossMoveSet& set) {
+            auto& animSet   = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            auto& hitbox    = context.registry.GetComponent<EnemyAttackHitboxComponent>(context.entity);
+            auto& transform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
+
+            boss.phase              = BossActionPhase::Transform;
+            boss.phaseTimer         = 0.0f;
+            boss.currentMove        = -1;
+            boss.repeatLeft         = 0;
+            boss.breakPending       = false;
+            boss.transformPending   = false;
+            boss.transformAnnounced = false;
+            boss.transformFromScale = static_cast<float>(transform.scale.x);
+
+            hitbox.hitDuration  = 0.0f;
+            hitbox.hitStartTime = 1.0e6f;
+
+            // ダウンと同じく、攻撃ステートの仕組みで倒れるクリップを途中まで流す（次のフレームで攻撃へ入る）
+            animSet.attackClip    = boss.breakClip.IsValid() ? boss.breakClip : animSet.knockbackClip;
+            animSet.attackIndex   = set.breakDef.animationIndex;
+            animSet.attackLooping = false;
+            animSet.attackClipEnd = set.breakDef.clipEnd;
+            animSet.desiredState  = EnemyAnimState::Idle;
+
+            Tsukino::Core::Log::Info("Boss[" + boss.key + "] SECOND FORM -> " + set.secondForm.key);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  変身を終える。技の表を第二形態へ差し替え、大きさ・HP・クリップを第二形態のものにする
+        //! @note   当たり判定のカプセルの作り直しは、ツリーの外（BossDirectorSystem）で行う
+        //!         （Viewの反復中にコンポーネントを付け外しすると反復が壊れるため）
+        //-------------------------------------------------------------
+        void FinishTransform(BehaviorContext<EnemyBlackboard>& context, BossMoveSetComponent& boss, const BossSecondForm& form) {
+            auto& animSet   = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            auto& transform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
+            auto& enemy     = context.registry.GetComponent<EnemyComponent>(context.entity);
+            auto& health    = context.registry.GetComponent<HealthComponent>(context.entity);
+
+            const BossMoveSet& next = GetBossMoveSet(form.key);
+            auto*              ctx  = context.registry.GetContext<Tsukino::EngineIntegration::EngineContext*>();
+            auto               load = [ctx](const std::string& path) {
+                return (ctx && ctx->assetManager && !path.empty()) ? ctx->assetManager->Load(Tsukino::Core::Path(path)) : Tsukino::Asset::AssetHandle::Invalid();
+            };
+
+            boss.key                  = form.key;
+            boss.secondFormUsed       = true;
+            boss.pendingColliderScale = form.sizeMultiplier;
+            boss.sizeScale *= form.sizeMultiplier;
+            boss.clips.clear();
+            for(const BossMoveDef& move : next.moves)
+                boss.clips.push_back(load(move.clip));
+            boss.breakClip = next.breakDef.clip.empty() ? Tsukino::Asset::AssetHandle::Invalid() : load(next.breakDef.clip);
+            boss.cooldowns.assign(next.moves.size(), 0.0f);
+            boss.enraged           = false;
+            boss.enrageMovePending = false;
+            boss.breakGauge        = 0.0f;
+            boss.breakIdleTimer    = 0.0f;
+            boss.breakCount        = 0;
+            boss.phase             = BossActionPhase::Chase;
+            boss.phaseTimer        = 0.0f;
+            enemy.moveSpeed        = boss.baseMoveSpeed;
+            enemy.bodyRadius *= form.sizeMultiplier;
+            enemy.attackRange *= form.sizeMultiplier;
+
+            const float scale = boss.transformFromScale * form.sizeMultiplier;
+            transform.scale   = hlslpp::float3(scale, scale, scale);
+            transform.dirty   = true;
+
+            health.currentHealth = health.maxHealth * form.healthRatio;
+            health.isDead        = false;
+
+            if(!form.idleClip.empty())
+                animSet.idleClip = load(form.idleClip);
+            if(!form.walkClip.empty())
+                animSet.walkClip = load(form.walkClip);
+            animSet.attackClipEnd = 0.0f;
+            animSet.desiredState  = EnemyAnimState::Idle;
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  空を飛ぶボスの高さを目標へ寄せ、上下に揺らす
+        //! @param  flySet [in] 高さの設定を読む技の表（変身中は第二形態の表）
+        //-------------------------------------------------------------
+        void UpdateAltitude(BehaviorContext<EnemyBlackboard>& context, BossMoveSetComponent& boss, const BossMoveSet& flySet, float dt) {
+            if(flySet.hoverHeight <= 0.0f && boss.altitude <= 0.01f)
+                return;    // 地上のボス
+
+            auto& transform = context.registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(context.entity);
+            if(!boss.groundKnown) {
+                boss.groundY     = static_cast<float>(transform.position.y);
+                boss.groundKnown = true;
+            }
+
+            //-------------------------------------------------------------
+            // 目標の高さ：追跡・技の間は浮き、技の後の隙とダウン中は降りる（降りた瞬間が攻め時）。
+            // 跳びかかり（急降下）は、跳んでいる区間の進み具合に合わせて着地の高さまで直接下ろす
+            //-------------------------------------------------------------
+            float target       = flySet.hoverHeight;
+            bool  followDirect = false;
+            switch(boss.phase) {
+                case BossActionPhase::Chase:
+                    break;
+                case BossActionPhase::Move: {
+                    if(boss.currentMove < 0 || static_cast<size_t>(boss.currentMove) >= flySet.moves.size())
+                        break;
+                    const BossMoveDef& move = flySet.moves[static_cast<size_t>(boss.currentMove)];
+                    if(move.altitude >= 0.0f)
+                        target = move.altitude;
+                    if(move.leapStart >= 0.0f && move.leapEnd > move.leapStart && move.altitude >= 0.0f) {
+                        const auto& animSet = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+                        const float t       = animSet.currentState == EnemyAnimState::Attack ? animSet.attackTimer : 0.0f;
+                        const float u       = std::clamp((t - move.leapStart) / (move.leapEnd - move.leapStart), 0.0f, 1.0f);
+                        // 跳ぶまでは浮いたまま予兆を見せ、跳んでいる区間で着地の高さまで落ちる（終わりほど速く）
+                        target       = flySet.hoverHeight + (move.altitude - flySet.hoverHeight) * (u * u);
+                        followDirect = u > 0.0f;
+                    }
+                    break;
+                }
+                case BossActionPhase::Recovery:
+                case BossActionPhase::Broken:
+                    target = flySet.landAltitude;
+                    break;
+                case BossActionPhase::Transform:
+                    target = boss.phaseTimer < GetBossMoveSet(boss.key).secondForm.collapseSeconds ? 0.0f : flySet.hoverHeight;
+                    break;
+            }
+
+            if(followDirect)
+                boss.altitude = target;
+            else
+                boss.altitude += (target - boss.altitude) * (1.0f - std::exp(-flySet.climbSpeed * dt));
+
+            // 浮いている高さに応じて揺らす（地面に降りているときは揺らさない）
+            boss.bobTime += dt;
+            const float airborne = flySet.hoverHeight > 0.0f ? std::clamp(boss.altitude / flySet.hoverHeight, 0.0f, 1.0f) : 0.0f;
+            const float bob      = flySet.hoverBob * std::sin(boss.bobTime * flySet.hoverBobSpeed) * airborne;
+
+            transform.position.y = boss.groundY + boss.altitude + bob;
+            transform.dirty      = true;
+        }
+
+        //-------------------------------------------------------------
         //! @brief  出せる技を距離・クールタイム・重みで1つ選ぶ
         //! @return 技の番号。出せる技が無ければ -1
         //-------------------------------------------------------------
@@ -253,6 +413,40 @@ namespace CombatAndroid::ECS {
                 cooldown = std::max(cooldown - dt, 0.0f);
 
             boss.phaseTimer += dt;
+
+            //-------------------------------------------------------------
+            // 第二形態：HPが0になったら（CombatHitが立てる）変身する。変身中は他の処理をしない
+            //-------------------------------------------------------------
+            if(boss.transformPending && boss.phase != BossActionPhase::Transform)
+                StartTransform(context, boss, set);
+            if(boss.phase == BossActionPhase::Transform) {
+                const BossSecondForm& form = set.secondForm;
+                const BossMoveSet&    next = GetBossMoveSet(form.key);
+                auto&                 hp   = context.registry.GetComponent<HealthComponent>(context.entity);
+
+                if(boss.phaseTimer < form.collapseSeconds) {
+                    animSet.desiredState = EnemyAnimState::Attack;    // 崩れ落ちる
+                } else {
+                    // 浮き上がりながら大きくなり、HPが溜まり直す
+                    if(animSet.desiredState == EnemyAnimState::Attack) {
+                        animSet.nextBlendTime = set.breakDef.recoverBlend;
+                        animSet.attackClipEnd = 0.0f;
+                        animSet.desiredState  = EnemyAnimState::Idle;
+                    }
+                    const float span  = std::max(form.transformSeconds - form.collapseSeconds, 0.01f);
+                    const float u     = std::clamp((boss.phaseTimer - form.collapseSeconds) / span, 0.0f, 1.0f);
+                    const float scale = boss.transformFromScale * (1.0f + (form.sizeMultiplier - 1.0f) * EaseOutBack(u));
+                    transform.scale   = hlslpp::float3(scale, scale, scale);
+                    transform.dirty   = true;
+                    hp.currentHealth  = hp.maxHealth * form.healthRatio * (u * u * (3.0f - 2.0f * u));
+                }
+                TurnToward(transform, context.blackboard.playerPosition, set.turnSpeed * 0.5f * dt);
+                UpdateAltitude(context, boss, next, dt);
+
+                if(boss.phaseTimer >= form.transformSeconds)
+                    FinishTransform(context, boss, form);
+                return NodeStatus::Running;
+            }
 
             //-------------------------------------------------------------
             // 体勢ゲージ：最大値は湧いた後の最大HPから決める（危険度・ボスの倍率込み）。ダウンするたびに増やす。
@@ -414,6 +608,14 @@ namespace CombatAndroid::ECS {
                             hlslpp::float3       origin  = transform.position + forward * (move.hitbox.radius * boss.sizeScale);
                             origin.y                     = transform.position.y + 40.0f * boss.sizeScale;
 
+                            // 空中から撃ち下ろす技は、プレイヤーの胸の高さへ向けて斜め下に撃つ
+                            float pitch = 0.0f;
+                            if(move.projectileAimDown) {
+                                const float horizontal = std::max(static_cast<float>(hlslpp::length(toPlayer)), 1.0f);
+                                const float drop       = static_cast<float>(origin.y) - (static_cast<float>(context.blackboard.playerPosition.y) + kPlayerChestHeight);
+                                pitch                  = std::atan2(drop, horizontal);
+                            }
+
                             for(int i = 0; i < count; ++i) {
                                 const float u   = count > 1 ? static_cast<float>(i) / static_cast<float>(count - 1) - 0.5f : 0.0f;
                                 const float yaw = baseYaw + u * spreadRad;
@@ -421,7 +623,8 @@ namespace CombatAndroid::ECS {
                                 BossProjectileEvent shot;
                                 shot.owner       = context.entity;
                                 shot.origin      = origin;
-                                shot.direction   = hlslpp::float3(std::sin(yaw), 0.0f, std::cos(yaw));
+                                shot.direction   = hlslpp::float3(std::sin(yaw) * std::cos(pitch), -std::sin(pitch), std::cos(yaw) * std::cos(pitch));
+                                shot.prefab      = move.projectilePrefab;
                                 shot.speed       = move.projectileSpeed;
                                 shot.damage      = move.projectileDamage * boss.damageScale;
                                 shot.radius      = move.projectileRadius;
@@ -509,8 +712,12 @@ namespace CombatAndroid::ECS {
                     boss.phaseTimer     = 0.0f;
                     break;
                 }
+
+                case BossActionPhase::Transform:
+                    break;    // 上で処理して戻っている
             }
 
+            UpdateAltitude(context, boss, set, dt);
             return NodeStatus::Running;
         }
     }    // namespace

@@ -7,6 +7,7 @@
 #include <CombatAndroid/ECS/Utility/Table/TableJson.hpp>
 #include <Tsukino/Core/Math/Serialization/HlslppSerialization.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
+#include <Tsukino/BuiltIn/ECS/Component/CollisionComponent.hpp>
 #include <CombatAndroid/ECS/AI/BossBehavior.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/BossComponent.hpp>
@@ -144,6 +145,14 @@ namespace CombatAndroid::ECS {
             BossShotParams endingPlayerShot   = {320.0f, 40.0f, 175.0f, 0.03f, 50.0f, 2.5f, 1.0f, 3.14159f, 0.1f};
 
             //-------------------------------------------------------------
+            // 第二形態への変身（崩れ落ちる → 浮き上がって大きくなる → プレイヤーへ戻す）。
+            // どれも上から見下ろす。浮き上がりは目線もボスと一緒に上がる（目線は対象の高さが基準）
+            //-------------------------------------------------------------
+            BossShotParams transformCollapseShot = {650.0f, 420.0f, 120.0f, 0.38f, 50.0f, 1.1f, 1.2f, 0.45f, 0.0f};
+            BossShotParams transformRiseShot     = {1000.0f, 600.0f, 380.0f, 0.28f, 55.0f, 2.2f, 0.9f, -0.35f, 0.18f};
+            BossShotParams transformReturnShot   = {520.0f, 300.0f, 200.0f, 0.3f, 60.0f, 1.0f, 1.4f, 0.0f, 0.0f};    //!< ボスがすぐ横にいるので、ボスと反対側からプレイヤーへ戻す
+
+            //-------------------------------------------------------------
             // 告知（画面中央の帯と文字）。時間は実時間
             //-------------------------------------------------------------
             float          announceSeconds   = 3.2f;     //!< 出している時間
@@ -171,6 +180,9 @@ namespace CombatAndroid::ECS {
             LoadField(archive, "endingCollapseShot", params.endingCollapseShot);
             LoadField(archive, "endingSkyShot", params.endingSkyShot);
             LoadField(archive, "endingPlayerShot", params.endingPlayerShot);
+            LoadField(archive, "transformCollapseShot", params.transformCollapseShot);
+            LoadField(archive, "transformRiseShot", params.transformRiseShot);
+            LoadField(archive, "transformReturnShot", params.transformReturnShot);
             LoadField(archive, "announceSeconds", params.announceSeconds);
             LoadField(archive, "announceOffsetY", params.announceOffsetY);
             LoadField(archive, "bandTailX", params.bandTailX);
@@ -396,6 +408,76 @@ namespace CombatAndroid::ECS {
             return boss;
         }
 
+        //! 空中で倒れたボスが地面へ落ちる速さ（ユニット/秒）
+        constexpr float kDeathFallSpeed = 600.0f;
+
+        //-------------------------------------------------------------
+        //! @brief  ボスの第二形態の後始末と演出（変身の告知・当たり判定の拡大・倒れた後の落下）
+        //! @note   当たり判定のカプセルは付け直さないと大きさが変わらない。ビヘイビアツリーはViewの反復中に
+        //!         動くので、付け外しはツリーではなくここ（反復の外）で行う
+        //-------------------------------------------------------------
+        void UpdateSecondForm(Tsukino::ECS::Registry& registry, const BossDirectorParams& params, BossProgressComponent& progress,
+                              Tsukino::ECS::Entity playerEntity, float realDeltaTime) {
+            if(progress.bossEntity == entt::null || !registry.IsValid(progress.bossEntity))
+                return;
+            auto* moveSet = registry.try_get<BossMoveSetComponent>(progress.bossEntity);
+            if(!moveSet)
+                return;
+
+            // 変身が始まったら、上からのカメラで見せる。新しい呼び名の帯は、変身し終えたときに出す（下の当たり判定の拡大と同じ時）
+            if(moveSet->phase == BossActionPhase::Transform && !moveSet->transformAnnounced) {
+                moveSet->transformAnnounced = true;
+                progress.secondFormName     = GetBossMoveSet(moveSet->key).secondForm.displayName;
+                PlaySound(registry, SoundId::DangerUp);
+
+                //-------------------------------------------------------------
+                // 変身を上からのカメラで見せる。世界の時間を止めないライブのカットシーンにし、
+                // EnemyBehaviorSystemはこの間も変身中のボスだけ進める（他の敵は止まる）
+                //-------------------------------------------------------------
+                const auto& bossTransform   = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(progress.bossEntity);
+                const auto& playerTransform = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(playerEntity);
+                const float toPlayerX       = static_cast<float>(playerTransform.position.x) - static_cast<float>(bossTransform.position.x);
+                const float toPlayerZ       = static_cast<float>(playerTransform.position.z) - static_cast<float>(bossTransform.position.z);
+                const float baseYaw         = std::atan2(toPlayerX, -toPlayerZ);
+
+                std::vector<CutsceneShot> shots;
+                shots.push_back(MakeShot(params.transformCollapseShot, progress.bossEntity, baseYaw));
+                shots.push_back(MakeShot(params.transformRiseShot, progress.bossEntity, baseYaw));
+                shots.push_back(MakeShot(params.transformReturnShot, playerEntity, baseYaw));
+                PlayCutscene(registry, std::move(shots), true);
+            }
+
+            // 変身が終わったら、当たり判定のカプセルを体の大きさに合わせて付け直す（物理のボディが作り直される）
+            if(moveSet->pendingColliderScale != 1.0f && registry.HasComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(progress.bossEntity)) {
+                Tsukino::BuiltIn::ECS::CollisionComponent collision = registry.GetComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(progress.bossEntity);
+                collision.extent         = collision.extent * moveSet->pendingColliderScale;
+                collision.offsetPosition = collision.offsetPosition * moveSet->pendingColliderScale;
+                collision.isInitialized  = false;
+                collision.bodyID         = {};
+                registry.RemoveComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(progress.bossEntity);
+                registry.AddComponent<Tsukino::BuiltIn::ECS::CollisionComponent>(progress.bossEntity, collision);
+                moveSet->pendingColliderScale = 1.0f;
+
+                // 新しい呼び名で告知の帯を出し直す（ボスHUDの名前もこれに変わる）
+                if(!progress.secondFormName.empty()) {
+                    progress.announceElapsed = 0.0f;
+                    progress.announceTitle   = progress.secondFormName;
+                    progress.announceFinal   = true;
+                    if(auto* eventBus = registry.GetContext<Tsukino::ECS::EventBus*>())
+                        eventBus->Publish(GameLogEvent{GameLogCategory::BossAppeared, progress.secondFormName});
+                }
+            }
+
+            // 空中で倒れたら、地面まで落とす（倒れた後はビヘイビアツリーが高さを動かさない）
+            const auto* health = registry.try_get<HealthComponent>(progress.bossEntity);
+            if(health && health->isDead && moveSet->groundKnown && moveSet->altitude > 0.0f) {
+                moveSet->altitude = std::max(moveSet->altitude - kDeathFallSpeed * realDeltaTime, 0.0f);
+                auto& transform      = registry.GetComponent<Tsukino::BuiltIn::ECS::TransformComponent>(progress.bossEntity);
+                transform.position.y = moveSet->groundY + moveSet->altitude;
+                transform.dirty      = true;
+            }
+        }
+
         //-------------------------------------------------------------
         //! @brief  告知の帯と文字を置く（毎フレーム。画面サイズが変わっても中央に来る）
         //-------------------------------------------------------------
@@ -503,7 +585,7 @@ namespace CombatAndroid::ECS {
         if(!ctx)
             return;
 
-        const Tsukino::ECS::Entity entity = InstantiatePrefab(registry, *ctx, "Enemy/WebShot");
+        const Tsukino::ECS::Entity entity = InstantiatePrefab(registry, *ctx, shot.prefab.empty() ? "Enemy/WebShot" : shot.prefab.c_str());
         if(entity == entt::null)
             return;
 
@@ -558,6 +640,8 @@ namespace CombatAndroid::ECS {
             }
             m_pendingProjectiles.clear();
 
+            UpdateSecondForm(registry, params, progress, playerEntity, realDeltaTime);
+
             // 倒れた後は進めない（GAME OVERの裏でボスが湧かないように）
             if(playerHealth.isDead)
                 continue;
@@ -574,7 +658,14 @@ namespace CombatAndroid::ECS {
                    && ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F12) && registry.IsValid(progress.bossEntity)) {
                     if(auto* bossHealth = registry.try_get<HealthComponent>(progress.bossEntity); bossHealth && !bossHealth->isDead) {
                         bossHealth->currentHealth = 0.0f;
-                        bossHealth->isDead        = true;
+                        // 第二形態が残っていれば1回目は変身させる（2回目で倒れる）
+                        auto* bossMoveSet = registry.try_get<BossMoveSetComponent>(progress.bossEntity);
+                        if(bossMoveSet && !bossMoveSet->secondFormUsed && !GetBossMoveSet(bossMoveSet->key).secondForm.key.empty()) {
+                            if(bossMoveSet->phase != BossActionPhase::Transform)
+                                bossMoveSet->transformPending = true;
+                        } else {
+                            bossHealth->isDead = true;
+                        }
                     }
                 }
 #endif

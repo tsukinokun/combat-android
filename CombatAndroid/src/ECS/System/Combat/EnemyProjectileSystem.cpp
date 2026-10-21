@@ -22,6 +22,9 @@ namespace CombatAndroid::ECS {
     namespace {
         //! 弾が当たったときのヒットストップ（体の判定より短い。小さな弾なので軽く）
         constexpr float kWebHitStopDuration = 0.08f;
+
+        //! この高さより下へ潜った弾は消す（撃ち下ろしの弾が地面を抜けて飛び続けないように。地面は高さ0）
+        constexpr float kGroundCutoffY = -20.0f;
         constexpr float kWebHitStopScale    = 0.3f;
 
         //-------------------------------------------------------------
@@ -88,7 +91,8 @@ namespace CombatAndroid::ECS {
                 }
             }
 
-            if(projectile.remaining <= 0.0f)
+            // 届く距離を過ぎたか、撃ち下ろしの弾が地面へ潜った（地面は高さ0）
+            if(projectile.remaining <= 0.0f || transform.position.y < kGroundCutoffY)
                 finished.push_back(entity);
         });
 

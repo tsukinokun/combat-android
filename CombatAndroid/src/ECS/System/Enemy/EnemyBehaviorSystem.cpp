@@ -7,6 +7,8 @@
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/BehaviorTreeComponent.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyComponent.hpp>
+#include <CombatAndroid/ECS/Component/Enemy/BossMoveSetComponent.hpp>
+#include <CombatAndroid/ECS/System/Menu/CutsceneSystem.hpp>
 #include <CombatAndroid/ECS/Component/Enemy/EnemyAnimationSetComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
@@ -23,9 +25,13 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // メニュー（スキル選択・ポーズ・リザルト）中は敵の思考ごと止める。BTの移動アクションが
         // CharacterControllerComponent::moveInputを書くため、放っておくと
-        // SkillSelectSystemが打ち消した値が毎フレーム戻されてしまう
+        // SkillSelectSystemが打ち消した値が毎フレーム戻されてしまう。
+        // ただしライブのカットシーン（世界の時間は進む）の間は、変身中のボスだけ進める。
+        // 変身の演出をカメラで見せている最中に、変身そのものが止まってしまわないように
         //-------------------------------------------------------------
-        if(IsGameplayFrozen(registry))
+        const bool frozen        = IsGameplayFrozen(registry);
+        const bool transformOnly = frozen && IsLiveCutsceneActive(registry);
+        if(frozen && !transformOnly)
             return;
 
         //-------------------------------------------------------------
@@ -49,6 +55,12 @@ namespace CombatAndroid::ECS {
                      BehaviorTreeComponent&                      behaviorTree,
                      EnemyComponent&                               enemy,
                      Tsukino::BuiltIn::ECS::TransformComponent& transform) {
+            if(transformOnly) {
+                const auto* moveSet = registry.try_get<BossMoveSetComponent>(entity);
+                if(!moveSet || (moveSet->phase != BossActionPhase::Transform && !moveSet->transformPending))
+                    return;
+            }
+
             // 死亡・ノックバックはRunning中のAttack/Chase分岐を即座に打ち切りたいが、
             // 記憶付きSequence/Selectorは自分より前段の条件をRunning中は再評価しない
             // （BehaviorTree.hpp参照）。そこでこの2つのケースだけは明示的にReset()して
