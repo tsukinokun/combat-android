@@ -11,6 +11,7 @@
 #include <CombatAndroid/ECS/System/World/GrassFieldSystem.hpp>
 #include <CombatAndroid/ECS/System/World/GroundVisualSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/TitleMenuSystem.hpp>
+#include <CombatAndroid/ECS/System/UI/InputPromptGlyphSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/System/Menu/TitleStageSystem.hpp>
 #include <CombatAndroid/ECS/System/Audio/GameSoundSystem.hpp>
@@ -83,6 +84,7 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleStageSystem>(), (int)SystemPriority::Gameplay);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TitleMenuSystem>(), (int)SystemPriority::PlayerHud);
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::ScreenFadeSystem>(), (int)SystemPriority::PlayerHud);
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptGlyphSystem>(), (int)SystemPriority::InputPromptGlyph);
 
         // 武器とカメラが書いた位置をworldMatrixへ反映してから、カメラ行列を作る
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::TransformSystem>(), (int)SystemPriority::TransformLate);

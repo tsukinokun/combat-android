@@ -3,6 +3,7 @@
 //! @brief   縦に並んだ選択肢のメニュー（ポーズ・リザルト・タイトル共通）の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/UI/GameMenu.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
@@ -101,16 +102,16 @@ namespace CombatAndroid::ECS {
         //! @brief  キーキャップのプロンプトを1つ作る
         //! @param  registry  [in] ECSレジストリ
         //! @param  context   [in] エンジンコンテキスト
-        //! @param  keyLabel  [in] キーの文字
+        //! @param  action    [in] 案内する操作
         //! @param  chevron   [in] 添える矢印
         //! @param  sortOrder [in] 描画層の基準
         //! @return 作ったウィジェット
         //-------------------------------------------------------------
         [[nodiscard]]
         InputPromptWidget CreateKeyPrompt(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
-                                          const wchar_t* keyLabel, PromptChevron chevron, int sortOrder) {
+                                          GameAction action, PromptChevron chevron, int sortOrder) {
             InputPromptDesc desc;
-            desc.keyLabel      = keyLabel;
+            desc.action        = action;
             desc.chevron       = chevron;
             desc.sortOrderBase = sortOrder;
             return CreateInputPromptWidget(registry, context, desc);
@@ -136,9 +137,9 @@ namespace CombatAndroid::ECS {
         for(Tsukino::ECS::Entity& hit : widget.hitEntities)
             hit = CreatePointerHitRect(registry, context, sortOrderBase + kHitLayer);
 
-        widget.upPrompt      = CreateKeyPrompt(registry, context, L"W", PromptChevron::Up, sortOrderBase + kPromptLayer);
-        widget.downPrompt    = CreateKeyPrompt(registry, context, L"S", PromptChevron::Down, sortOrderBase + kPromptLayer);
-        widget.confirmPrompt = CreateKeyPrompt(registry, context, L"F", PromptChevron::Right, sortOrderBase + kPromptLayer);
+        widget.upPrompt      = CreateKeyPrompt(registry, context, GameAction::MenuUp, PromptChevron::Up, sortOrderBase + kPromptLayer);
+        widget.downPrompt    = CreateKeyPrompt(registry, context, GameAction::MenuDown, PromptChevron::Down, sortOrderBase + kPromptLayer);
+        widget.confirmPrompt = CreateKeyPrompt(registry, context, GameAction::Confirm, PromptChevron::Right, sortOrderBase + kPromptLayer);
 
         // [W][S][F]は強調帯の横に付いて回るので、帯の動き（出現・行の移動）に追従させる
         UiFollowPrompt(registry, widget.upPrompt, widget.highlightEntity);
@@ -269,19 +270,12 @@ namespace CombatAndroid::ECS {
     //! @brief このフレームのカーソル移動量を読む
     //-------------------------------------------------------------
     int ReadGameMenuStep(const Tsukino::Input::InputSystem& input) {
+        // ホイールは割り当て（InputBindings.json）で、上へ回す＝上の選択肢へ（スキル選択と同じ向き）
         int step = 0;
-        if(input.IsKeyPressed(Tsukino::Input::KeyCode::W) || input.IsKeyPressed(Tsukino::Input::KeyCode::Up))
+        if(IsActionPressed(input, GameAction::MenuUp))
             --step;
-        if(input.IsKeyPressed(Tsukino::Input::KeyCode::S) || input.IsKeyPressed(Tsukino::Input::KeyCode::Down))
+        if(IsActionPressed(input, GameAction::MenuDown))
             ++step;
-
-        // ホイールは1ノッチ=±1.0。上へ回す＝上の選択肢へ（スキル選択と同じ向き）
-        const float wheelDelta = input.GetWheelDelta();
-        if(wheelDelta > 0.0f)
-            --step;
-        else if(wheelDelta < 0.0f)
-            ++step;
-
         return std::clamp(step, -1, 1);
     }
 
@@ -290,9 +284,9 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     int ReadGameMenuValueStep(const Tsukino::Input::InputSystem& input) {
         int step = 0;
-        if(input.IsKeyPressed(Tsukino::Input::KeyCode::A) || input.IsKeyPressed(Tsukino::Input::KeyCode::Left))
+        if(IsActionPressed(input, GameAction::MenuLeft))
             --step;
-        if(input.IsKeyPressed(Tsukino::Input::KeyCode::D) || input.IsKeyPressed(Tsukino::Input::KeyCode::Right))
+        if(IsActionPressed(input, GameAction::MenuRight))
             ++step;
         return step;
     }
@@ -301,7 +295,14 @@ namespace CombatAndroid::ECS {
     //! @brief このフレームに決定が押されたかを読む
     //-------------------------------------------------------------
     bool IsGameMenuConfirmPressed(const Tsukino::Input::InputSystem& input) {
-        return input.IsKeyPressed(Tsukino::Input::KeyCode::F) || input.IsKeyPressed(Tsukino::Input::KeyCode::Enter);
+        return IsActionPressed(input, GameAction::Confirm);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief このフレームに戻るが押されたかを読む
+    //-------------------------------------------------------------
+    bool IsGameMenuCancelPressed(const Tsukino::Input::InputSystem& input) {
+        return IsActionPressed(input, GameAction::Cancel);
     }
 
     //-------------------------------------------------------------

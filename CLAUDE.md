@@ -71,7 +71,7 @@ Component・System・Event・Serialization は同じ領域名で分けてある�
 | `Debug/` | 握り位置の調整・武器レベル表示・負荷試験 |
 
 Utility の分類は `Table/`（調整値テーブル）・`UI/`（メニュー・スプライトの部品）・`Spawn/`・`Asset/`（Prefab・先読み）・
-`Combat/`・`Time/`（スロー・停止）・`AI/`・`Save/`（設定・記録）・`Audio/`（BGM）・`Common/`。
+`Combat/`・`Time/`（スロー・停止）・`AI/`・`Save/`（設定・記録）・`Audio/`（BGM）・`Input/`（操作の割り当て）・`Common/`。
 新しいファイルは一番近い領域へ置き、直下には置かない。
 
 **名前から辿れないもの**（ここを知らないと探索が空振りする）:
@@ -85,6 +85,10 @@ Utility の分類は `Table/`（調整値テーブル）・`UI/`（メニュー�
 - System の無名 namespace にある演出・挙動の調整値は `Assets/Tables/Systems/<名前>.json` へ出してよい
   （線引きと手順は `Assets/Tables/README.md`）
 - システムの実行順とその理由は `ECS/SystemPriority.hpp` に集約してある
+- **入力はキーを直接見ない。** `ECS/Utility/Input/GameInput.hpp` の `IsActionPressed(input, GameAction::Attack)` などで読む
+  （キーボード・マウス・XInput のパッドをまとめて扱う）。割り当ては `Assets/Tables/InputBindings.json`。
+  操作の表示（キーキャップ・案内の文）は最後に触った機器で切り替わるので、文字は `InputPromptDesc::action` か
+  `FormatInputText`（`{Attack}` などを置き換える）で作る。例外はデバッグ用の F キーだけ
 
 ## よくある作業
 

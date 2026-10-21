@@ -18,8 +18,10 @@ project "CombatAndroid"
     cppdialect "C++20"
     forceincludes { "pch.h" }
 
+    -- /bigobj: GamePrefab.cpp は全コンポーネントの Prefab 読み込みを1つの翻訳単位でインスタンス化するため、
+    -- 既定の COFF のセクション数の上限（約65,000）を超える（C1128）
     filter "action:vs*"
-        buildoptions { "/permissive-" }
+        buildoptions { "/permissive-", "/bigobj" }
     filter {}
 
     pchheader "pch.h"

@@ -15,6 +15,7 @@
 #include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/ECS/Component/Menu/TitleStageComponent.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/FontComponent.hpp>
 #include <Tsukino/Core/DebugTools/DebugFeatures.hpp>
@@ -66,16 +67,17 @@ namespace CombatAndroid::ECS {
         const std::array<std::wstring, kTitleControlsLineCount> kControlActions = {
             L"移動", L"ダッシュ", L"攻撃", L"溜め攻撃", L"回避", L"武器を拾う", L"武器の切り替え", L"カメラ", L"ポーズ",
         };
-        const std::array<std::wstring, kTitleControlsLineCount> kControlKeys = {
-            L"W A S D",
-            L"Shift",
-            L"左クリック（続けて押すと連撃）",
-            L"左クリック長押し（バトルアックス）",
-            L"Space",
+        //! 操作の欄。{操作名} は最後に触った機器の表記へ置き換える（FormatInputText）
+        const std::array<const wchar_t*, kTitleControlsLineCount> kControlKeys = {
+            L"{Move}",
+            L"{Dash}",
+            L"{Attack}（続けて押すと連撃）",
+            L"{Attack}長押し（バトルアックス）",
+            L"{Dodge}",
             L"近づくだけ",
-            L"マウスホイール",
-            L"マウス",
-            L"Esc",
+            L"{WeaponSwitch}",
+            L"{Camera}",
+            L"{Pause}",
         };
 
         //-------------------------------------------------------------
@@ -337,7 +339,8 @@ namespace CombatAndroid::ECS {
                 PlaceUiText(registry, title.controlsActionEntities[i], screenCenterX + params.controlsActionOffsetX, lineY, GetUiTextScale(UiTextSize::Body),
                             kControlActions[i], params.controlsActionColor);
                 PlaceUiText(registry, title.controlsKeyEntities[i], screenCenterX + params.controlsKeyOffsetX, lineY, GetUiTextScale(UiTextSize::Body),
-                            kControlKeys[i], params.controlsKeyColor);
+                            context.inputSystem ? FormatInputText(*context.inputSystem, kControlKeys[i]) : std::wstring(kControlKeys[i]),
+                            params.controlsKeyColor);
             }
 
             ShowGameMenu(registry, context, title.controlsMenu, screenCenterX, screenCenterY + params.controlsMenuOffsetY, kControlsMenuLabels, 0);
@@ -355,6 +358,12 @@ namespace CombatAndroid::ECS {
         auto view = registry.View<TitleMenuComponent>();
         for(entt::entity entity : view) {
             TitleMenuComponent& title = view.get<TitleMenuComponent>(entity);
+
+            // 操作説明を開いたまま機器を持ち替えたら、表記を合わせて組み直す（入力はそのまま拾う）
+            const bool usingGamepad = ctx->inputSystem && IsUsingGamepad(*ctx->inputSystem);
+            if(title.showingControls && usingGamepad != title.controlsShownForGamepad)
+                RefreshUi(registry, *ctx, title);
+            title.controlsShownForGamepad = usingGamepad;
 
             // 状態を切り替えた（または画面を作った）最初のフレームは組み直すだけにして、入力を拾わない
             if(title.changedThisFrame) {
@@ -386,7 +395,7 @@ namespace CombatAndroid::ECS {
             //-------------------------------------------------------------
             if(title.showingControls) {
                 const bool clicked = ReadGameMenuPointer(registry, input, title.controlsMenu).clicked;
-                if(IsGameMenuConfirmPressed(input) || clicked || input.IsKeyPressed(Tsukino::Input::KeyCode::Escape)) {
+                if(IsGameMenuConfirmPressed(input) || clicked || IsGameMenuCancelPressed(input)) {
                     PlaySound(registry, SoundId::MenuConfirm);
                     title.showingControls  = false;
                     title.changedThisFrame = true;

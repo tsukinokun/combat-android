@@ -19,13 +19,14 @@ namespace CombatAndroid::ECS {
         float moveSpeed = 300.0f;    //!< 水平移動速度（1ユニット≒1cm規約。軽いジョグ程度）
         float turnLerpSpeed = 12.0f; //!< 移動方向への向き直しの補間速度（大きいほど素早く向く）
 
-        float sprintSpeedMultiplier = 1.6f;     //!< Shift押下時、moveSpeedに掛ける倍率
+        float sprintSpeedMultiplier = 1.6f;     //!< ダッシュ中（Shift・LT・パッドのL3）にmoveSpeedへ掛ける倍率
 
         //! 鈍足（ボスの糸弾に当たった）の残り時間（秒）。0より大きい間は移動速度にslowScaleを掛ける。
         //! EnemyProjectileSystemが立て、PlayerSystemが減らす
         float slowTimer = 0.0f;
         float slowScale = 1.0f;    //!< 鈍足中の移動速度の倍率
-        bool  isSprinting            = false;    //!< 移動中にShiftが押されているか（PlayerSystemが毎フレーム更新。PlayerAnimationSystemが参照）
+        bool  isSprinting            = false;    //!< 移動中にダッシュの操作がされているか（PlayerSystemが毎フレーム更新。PlayerAnimationSystemが参照）
+        bool  sprintLatched          = false;    //!< パッドのL3で入れたダッシュが続いているか（押すと切り替わり、スティックを戻すと解除）
 
         Tsukino::ECS::Entity weaponEntity = entt::null;    //!< 装備中の武器エンティティ（WeaponComponentを持つ）。切り替え時はここを差し替える
 
@@ -82,7 +83,7 @@ namespace CombatAndroid::ECS {
         float levelUpInvinciblePulseTime  = 0.0f;    //!< 発光の脈動用に経過時間を積算するだけの内部状態（SkillSelectSystemが使用）
 
         //-------------------------------------------------------------
-        // 左クリックの生入力。PlayerSystemが立て、PlayerAnimationSystemが消費してfalseへ戻す。
+        // 攻撃（左クリック・パッドのX）の生入力。PlayerSystemが立て、PlayerAnimationSystemが消費してfalseへ戻す。
         // WeaponComponent::attackRequestedとは意味が異なる点に注意：こちらは「入力があったか」、
         // attackRequestedは「（コンボ受付を含めた判定の結果）攻撃スイングが実際に始まったか」を表す。
         // 攻撃中の入力はすぐには反映されず、PlayerAnimationSystem側で1回だけ先行入力としてバッファされる
@@ -103,7 +104,7 @@ namespace CombatAndroid::ECS {
         float chargeDamageMultiplierStage3 = 2.4f;    //!< 紫段階で解放した場合のダメージ倍率
 
         //-------------------------------------------------------------
-        // 左クリックの押しっぱなし状態。PlayerSystemが毎フレーム更新し、PlayerAnimationSystemが
+        // 攻撃の押しっぱなし状態。PlayerSystemが毎フレーム更新し、PlayerAnimationSystemが
         // 溜め継続／解放の判定に使う（attackInputPressedは「押した瞬間」だけを表す別物）
         //-------------------------------------------------------------
         bool attackInputHeld = false;

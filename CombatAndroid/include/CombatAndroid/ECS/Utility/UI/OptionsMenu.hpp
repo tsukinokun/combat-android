@@ -28,6 +28,9 @@ namespace CombatAndroid::ECS {
         //! 値を変えたか。閉じるときにだけ保存するための印
         bool changed = false;
 
+        //! 案内の行をパッドの表記で組んだか。最後に触った機器が変わったら組み直す
+        bool shownForGamepad = false;
+
         //! 開いたときのBGM音量。閉じるときに変わっていればBGMを鳴らし直す
         //!（鳴らし直すと曲が頭に戻るので、変えていないときは触らない）
         int bgmVolumeAtOpen = 100;

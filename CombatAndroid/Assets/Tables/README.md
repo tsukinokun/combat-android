@@ -19,6 +19,7 @@ Release は起動し直せば反映される。
 | `EnemyDifficulty.json` | `EnemyDifficultyTable.cpp` | 危険度ランクごとの倍率と、終端より先の1段ぶんの増分 |
 | `Elite.json` | `EliteEnemy.cpp` | エリートの出現率・強化倍率・同時数・発光色・武器の並べ方・敵ごとの呼び名 |
 | `Sounds.json` | `SoundTable.cpp` | 効果音のパス・音量・最短間隔 |
+| `InputBindings.json` | `GameInput.cpp` | 操作（`GameAction` の綴り）ごとのキー（`keys`、`KeyCode` の綴り）・パッドのボタン（`buttons`、`GamepadButton` の綴り）・ホイール（`wheel`、+1 奥 / −1 手前）と、右スティックでカメラが回る速さ。知らない綴りは読み飛ばして `Log::Error` を出す。表示の文字は先頭のキー／ボタンから作る |
 | `UiTextSize.json` | `UiTextSize.cpp` | 画面の文字の大きさの6段階（Display / Title / Heading / Large / Body / Small）。文字はどれもこのどれかを使うので、1つ変えればその段階の文字が全画面でそろって変わる。各 System の調整値には文字の大きさを置かない |
 | `Bosses/<名前>.json` | `BossMoveTable.cpp` | ボスの技の表（技ごとのクリップ・判定・予兆の形・出す距離・クールタイム・跳びかかり・呼ぶ雑魚の数）と激昂。`BossDirector.json` の `behavior` で指す。予兆の形は `Fan` `DiscForward` `DiscAtTarget` `Ring` `Line` `None`、技の種類 `kind` は `Strike`（その場で振る）`Charge`（突進）`Projectile`（弾。当たると鈍足）`Orbit`（旋回）。判定の半径と技を出す距離・旋回の半径にはボスの `sizeScale` が掛かる（突進と弾の速さ・距離には掛からない）。ダメージ0の技は体の判定を出さない |
 | `Systems/<名前>.json` | `ECS/System/<領域>/<名前>System.cpp` | System ごとの演出・挙動の調整値（下の「System の調整値」） |
@@ -42,7 +43,7 @@ System の `.cpp` の無名 namespace にある調整値は、ここへ出す。
 - HUD：`PlayerHud` `PlayerSkillHud` `HealthBar` `PlayerDamageEffect` `BossHud`（画面下中央のボスのHP・体勢ゲージ）
 - 戦闘・演出：`ExpOrb` `Pickup` `DamageNumber` `PaladinWeaponSwitch` `EnemyWeaponDrop` `EnemyAttackTelegraph` `EnemyAttackArea`
   `Combat` `EnemyAnimation` `PlayerAnimation` `AttackMotionBlur` `GroundVisual` `HitSound` `ChargeSound` `HitImpactEffect` `EliteIndicator`
-  `PickupIndicator`
+  `PickupIndicator` `GamepadRumble`（種類ごとのパッドの振動の強さ `low`/`high` と秒 `duration`）
 - ボス戦の駆け引き：`BossCombat`（ジャスト回避の受付・反撃・後隙・ダウン中の倍率と、隙を知らせる縁取りの色）。
   ボスごとの体勢ゲージ（ゲージの量・ダウンの秒数・ダウンのクリップ）は `Bosses/<名前>.json` の `break`
 - 進行：`BossDirector`（中ボス・ラスボスの出る時間と中身・出現のカットシーン・告知）、

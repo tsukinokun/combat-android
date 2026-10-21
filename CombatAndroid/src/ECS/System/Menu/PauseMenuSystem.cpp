@@ -12,6 +12,7 @@
 #include <CombatAndroid/ECS/Component/Menu/PauseMenuComponent.hpp>
 #include <CombatAndroid/ECS/Component/Player/PlayerComponent.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 #include <CombatAndroid/ECS/Utility/Time/GameplayFreeze.hpp>
 #include <CombatAndroid/ECS/Utility/UI/ScreenFade.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
@@ -180,12 +181,12 @@ namespace CombatAndroid::ECS {
                 }
 
                 //-------------------------------------------------------------
-                // Escで開く。スキル選択中はメニュー同士が重なるので開かない。
+                // Esc・STARTで開く。スキル選択中はメニュー同士が重なるので開かない。
                 // 走行が終わった後はリザルトがリトライ／タイトルへの道を持っているので開かない。
                 // カットシーン中は演出への操作を渡したくないので開かない
                 //-------------------------------------------------------------
                 const bool windowFocused = !ctx->window || ctx->window->IsFocused();
-                if(!windowFocused || !input.IsKeyPressed(Tsukino::Input::KeyCode::Escape))
+                if(!windowFocused || !IsActionPressed(input, GameAction::Pause))
                     continue;
                 if(IsSkillSelectActive(registry) || IsRunEnded(registry) || IsCutsceneActive(registry))
                     continue;
@@ -246,7 +247,8 @@ namespace CombatAndroid::ECS {
             if(IsScreenFadingOut(registry))
                 continue;
 
-            const bool resumeByEscape = input.IsKeyPressed(Tsukino::Input::KeyCode::Escape);
+            // 戻る（Esc・B）か、開いたのと同じボタン（START）で閉じる
+            const bool resumeByEscape = IsGameMenuCancelPressed(input) || IsActionPressed(input, GameAction::Pause);
             if(!resumeByEscape && !IsGameMenuConfirmPressed(input) && !pointer.clicked)
                 continue;
 

@@ -378,9 +378,9 @@ namespace CombatAndroid {
         //--------------------------------------------------------------
         CombatAndroid::ECS::InputPromptHudComponent inputPromptHud;
         {
-            // 溜め攻撃：マウスの絵を長押しゲージが囲む。プレイヤーの頭上へワールド追従
+            // 溜め攻撃：攻撃の操作（マウスの絵かパッドのボタン）を長押しゲージが囲む。プレイヤーの頭上へワールド追従
             CombatAndroid::ECS::InputPromptDesc chargeDesc;
-            chargeDesc.useMouse      = true;
+            chargeDesc.action        = CombatAndroid::ECS::GameAction::Attack;
             chargeDesc.useHoldRing   = true;
             chargeDesc.worldAnchored = true;
             chargeDesc.sortOrderBase = CombatAndroid::UI::kInputPromptBase;
@@ -388,22 +388,22 @@ namespace CombatAndroid {
 
             //--------------------------------------------------------------
             // 以下3つはスキル選択メニューの上に重ねるので画面固定＋モーダル用の層を使う。
-            // カードは横に並ぶので、左右の移動は[A][D]で案内する
+            // カードは横に並ぶので、左右の移動はメニューの左右の操作で案内する
             //--------------------------------------------------------------
             CombatAndroid::ECS::InputPromptDesc skillUpDesc;
-            skillUpDesc.keyLabel      = L"A";
+            skillUpDesc.action        = CombatAndroid::ECS::GameAction::MenuLeft;
             skillUpDesc.chevron       = CombatAndroid::ECS::PromptChevron::Left;
             skillUpDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillUpPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillUpDesc);
 
             CombatAndroid::ECS::InputPromptDesc skillDownDesc;
-            skillDownDesc.keyLabel      = L"D";
+            skillDownDesc.action        = CombatAndroid::ECS::GameAction::MenuRight;
             skillDownDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
             skillDownDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillDownPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillDownDesc);
 
             CombatAndroid::ECS::InputPromptDesc skillConfirmDesc;
-            skillConfirmDesc.keyLabel      = L"F";
+            skillConfirmDesc.action        = CombatAndroid::ECS::GameAction::Confirm;
             skillConfirmDesc.chevron       = CombatAndroid::ECS::PromptChevron::Right;
             skillConfirmDesc.sortOrderBase = CombatAndroid::UI::kModalInputPromptBase;
             inputPromptHud.skillConfirmPrompt = CombatAndroid::ECS::CreateInputPromptWidget(registry, *context, skillConfirmDesc);

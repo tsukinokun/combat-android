@@ -1,0 +1,23 @@
+{
+    "InputBindings": {
+        "Attack": { "keys": [ "LButton" ], "buttons": [ "X" ], "wheel": 0 },
+        "Dodge": { "keys": [ "Space" ], "buttons": [ "A" ], "wheel": 0 },
+        "Sprint": { "keys": [ "Shift" ], "buttons": [ "LeftTrigger" ], "wheel": 0 },
+        "SprintToggle": { "keys": [], "buttons": [ "LeftThumb" ], "wheel": 0 },
+        "WeaponNext": { "keys": [], "buttons": [ "RightShoulder" ], "wheel": 1 },
+        "WeaponPrev": { "keys": [], "buttons": [ "LeftShoulder" ], "wheel": -1 },
+        "Pause": { "keys": [ "Escape" ], "buttons": [ "Start" ], "wheel": 0 },
+        "Confirm": { "keys": [ "F", "Enter" ], "buttons": [ "A" ], "wheel": 0 },
+        "Cancel": { "keys": [ "Escape" ], "buttons": [ "B" ], "wheel": 0 },
+        "MenuUp": { "keys": [ "W", "Up" ], "buttons": [ "DPadUp", "LeftStickUp" ], "wheel": 1 },
+        "MenuDown": { "keys": [ "S", "Down" ], "buttons": [ "DPadDown", "LeftStickDown" ], "wheel": -1 },
+        "MenuLeft": { "keys": [ "A", "Left" ], "buttons": [ "DPadLeft", "LeftStickLeft" ], "wheel": 0 },
+        "MenuRight": { "keys": [ "D", "Right" ], "buttons": [ "DPadRight", "LeftStickRight" ], "wheel": 0 },
+        "MoveForward": { "keys": [ "W", "Up" ], "buttons": [], "wheel": 0 },
+        "MoveBack": { "keys": [ "S", "Down" ], "buttons": [], "wheel": 0 },
+        "MoveLeft": { "keys": [ "A", "Left" ], "buttons": [], "wheel": 0 },
+        "MoveRight": { "keys": [ "D", "Right" ], "buttons": [], "wheel": 0 },
+        "cameraStickYawSpeed": 3.2,
+        "cameraStickPitchSpeed": 2.0
+    }
+}

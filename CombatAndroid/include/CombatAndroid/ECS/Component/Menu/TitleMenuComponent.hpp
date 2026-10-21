@@ -28,6 +28,9 @@ namespace CombatAndroid::ECS {
         //! 切り替えた先の画面でそのまま拾わないようにする1フレーム待ち
         bool changedThisFrame = true;
 
+        //! 操作説明をパッドの表記で組んだか。最後に触った機器が変わったら組み直す
+        bool controlsShownForGamepad = false;
+
         //! 文字を載せる左側を暗くする板（Sprite）。背景は3Dの草原（TitleStageSystem）なので、
         //! 全面ではなく文字の下だけを暗くして、右側の武器を見せたままにする。
         //! 操作説明・オプションを開いている間だけは画面全体を覆う

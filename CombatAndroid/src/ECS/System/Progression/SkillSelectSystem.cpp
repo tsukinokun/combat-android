@@ -644,24 +644,11 @@ namespace CombatAndroid::ECS {
                 continue;
 
             //-------------------------------------------------------------
-            // カーソルの左右移動。A/D・矢印キー・W/S・マウスホイールを同じ「1枚ぶん」として扱う
-            //（ホイールは1ノッチ=±1.0。上へ回す＝左のカードへ＝インデックスは減る）
+            // カーソルの左右移動。メニューの左右（A/D・矢印・十字キー・左スティック）と上下（W/S・ホイール）を
+            // 同じ「1枚ぶん」として扱う（上・左＝左のカードへ＝インデックスは減る）
             //-------------------------------------------------------------
             const Tsukino::Input::InputSystem& input = *ctx->inputSystem;
-            int step = 0;
-            if(input.IsKeyPressed(Tsukino::Input::KeyCode::A) || input.IsKeyPressed(Tsukino::Input::KeyCode::Left)
-               || input.IsKeyPressed(Tsukino::Input::KeyCode::W))
-                --step;
-            if(input.IsKeyPressed(Tsukino::Input::KeyCode::D) || input.IsKeyPressed(Tsukino::Input::KeyCode::Right)
-               || input.IsKeyPressed(Tsukino::Input::KeyCode::S))
-                ++step;
-
-            const float wheelDelta = input.GetWheelDelta();
-            if(wheelDelta > 0.0f)
-                --step;
-            else if(wheelDelta < 0.0f)
-                ++step;
-            step = std::clamp(step, -1, 1);
+            const int step = std::clamp(ReadGameMenuValueStep(input) + ReadGameMenuStep(input), -1, 1);
 
             //-------------------------------------------------------------
             // マウス。カードに乗せたらそのカードへ合わせ、クリックで決定する。
@@ -692,7 +679,7 @@ namespace CombatAndroid::ECS {
             //（IsSkillSelectActiveはpendingLevelUpsも見ているので停止は続いたまま）
             //-------------------------------------------------------------
             const bool confirmUnlocked = select.confirmLockTimer <= 0.0f;
-            if(confirmUnlocked && (ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::F) || pointer.clicked)) {
+            if(confirmUnlocked && (IsGameMenuConfirmPressed(input) || pointer.clicked)) {
                 const SkillId acquiredId = select.candidates[static_cast<size_t>(select.cursorIndex)];
 
                 int& acquiredLevel = skills.levels[static_cast<size_t>(acquiredId)];

@@ -5,6 +5,7 @@
 #include <CombatAndroid/ECS/Utility/UI/OptionsMenu.hpp>
 #include <CombatAndroid/ECS/Event/Audio/SoundEvent.hpp>
 #include <CombatAndroid/ECS/Utility/Audio/Bgm.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 #include <CombatAndroid/ECS/Utility/Save/GameSettings.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
@@ -28,9 +29,12 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         enum class OptionsItem : int {
             MouseSensitivity = 0,    //!< マウス感度
+            StickSensitivity,        //!< スティック感度
+            InvertCameraY,           //!< カメラ上下反転
             BgmVolume,               //!< BGMの音量
             SeVolume,                //!< 効果音の音量
             ScreenShake,             //!< 画面揺れ
+            Vibration,               //!< 振動
             Back,                    //!< もどる
             Count,
         };
@@ -40,11 +44,11 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // レイアウト（画面中心からのピクセル）
         //-------------------------------------------------------------
-        constexpr float kPanelWidth      = 1000.0f;
-        constexpr float kPanelHeight     = 620.0f;
-        constexpr float kHeaderOffsetY   = -240.0f;
-        constexpr float kMenuTopOffsetY  = -140.0f;
-        constexpr float kHintOffsetY     = 250.0f;
+        constexpr float kPanelWidth      = 1100.0f;
+        constexpr float kPanelHeight     = 860.0f;
+        constexpr float kHeaderOffsetY   = -360.0f;
+        constexpr float kMenuTopOffsetY  = -270.0f;
+        constexpr float kHintOffsetY     = 370.0f;
         constexpr float kHighlightWidth  = 620.0f;    //!< 「項目名　< 値 >」が収まる幅
 
         //! [A][D] を強調帯の左に並べる位置（帯の左端からの距離）
@@ -62,6 +66,15 @@ namespace CombatAndroid::ECS {
         const hlslpp::float4 kHintColor   = hlslpp::float4(0.75f, 0.75f, 0.80f, 1.0f);
 
         //-------------------------------------------------------------
+        //! @brief  ON/OFFの2値の項目か（決定でも切り替えられる）
+        //! @param  item [in] 項目
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        bool IsToggleItem(OptionsItem item) {
+            return item == OptionsItem::ScreenShake || item == OptionsItem::InvertCameraY || item == OptionsItem::Vibration;
+        }
+
+        //-------------------------------------------------------------
         //! @brief  項目1行ぶんの文字を作る
         //! @param  item [in] 項目
         //! @return 例：「マウス感度　< ×1.25 >」
@@ -75,6 +88,13 @@ namespace CombatAndroid::ECS {
             case OptionsItem::MouseSensitivity:
                 std::swprintf(value, std::size(value), L"×%.2f", settings.mouseSensitivityScale);
                 return std::wstring(L"マウス感度　< ") + value + L" >";
+            case OptionsItem::StickSensitivity:
+                std::swprintf(value, std::size(value), L"×%.2f", settings.stickSensitivityScale);
+                return std::wstring(L"スティック感度　< ") + value + L" >";
+            case OptionsItem::InvertCameraY:
+                return std::wstring(L"カメラ上下反転　< ") + (settings.invertCameraY ? L"ON" : L"OFF") + L" >";
+            case OptionsItem::Vibration:
+                return std::wstring(L"振動　< ") + (settings.vibrationEnabled ? L"ON" : L"OFF") + L" >";
             case OptionsItem::BgmVolume:
                 return L"BGMの音量　< " + std::to_wstring(settings.bgmVolumePercent) + L"% >";
             case OptionsItem::SeVolume:
@@ -105,6 +125,20 @@ namespace CombatAndroid::ECS {
                 settings.mouseSensitivityScale = next;
                 return true;
             }
+            case OptionsItem::StickSensitivity: {
+                const float next = std::clamp(settings.stickSensitivityScale + kMouseSensitivityStep * static_cast<float>(step),
+                                              kMouseSensitivityMin, kMouseSensitivityMax);
+                if(next == settings.stickSensitivityScale)
+                    return false;
+                settings.stickSensitivityScale = next;
+                return true;
+            }
+            case OptionsItem::InvertCameraY:
+                settings.invertCameraY = !settings.invertCameraY;
+                return true;
+            case OptionsItem::Vibration:
+                settings.vibrationEnabled = !settings.vibrationEnabled;
+                return true;
             case OptionsItem::BgmVolume: {
                 const int next = std::clamp(settings.bgmVolumePercent + kVolumePercentStep * step, 0, 100);
                 if(next == settings.bgmVolumePercent)
@@ -142,8 +176,12 @@ namespace CombatAndroid::ECS {
 
             StretchSprite(registry, context, options.panelEntity, screenCenterX, screenCenterY, kPanelWidth, kPanelHeight, kPanelColor);
             PlaceUiText(registry, options.headerEntity, screenCenterX, screenCenterY + kHeaderOffsetY, GetUiTextScale(UiTextSize::Heading), L"オプション", kHeaderColor);
+            // 操作の表記は最後に触った機器に合わせる（パッドにはマウスが無いので、その一言を外す）
+            const bool    usingGamepad = context.inputSystem && IsUsingGamepad(*context.inputSystem);
+            const wchar_t* hintFormat  = usingGamepad ? L"{MenuUp} / {MenuDown}：項目を選ぶ　　{MenuLeft} / {MenuRight}：値を変える　　{Cancel}：もどる"
+                                                      : L"{MenuUp} / {MenuDown}・マウス：項目を選ぶ　　{MenuLeft} / {MenuRight}：値を変える　　{Cancel}：もどる";
             PlaceUiText(registry, options.hintEntity, screenCenterX, screenCenterY + kHintOffsetY, GetUiTextScale(UiTextSize::Small),
-                        L"W / S・マウス：項目を選ぶ　　A / D：値を変える　　Esc：もどる", kHintColor);
+                        context.inputSystem ? FormatInputText(*context.inputSystem, hintFormat) : std::wstring(hintFormat), kHintColor);
 
             std::array<std::wstring, static_cast<size_t>(OptionsItem::Count)> labels;
             for(int i = 0; i < static_cast<int>(OptionsItem::Count); ++i)
@@ -152,10 +190,10 @@ namespace CombatAndroid::ECS {
             const OptionsItem cursorItem = static_cast<OptionsItem>(options.cursorIndex);
 
             //-------------------------------------------------------------
-            // [F]はマウス感度・BGMの音量・効果音の音量ではA/Dしか受け付けないので隠す
-            // （画面揺れはFでも切り替えられ、もどるはFで閉じるので出したまま）
+            // 決定のキーキャップは、感度・音量では左右しか受け付けないので隠す
+            // （ON/OFFの項目は決定でも切り替えられ、もどるは決定で閉じるので出したまま）
             //-------------------------------------------------------------
-            const bool showConfirm = cursorItem == OptionsItem::ScreenShake || cursorItem == OptionsItem::Back;
+            const bool showConfirm = IsToggleItem(cursorItem) || cursorItem == OptionsItem::Back;
 
             const float menuTopY = screenCenterY + kMenuTopOffsetY;
             ShowGameMenu(registry, context, options.menu, screenCenterX, menuTopY, labels, options.cursorIndex, kHighlightWidth,
@@ -182,9 +220,9 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         [[nodiscard]]
         InputPromptWidget CreateKeyPrompt(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context,
-                                          const wchar_t* keyLabel, PromptChevron chevron, int sortOrder) {
+                                          GameAction action, PromptChevron chevron, int sortOrder) {
             InputPromptDesc desc;
-            desc.keyLabel      = keyLabel;
+            desc.action        = action;
             desc.chevron       = chevron;
             desc.sortOrderBase = sortOrder;
             return CreateInputPromptWidget(registry, context, desc);
@@ -201,8 +239,8 @@ namespace CombatAndroid::ECS {
         options.headerEntity   = CreateUiTextEntity(registry, sortOrderBase + kTextLayer, UiTextAlign::Center, UiTextFont::Heading);
         options.hintEntity     = CreateUiTextEntity(registry, sortOrderBase + kTextLayer, UiTextAlign::Center);
         options.menu           = CreateGameMenuWidget(registry, context, sortOrderBase + kMenuLayer);
-        options.decreasePrompt = CreateKeyPrompt(registry, context, L"A", PromptChevron::Left, sortOrderBase + kPromptLayer);
-        options.increasePrompt = CreateKeyPrompt(registry, context, L"D", PromptChevron::Right, sortOrderBase + kPromptLayer);
+        options.decreasePrompt = CreateKeyPrompt(registry, context, GameAction::MenuLeft, PromptChevron::Left, sortOrderBase + kPromptLayer);
+        options.increasePrompt = CreateKeyPrompt(registry, context, GameAction::MenuRight, PromptChevron::Right, sortOrderBase + kPromptLayer);
         return options;
     }
 
@@ -211,6 +249,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     void OpenOptionsMenu(Tsukino::ECS::Registry& registry, Tsukino::EngineIntegration::EngineContext& context, OptionsMenuState& options) {
         options.isOpen          = true;
+        options.shownForGamepad = context.inputSystem && IsUsingGamepad(*context.inputSystem);
         options.cursorIndex     = 0;
         options.openedThisFrame = true;
         options.changed         = false;
@@ -233,6 +272,12 @@ namespace CombatAndroid::ECS {
 
         const Tsukino::Input::InputSystem& input   = *context.inputSystem;
         const GameMenuPointer              pointer = ReadGameMenuPointer(registry, input, options.menu);
+
+        // 開いたまま機器を持ち替えたら、案内の行の表記を合わせて組み直す
+        if(IsUsingGamepad(input) != options.shownForGamepad) {
+            options.shownForGamepad = IsUsingGamepad(input);
+            RefreshUi(registry, context, options);
+        }
 
         //-------------------------------------------------------------
         // 項目の移動。マウスが乗った項目があればそちらへ合わせる。
@@ -261,7 +306,7 @@ namespace CombatAndroid::ECS {
         // 変えた直後の効果音は新しい音量で鳴るので、効果音の音量はその場で確かめられる
         //-------------------------------------------------------------
         int valueStep = ReadGameMenuValueStep(input);
-        if(valueStep == 0 && item == OptionsItem::ScreenShake && confirmed)
+        if(valueStep == 0 && IsToggleItem(item) && confirmed)
             valueStep = 1;
 
         if(valueStep != 0) {
@@ -276,7 +321,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         // 閉じる：「もどる」の決定かEsc。変えていれば保存し、BGMの音量が変わっていれば鳴らし直す
         //-------------------------------------------------------------
-        const bool closeByEscape  = input.IsKeyPressed(Tsukino::Input::KeyCode::Escape);
+        const bool closeByEscape  = IsGameMenuCancelPressed(input);
         const bool closeByConfirm = item == OptionsItem::Back && confirmed;
         if(!closeByEscape && !closeByConfirm)
             return false;

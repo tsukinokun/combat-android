@@ -11,6 +11,8 @@
 //-------------------------------------------------------------
 #pragma once
 
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
+
 #include <Tsukino/Core/ECS/Entity/Entity.hpp>
 #include <Tsukino/Core/ECS/Registry/Registry.hpp>
 
@@ -52,7 +54,16 @@ namespace CombatAndroid::ECS {
     //! @brief  プロンプト1個をどう組み立てるかの指定
     //-------------------------------------------------------------
     struct InputPromptDesc {
+        //! 案内する操作。指定すると、キーの文字・マウスの絵・パッドのボタンを、割り当て（InputBindings.json）と
+        //! 最後に触った機器から表示のたびに決める（keyLabel / useMouse は使わない）。
+        //! GameAction::Count なら指定なしで、keyLabel / useMouse の固定表示になる
+        GameAction action = GameAction::Count;
+
         std::wstring keyLabel;    //!< キーキャップに載せる文字（"F" / "SPACE" 等）。空かつuseMouse=falseならキーキャップを作らない
+
+        //! パッドで遊んでいるときにキーキャップへ載せる文字（"Lスティック" 等）。操作1つで表せない案内（移動など）に使う。
+        //! 空なら機器で切り替えない。指定するとパッドのときはuseMouseでもキーキャップになる
+        std::wstring padKeyLabel;
 
         bool useMouse   = false;    //!< キーキャップの代わりにマウスの絵を出す（左クリック操作用）
         bool useHoldRing = false;    //!< 長押しゲージ（円周のセグメント）を作る
@@ -87,8 +98,11 @@ namespace CombatAndroid::ECS {
 
         std::array<Tsukino::ECS::Entity, kHoldRingSegmentCount> ringEntities{};    //!< 長押しゲージのセグメント（先頭が真上、時計回り）
 
-        bool          useMouse = false;                     //!< マウスの絵として組んだか（更新時のレイアウト分岐に使う）
+        bool          useMouse = false;                     //!< マウスの絵として組んだか（更新時のレイアウト分岐に使う。actionがあれば表示のたびに決め直す）
         PromptChevron chevron  = PromptChevron::None;       //!< どの向きの矢印を組んだか
+        GameAction    action   = GameAction::Count;         //!< 案内する操作（Countなら固定表示）
+        std::wstring  keyLabel;                             //!< キーボード・マウスのときの文字（padKeyLabelがあるときだけ覚えておく）
+        std::wstring  padKeyLabel;                          //!< パッドのときの文字（空なら機器で切り替えない）
     };
 
     //-------------------------------------------------------------
@@ -156,4 +170,13 @@ namespace CombatAndroid::ECS {
     //! @param  widget   [in] 対象のウィジェット
     //-------------------------------------------------------------
     void HideInputPrompt(Tsukino::ECS::Registry& registry, const InputPromptWidget& widget);
+
+    //-------------------------------------------------------------
+    //! @brief  操作のキーキャップの面の色を決める
+    //! @param  input  [in] 入力システム（最後に触った機器を見る）
+    //! @param  action [in] 案内する操作
+    //! @return パッドのフェイスボタンならその色（A緑・B赤・X青・Y黄）、それ以外は通常のキーキャップの面の色
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    hlslpp::float4 GetPromptFaceColor(const Tsukino::Input::InputSystem& input, GameAction action);
 }    // namespace CombatAndroid::ECS

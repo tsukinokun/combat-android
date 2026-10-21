@@ -10,6 +10,7 @@
 #include <CombatAndroid/ECS/Component/World/TpsCameraComponent.hpp>
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Component/Progression/PlayerSkillComponent.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CharacterControllerComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -122,30 +123,23 @@ namespace CombatAndroid::ECS {
             //   不具合の原因だった）。攻撃ボタンの入力自体はこのSystem内で直接見られるので、
             // 「今フレーム攻撃がトリガーされるか」も向き直り抑制条件に含めて1フレームの遅れを潰す
             //-------------------------------------------------------------
-            bool attackTriggeredThisFrame = inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::LButton);
+            bool attackTriggeredThisFrame = IsActionPressed(*inputSystem, GameAction::Attack);
 
             //-------------------------------------------------------------
             // 回避も攻撃と全く同じ事情を持つ：PlayerComponent::isDodgingを確定させるのは
             // 本Systemより後に走るPlayerAnimationSystemなので、ここで読めるのは前フレームの値。
             // 回避を押した瞬間のフレームだけ向き直りが1フレーム分紛れ込み、
-            // 前転の向きが最後の移動入力に引っ張られてしまうため、今フレームのスペース押下も
+            // 前転の向きが最後の移動入力に引っ張られてしまうため、今フレームの回避の押下も
             // 抑制条件へ含める（回避の向きはPlayerAnimationSystemが開始時に一度だけ確定させる）
             //-------------------------------------------------------------
-            bool dodgeTriggeredThisFrame = inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Space);
+            bool dodgeTriggeredThisFrame = IsActionPressed(*inputSystem, GameAction::Dodge);
 
             //-------------------------------------------------------------
-            // 移動方向の入力を取得（カメラの向きを基準にしたXZ平面）
+            // 移動方向の入力を取得（カメラの向きを基準にしたXZ平面）。
+            // スティックの倒し具合は速さに使わず向きだけを使う（歩き・ダッシュの2段は今までどおり）
             //-------------------------------------------------------------
-            hlslpp::float3 moveDir = hlslpp::float3(0.0f, 0.0f, 0.0f);
-
-            if(inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Up) || inputSystem->IsKeyDown(Tsukino::Input::KeyCode::W))
-                moveDir = moveDir + cameraForward;
-            if(inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Down) || inputSystem->IsKeyDown(Tsukino::Input::KeyCode::S))
-                moveDir = moveDir - cameraForward;
-            if(inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Right) || inputSystem->IsKeyDown(Tsukino::Input::KeyCode::D))
-                moveDir = moveDir + cameraRight;
-            if(inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Left) || inputSystem->IsKeyDown(Tsukino::Input::KeyCode::A))
-                moveDir = moveDir - cameraRight;
+            const hlslpp::float2 moveAxis = ReadMoveAxis(*inputSystem);
+            hlslpp::float3       moveDir  = cameraForward * moveAxis.y + cameraRight * moveAxis.x;
 
             float len = hlslpp::length(moveDir);
             // 入力の向きはcc.moveInputと違い攻撃中も残す（ソフトターゲットの基準の向きに使う）
@@ -153,8 +147,14 @@ namespace CombatAndroid::ECS {
             if(len > 0.001f) {
                 moveDir = moveDir / len;
 
-                // Shift押下中はスプリント（PlayerAnimationSystemがFastRun状態の判定に使う）
-                player.isSprinting  = inputSystem->IsKeyDown(Tsukino::Input::KeyCode::Shift);
+                //-------------------------------------------------------------
+                // ダッシュ（PlayerAnimationSystemがFastRun状態の判定に使う）。
+                // Shift・LTは押しているあいだだけ。L3は押し込み続けながらスティックを倒すのが
+                // つらいので、押すと切り替わり、スティックを戻すまで続く
+                //-------------------------------------------------------------
+                if(IsActionPressed(*inputSystem, GameAction::SprintToggle))
+                    player.sprintLatched = !player.sprintLatched;
+                player.isSprinting = player.sprintLatched || IsActionDown(*inputSystem, GameAction::Sprint);
                 // 鈍足の倍率は通常移動・スプリントのどちらにも等しく乗せる
                 float currentSpeed = (player.isSprinting ? player.moveSpeed * player.sprintSpeedMultiplier : player.moveSpeed)
                                      * skillMoveSpeedMultiplier;
@@ -175,7 +175,8 @@ namespace CombatAndroid::ECS {
                     transform.dirty                     = true;
                 }
             } else {
-                player.isSprinting = false;
+                player.isSprinting   = false;
+                player.sprintLatched = false;
                 cc.moveInput         = hlslpp::float3(0.0f, 0.0f, 0.0f);
             }
 
@@ -189,31 +190,34 @@ namespace CombatAndroid::ECS {
             }
 
             //-------------------------------------------------------------
-            // 左クリックの生入力をプレイヤーへ伝える。ここではまだ武器のattackRequestedは立てない：
+            // 攻撃の生入力をプレイヤーへ伝える。ここではまだ武器のattackRequestedは立てない：
             // 連撃中の入力は「次段へのキャンセル」を意味することがあり、その判定はコンボ窓を
             // 見ているPlayerAnimationSystemが行う（実際の当たり判定の有効化・タイマー管理はCombatSystemが行う）
             //-------------------------------------------------------------
-            if(inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::LButton) &&
+            if(attackTriggeredThisFrame &&
                player.weaponEntity != entt::null &&
                registry.HasComponent<WeaponComponent>(player.weaponEntity)) {
                 player.attackInputPressed = true;
             }
 
             //-------------------------------------------------------------
-            // 左クリックの押しっぱなし状態。溜め攻撃の継続／解放判定にPlayerAnimationSystemが使う
+            // 攻撃の押しっぱなし状態。溜め攻撃の継続／解放判定にPlayerAnimationSystemが使う
             //-------------------------------------------------------------
-            player.attackInputHeld = inputSystem->IsKeyDown(Tsukino::Input::KeyCode::LButton);
+            player.attackInputHeld = IsActionDown(*inputSystem, GameAction::Attack);
 
             //-------------------------------------------------------------
-            // マウスホイールで装備中の武器を切り替える（1ノッチ=±1.0）。
+            // マウスホイール・LB/RBで装備中の武器を切り替える。
             // 攻撃中に切り替わると持ち替えの見た目が破綻するため、攻撃中は入力を無視する
             // （isAttacking/attackTriggeredThisFrameは上の向き直り抑制と同じ判定を流用）。
             // 溜め攻撃中も同様に持ち替えを禁止する
             //-------------------------------------------------------------
-            float wheelDelta = inputSystem->GetWheelDelta();
+            int direction = 0;
+            if(IsActionPressed(*inputSystem, GameAction::WeaponNext))
+                direction = 1;
+            else if(IsActionPressed(*inputSystem, GameAction::WeaponPrev))
+                direction = -1;
             if(!isAttacking && !attackTriggeredThisFrame && !player.isCharging &&
-               wheelDelta != 0.0f && player.weaponInventory.size() > 1) {
-                int direction   = wheelDelta > 0.0f ? 1 : -1;
+               direction != 0 && player.weaponInventory.size() > 1) {
                 int weaponCount = static_cast<int>(player.weaponInventory.size());
 
                 // 今まで選択していた武器の浮遊ブーストを解除してから、新しい武器へ差し替える

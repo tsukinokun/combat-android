@@ -18,6 +18,9 @@
 #include <CombatAndroid/ECS/Utility/UI/UiMotion.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
+
+#include <Tsukino/Core/Input/InputSystem.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
 
@@ -36,21 +39,29 @@ namespace CombatAndroid::ECS {
         //! @brief  手順1つぶんの見せ方
         //-------------------------------------------------------------
         struct TutorialStepDef {
-            const wchar_t* text;        //!< 案内の文
-            const wchar_t* keyLabel;    //!< キーキャップの文字（マウス操作ならnullptr）
-            bool           useMouse;    //!< マウスの絵を出すか
-            bool           useHold;     //!< 長押しゲージを添えるか
+            const wchar_t* text;           //!< 案内の文。{操作名} は最後に触った機器の表記へ置き換える（FormatInputText）
+            GameAction     action;         //!< キー表示で案内する操作（Countなら下の固定の文字を使う）
+            const wchar_t* keyLabel;       //!< 操作1つで表せないときのキーキャップの文字（キーボード・マウス）
+            const wchar_t* padKeyLabel;    //!< 同じくパッドのときの文字
+            bool           useMouse;       //!< キーボード・マウスのときにマウスの絵を出すか
+            bool           useHold;        //!< 長押しゲージを添えるか
+
+            //! キー表示があるか
+            [[nodiscard]]
+            bool HasPrompt() const {
+                return action != GameAction::Count || keyLabel || useMouse;
+            }
         };
 
         //-------------------------------------------------------------
         // 手順の表。TutorialStepの並びと揃えること。
-        // 文言とキーはタイトルの操作説明（TitleMenuSystem.cppのkControlActions/kControlKeys）と揃える
+        // 文言はタイトルの操作説明（TitleMenuSystem.cppのkControlActions/kControlKeys）と揃える
         //-------------------------------------------------------------
         const TutorialStepDef kStepDefs[] = {
-            {L"W A S D で移動（Shift でダッシュ）", L"WASD", false, false},
-            {L"左クリックで攻撃（続けて押すと連撃）", nullptr, true, false},
-            {L"Space で回避（転がっている間は無敵）", L"SPACE", false, false},
-            {L"迫りくる群れを生き延び、夜の主を討て！", nullptr, false, false},
+            {L"{Move} で移動（{Dash} でダッシュ）", GameAction::Count, L"WASD", L"Lスティック", false, false},
+            {L"{Attack}で攻撃（続けて押すと連撃）", GameAction::Attack, nullptr, nullptr, false, false},
+            {L"{Dodge} で回避（転がっている間は無敵）", GameAction::Dodge, nullptr, nullptr, false, false},
+            {L"迫りくる群れを生き延び、夜の主を討て！", GameAction::Count, nullptr, nullptr, false, false},
         };
         static_assert(std::size(kStepDefs) == static_cast<size_t>(TutorialStep::Count), "kStepDefsはTutorialStepの並びと揃えること");
 
@@ -62,9 +73,9 @@ namespace CombatAndroid::ECS {
         // 開始時は武器が落ちていないので、武器まわりの操作はその場面が来たときに教える
         //-------------------------------------------------------------
         const TutorialStepDef kHintDefs[] = {
-            {L"光っている武器に触れると拾える（同じ武器ならレベルアップ）", nullptr, false, false},
-            {L"マウスホイールで武器を切り替える", nullptr, true, false},
-            {L"バトルアックスは左クリック長押しで溜め攻撃（ピンクで最大威力）", nullptr, true, true},
+            {L"光っている武器に触れると拾える（同じ武器ならレベルアップ）", GameAction::Count, nullptr, nullptr, false, false},
+            {L"{WeaponSwitch}で武器を切り替える", GameAction::Count, nullptr, L"LB/RB", true, false},
+            {L"バトルアックスは{Attack}長押しで溜め攻撃（ピンクで最大威力）", GameAction::Attack, nullptr, nullptr, false, true},
         };
         static_assert(std::size(kHintDefs) == static_cast<size_t>(TutorialHint::Count), "kHintDefsはTutorialHintの並びと揃えること");
 
@@ -155,9 +166,9 @@ namespace CombatAndroid::ECS {
         //! @brief  文が収まる板の幅（既定の幅より狭くはしない）
         //-------------------------------------------------------------
         [[nodiscard]]
-        float FitPanelWidth(const wchar_t* text) {
+        float FitPanelWidth(const std::wstring& text) {
             const TutorialParams& params = GetParams();
-            const float textWidth = EstimateTextWidth(std::wstring(text) + kDoneSuffix, GetUiTextScale(UiTextSize::Body));
+            const float textWidth = EstimateTextWidth(text + kDoneSuffix, GetUiTextScale(UiTextSize::Body));
             return std::max(params.panelWidth, params.textInsetX + textWidth + params.textPaddingRight);
         }
 
@@ -355,7 +366,8 @@ namespace CombatAndroid::ECS {
                 UiStopIdle(registry, tutorial.panelEntity);
             const bool             isDone    = tutorial.doneTimer >= 0.0f;
 
-            const float panelWidth = FitPanelWidth(def.text);
+            const std::wstring stepText   = ctx.inputSystem ? FormatInputText(*ctx.inputSystem, def.text) : std::wstring(def.text);
+            const float        panelWidth = FitPanelWidth(stepText);
             const float panelLeft  = panelCenterX - panelWidth * 0.5f;
             StretchSprite(registry, ctx, tutorial.panelEntity, panelCenterX, panelCenterY, panelWidth, params.panelHeight, params.panelColor);
 
@@ -365,7 +377,7 @@ namespace CombatAndroid::ECS {
                 UiAppearFromBelow(registry, tutorial.panelEntity, 0.0f, true);
             }
 
-            std::wstring text = def.text;
+            std::wstring text = stepText;
             if(isDone)
                 text += kDoneSuffix;
 
@@ -402,11 +414,13 @@ namespace CombatAndroid::ECS {
 
         for(int i = 0; i < static_cast<int>(TutorialStep::Count); ++i) {
             const TutorialStepDef& def = kStepDefs[i];
-            if(!def.keyLabel && !def.useMouse)
+            if(!def.HasPrompt())
                 continue;    // キー表示の無い手順（目標）は作らない
 
             InputPromptDesc desc;
+            desc.action        = def.action;
             desc.keyLabel      = def.keyLabel ? def.keyLabel : L"";
+            desc.padKeyLabel   = def.padKeyLabel ? def.padKeyLabel : L"";
             desc.useMouse      = def.useMouse;
             desc.useHoldRing   = def.useHold;
             desc.sortOrderBase = UI::kTutorialPromptBase;
@@ -418,11 +432,13 @@ namespace CombatAndroid::ECS {
         tutorial.hintText  = CreateUiTextEntity(registry, UI::kTutorialText, UiTextAlign::Left);
         for(int i = 0; i < static_cast<int>(TutorialHint::Count); ++i) {
             const TutorialStepDef& def = kHintDefs[i];
-            if(!def.keyLabel && !def.useMouse)
+            if(!def.HasPrompt())
                 continue;    // キー表示の無い案内（拾う）は作らない
 
             InputPromptDesc desc;
+            desc.action        = def.action;
             desc.keyLabel      = def.keyLabel ? def.keyLabel : L"";
+            desc.padKeyLabel   = def.padKeyLabel ? def.padKeyLabel : L"";
             desc.useMouse      = def.useMouse;
             desc.useHoldRing   = def.useHold;
             desc.sortOrderBase = UI::kTutorialPromptBase;
@@ -552,7 +568,8 @@ namespace CombatAndroid::ECS {
             const bool  hintDone = tutorial.hintDoneTimer >= 0.0f;
             const float hintY    = tutorial.finished ? panelCenterY : panelCenterY + params.stackOffsetY;
 
-            const float hintWidth = FitPanelWidth(def.text);
+            const std::wstring hintBaseText = ctx->inputSystem ? FormatInputText(*ctx->inputSystem, def.text) : std::wstring(def.text);
+            const float        hintWidth    = FitPanelWidth(hintBaseText);
             const float panelLeft = panelCenterX - hintWidth * 0.5f;
             StretchSprite(registry, *ctx, tutorial.hintPanel, panelCenterX, hintY, hintWidth, params.panelHeight, params.panelColor);
 
@@ -568,7 +585,7 @@ namespace CombatAndroid::ECS {
             }
             tutorial.hintLastY = hintY;
 
-            std::wstring hintText = def.text;
+            std::wstring hintText = hintBaseText;
             if(hintDone)
                 hintText += kDoneSuffix;
             PlaceUiText(registry, tutorial.hintText, panelLeft + params.textInsetX, hintY, GetUiTextScale(UiTextSize::Body), hintText,

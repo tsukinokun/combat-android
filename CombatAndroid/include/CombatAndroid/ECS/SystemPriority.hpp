@@ -36,7 +36,7 @@ namespace CombatAndroid::ECS {
                                       // 速度が常にゼロになりブラーが効かなくなる
         Transform = 0,    // 一番最初に計算する
         SkillSelect,      // レベルアップ時のスキル選択メニュー。PlayerSystem（Movement）が
-                          // 同じフレームのスペース（回避）・ホイール（武器切替）・左クリック（攻撃）を
+                          // 同じフレームの回避・武器切替・攻撃の入力を
                           // 消費する前に割り込んで入力を横取りする必要があるため、Movementより前に置く。
                           // 併せてメニュー表示中はCharacterControllerComponent::moveInputを毎フレーム潰す：
                           // PhysicsSystemはdeltaTimeが0以下でも1/60秒ぶん必ずステップするため、
@@ -103,6 +103,12 @@ namespace CombatAndroid::ECS {
                           // アニメーションステート（Gameplayで確定）と手持ちの武器（PickupSystem・
                           // PlayerSystemで確定）を読むのでその後に置き、画面固定UIの位置を書くので
                           // TransformUIより前に置く。InputPromptと同じ理由でその直後にした
+        InputPromptGlyph, // キーキャップの文字と面の色を、最後に触った機器（キーボード・マウス／パッド）に合わせる。
+                          // 各画面（メニューはPlayerHud、InputPrompt、Tutorial）がShowInputPrompt*で組み直した後に
+                          // 上書きするので、それらより後に置く。文字と色しか触らないので、描画（Font/Render）より前ならどこでもよい
+        GamepadRumble,    // ゲームパッドの振動。ヒット・被弾（WeaponAttach/Projectile/EnemyProjectileで発火）と
+                          // 最終段・大技・ジャスト回避（Gameplayで発火）の通知を、同じフレームのうちに振動へ変えたいので
+                          // それらより後に置く。画面にもTransformにも触らないので、UIの並びの後ろでよい
         TransformLate,    // Movement/WeaponAttachで更新したposition/rotationをworldMatrixへ反映する2回目のTransformSystem。
                           // これが無いと、このフレームで更新された所有者の回転がworldMatrix（描画に使われる）へ
                           // 反映されるのは次フレームになり、武器はowner.rotationを直接読むため1フレーム分

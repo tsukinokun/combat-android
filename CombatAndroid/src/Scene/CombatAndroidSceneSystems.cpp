@@ -20,6 +20,7 @@
 #include <CombatAndroid/ECS/System/Effect/AttackMotionBlurSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/SkillAuraSystem.hpp>
 #include <CombatAndroid/ECS/System/Effect/SkillAuraParticleSystem.hpp>
+#include <CombatAndroid/ECS/System/Effect/GamepadRumbleSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyBehaviorSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyTreeCollisionSystem.hpp>
 #include <CombatAndroid/ECS/System/Enemy/EnemyAnimationSystem.hpp>
@@ -44,6 +45,7 @@
 #include <CombatAndroid/ECS/System/Menu/ScreenFadeSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/InputPromptSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/TutorialSystem.hpp>
+#include <CombatAndroid/ECS/System/UI/InputPromptGlyphSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/PlayerSkillHudSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/RunClockSystem.hpp>
 #include <CombatAndroid/ECS/System/Progression/BossDirectorSystem.hpp>
@@ -213,6 +215,14 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptSystem>(), (int)ECS::SystemPriority::InputPrompt);
         // タイトルから始めたときだけ出す操作の案内（TutorialComponentが無ければ何もしない）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::TutorialSystem>(), (int)ECS::SystemPriority::Tutorial);
+        // キーキャップの文字と色を、最後に触った機器に合わせる（メニュー・案内のプロンプト全部）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::InputPromptGlyphSystem>(), (int)ECS::SystemPriority::InputPromptGlyph);
+        // ヒット・被弾・大技の手ごたえをゲームパッドの振動にする
+        {
+            auto gamepadRumbleSystem = std::make_shared<CombatAndroid::ECS::GamepadRumbleSystem>();
+            m_scene.AddSystem(gamepadRumbleSystem, (int)ECS::SystemPriority::GamepadRumble);
+            gamepadRumbleSystem->Initialize(eventBus);
+        }
         // EXPバーの下に並べる取得済みスキル一覧。取得段階はSkillSelectSystem（ECS::SystemPriority::SkillSelect）が
         // 同じフレームの手前で確定させているため、選んだ内容がその回のフレームから一覧へ載る
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::PlayerSkillHudSystem>(), (int)ECS::SystemPriority::PlayerHud);

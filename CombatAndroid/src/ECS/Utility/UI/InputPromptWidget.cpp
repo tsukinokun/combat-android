@@ -3,6 +3,7 @@
 //! @brief  操作を促すUI（キーキャップ・マウス・矢印・長押しゲージ）の組み立てと更新の実装
 //-------------------------------------------------------------
 #include <CombatAndroid/ECS/Utility/UI/InputPromptWidget.hpp>
+#include <CombatAndroid/ECS/Component/UI/InputPromptGlyphComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Asset/GamePrefab.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiSprite.hpp>
 
@@ -12,6 +13,8 @@
 #include <Tsukino/BuiltIn/ECS/Component/WorldAnchorComponent.hpp>
 
 #include <Tsukino/EngineIntegration/EngineContext.hpp>
+
+#include <Tsukino/Core/Input/InputSystem.hpp>
 
 #include <Tsukino/Engine/Asset/AssetManager.hpp>
 
@@ -207,6 +210,46 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        //! @brief  キーの文字を書き換える（同じなら触らない）
+        //! @param  registry    [in] ECSレジストリ
+        //! @param  glyphEntity [in] キーの文字のエンティティ
+        //! @param  label       [in] 載せる文字
+        //-------------------------------------------------------------
+        void SetGlyphText(Tsukino::ECS::Registry& registry, Tsukino::ECS::Entity glyphEntity, const std::wstring& label) {
+            if(glyphEntity == entt::null)
+                return;
+            if(auto* glyphFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(glyphEntity)) {
+                if(glyphFont->text != label)
+                    glyphFont->text = label;
+            }
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  パッドのボタンのキーキャップの面の色を決める
+        //! @param  binding [in] 操作の割り当て（先頭のボタンの色にする）
+        //! @return Xbox配置のフェイスボタンの色（A緑・B赤・X青・Y黄）。それ以外は通常のキーキャップの面の色
+        //-------------------------------------------------------------
+        [[nodiscard]]
+        hlslpp::float4 GetGamepadFaceColor(const Tsukino::Input::InputBinding& binding) {
+            if(binding.buttons.empty())
+                return kCapFaceColor;
+
+            // 文字は濃い色のまま読めるよう、どれも明るめの色にしてある
+            switch(binding.buttons.front()) {
+                case Tsukino::Input::GamepadButton::A:
+                    return hlslpp::float4(0.50f, 0.86f, 0.42f, 1.0f);
+                case Tsukino::Input::GamepadButton::B:
+                    return hlslpp::float4(0.95f, 0.48f, 0.44f, 1.0f);
+                case Tsukino::Input::GamepadButton::X:
+                    return hlslpp::float4(0.45f, 0.68f, 0.98f, 1.0f);
+                case Tsukino::Input::GamepadButton::Y:
+                    return hlslpp::float4(0.98f, 0.85f, 0.38f, 1.0f);
+                default:
+                    return kCapFaceColor;
+            }
+        }
+
+        //-------------------------------------------------------------
         //! @brief  プロンプト一式を1フレームぶん配置する（画面固定・ワールド追従で共通）
         //! @param  registry [in] ECSレジストリ
         //! @param  context  [in] エンジンコンテキスト
@@ -220,13 +263,35 @@ namespace CombatAndroid::ECS {
             const float alpha = std::clamp(style.alpha, 0.0f, 1.0f);
 
             //-------------------------------------------------------------
+            // 操作を指定したプロンプトは、割り当てと最後に触った機器から見た目を決め直す。
+            // キーボード・マウスで左クリックならマウスの絵、それ以外はキーキャップに表記を載せる。
+            // パッドのフェイスボタンは面をボタンの色にする
+            //-------------------------------------------------------------
+            bool           useMouse  = widget.useMouse;
+            hlslpp::float4 faceColor = kCapFaceColor;
+            if(widget.action != GameAction::Count && context.inputSystem) {
+                const Tsukino::Input::InputSystem& input = *context.inputSystem;
+                useMouse = IsActionShownAsMouse(input, widget.action);
+                if(!useMouse) {
+                    SetGlyphText(registry, widget.glyphEntity, GetActionLabel(input, widget.action));
+                    faceColor = GetPromptFaceColor(input, widget.action);
+                }
+            } else if(!widget.padKeyLabel.empty() && context.inputSystem) {
+                // 操作1つで表せない案内（移動など）は、機器ごとに渡された文字を載せ替える
+                const bool gamepad = IsUsingGamepad(*context.inputSystem);
+                useMouse           = !gamepad && widget.useMouse;
+                if(!useMouse)
+                    SetGlyphText(registry, widget.glyphEntity, gamepad ? widget.padKeyLabel : widget.keyLabel);
+            }
+
+            //-------------------------------------------------------------
             // キーキャップ／マウス本体。どちらも「濃い矩形の上に明るい矩形を重ねる」構造で、
             // 明るい矩形がキーの面／押している左ボタンにあたる
             //-------------------------------------------------------------
             float bodyWidth  = 0.0f;
             float bodyHeight = 0.0f;
 
-            if(widget.useMouse) {
+            if(useMouse) {
                 bodyWidth  = kMouseWidth * s;
                 bodyHeight = kMouseHeight * s;
 
@@ -256,14 +321,14 @@ namespace CombatAndroid::ECS {
                 PlacePart(registry, context, widget.capBorderEntity, origin, 0.0f, 0.0f, bodyWidth, bodyHeight, 0.0f,
                           ApplyAlpha(kCapBorderColor, alpha));
                 PlacePart(registry, context, widget.capFaceEntity, origin, 0.0f, 0.0f, faceWidth, kCapHeight * s, 0.0f,
-                          ApplyAlpha(kCapFaceColor, alpha));
+                          ApplyAlpha(faceColor, alpha));
             }
 
             //-------------------------------------------------------------
             // キーの文字。テキストの中身は呼び出し側が生成時に入れたものをそのまま使う
             // （毎フレーム書き換えないので、位置と色だけ更新する）
             //-------------------------------------------------------------
-            if(!widget.useMouse && widget.glyphEntity != entt::null) {
+            if(!useMouse && widget.glyphEntity != entt::null) {
                 if(auto* glyphFont = registry.try_get<Tsukino::BuiltIn::ECS::FontComponent>(widget.glyphEntity))
                     PlaceTextPart(registry, widget.glyphEntity, origin, 0.0f, 0.0f, kGlyphScale * s, glyphFont->text,
                                   ApplyAlpha(kGlyphColor, alpha));
@@ -374,6 +439,14 @@ namespace CombatAndroid::ECS {
         InputPromptWidget widget;
         widget.useMouse = desc.useMouse;
         widget.chevron  = desc.chevron;
+        widget.action   = desc.action;
+
+        // 操作を指定したとき（またはパッド用の文字があるとき）は、マウスの絵にもキーキャップにもなれるよう部品を全部作る
+        const bool hasAction = desc.action != GameAction::Count || !desc.padKeyLabel.empty();
+        if(!desc.padKeyLabel.empty()) {
+            widget.keyLabel    = desc.keyLabel;
+            widget.padKeyLabel = desc.padKeyLabel;
+        }
 
         //-------------------------------------------------------------
         // 描画層はsortOrderBaseから+4までの5層を使う。
@@ -389,12 +462,18 @@ namespace CombatAndroid::ECS {
                 ringEntity = CreateRectEntity(registry, context, ringSortOrder, desc.worldAnchored);
         }
 
-        if(desc.useMouse || !desc.keyLabel.empty()) {
+        if(hasAction || desc.useMouse || !desc.keyLabel.empty()) {
             widget.capBorderEntity = CreateRectEntity(registry, context, borderSortOrder, desc.worldAnchored);
             widget.capFaceEntity   = CreateRectEntity(registry, context, faceSortOrder, desc.worldAnchored);
         }
 
-        if(!desc.useMouse && !desc.keyLabel.empty()) {
+        if(hasAction) {
+            // 文字は表示のたびに割り当てから入れる（LayoutPrompt）。開いたままの画面でも機器を替えたら
+            // 切り替わるよう、InputPromptGlyphSystemにも毎フレーム書き換えさせる
+            widget.glyphEntity = CreateTextEntity(registry, context, glyphSortOrder, desc.worldAnchored);
+            if(desc.action != GameAction::Count)
+                registry.AddComponent<InputPromptGlyphComponent>(widget.glyphEntity, InputPromptGlyphComponent{desc.action, widget.capFaceEntity});
+        } else if(!desc.useMouse && !desc.keyLabel.empty()) {
             widget.glyphEntity = CreateTextEntity(registry, context, glyphSortOrder, desc.worldAnchored);
 
             // キーの文字は変わらないのでここで入れ、以後は位置と色だけ更新する
@@ -494,5 +573,14 @@ namespace CombatAndroid::ECS {
         }
 
         HideUiText(registry, widget.captionEntity);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief 操作のキーキャップの面の色を決める
+    //-------------------------------------------------------------
+    hlslpp::float4 GetPromptFaceColor(const Tsukino::Input::InputSystem& input, GameAction action) {
+        if(!IsUsingGamepad(input))
+            return kCapFaceColor;
+        return GetGamepadFaceColor(GetActionBinding(action));
     }
 }    // namespace CombatAndroid::ECS

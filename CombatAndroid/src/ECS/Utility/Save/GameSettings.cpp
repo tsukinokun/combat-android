@@ -23,6 +23,9 @@ namespace CombatAndroid::ECS {
         constexpr const char* kKeyBgmVolume        = "bgmVolumePercent";
         constexpr const char* kKeySeVolume         = "seVolumePercent";
         constexpr const char* kKeyScreenShake      = "screenShakeEnabled";
+        constexpr const char* kKeyStickSensitivity = "stickSensitivityScale";
+        constexpr const char* kKeyInvertCameraY    = "invertCameraY";
+        constexpr const char* kKeyVibration        = "vibrationEnabled";
 
         //-------------------------------------------------------------
         //! @brief  ファイルから設定を読む
@@ -55,12 +58,19 @@ namespace CombatAndroid::ECS {
                         settings.seVolumePercent = std::stoi(value);
                     else if(key == kKeyScreenShake)
                         settings.screenShakeEnabled = std::stoi(value) != 0;
+                    else if(key == kKeyStickSensitivity)
+                        settings.stickSensitivityScale = std::stof(value);
+                    else if(key == kKeyInvertCameraY)
+                        settings.invertCameraY = std::stoi(value) != 0;
+                    else if(key == kKeyVibration)
+                        settings.vibrationEnabled = std::stoi(value) != 0;
                 } catch(const std::exception&) {
                     Tsukino::Core::Log::Warn("GameSettings: ignored a broken value for " + key);
                 }
             }
 
             settings.mouseSensitivityScale = std::clamp(settings.mouseSensitivityScale, kMouseSensitivityMin, kMouseSensitivityMax);
+            settings.stickSensitivityScale = std::clamp(settings.stickSensitivityScale, kMouseSensitivityMin, kMouseSensitivityMax);
             settings.bgmVolumePercent      = std::clamp(settings.bgmVolumePercent, 0, 100);
             settings.seVolumePercent       = std::clamp(settings.seVolumePercent, 0, 100);
 
@@ -99,6 +109,9 @@ namespace CombatAndroid::ECS {
         file << kKeyBgmVolume << '=' << settings.bgmVolumePercent << '\n';
         file << kKeySeVolume << '=' << settings.seVolumePercent << '\n';
         file << kKeyScreenShake << '=' << (settings.screenShakeEnabled ? 1 : 0) << '\n';
+        file << kKeyStickSensitivity << '=' << settings.stickSensitivityScale << '\n';
+        file << kKeyInvertCameraY << '=' << (settings.invertCameraY ? 1 : 0) << '\n';
+        file << kKeyVibration << '=' << (settings.vibrationEnabled ? 1 : 0) << '\n';
 
         return static_cast<bool>(file);
     }

@@ -1,0 +1,10 @@
+{
+    "GamepadRumble": {
+        "hit": { "low": 0.1, "high": 0.35, "duration": 0.06 },
+        "heavyStrike": { "low": 0.45, "high": 0.55, "duration": 0.14 },
+        "finisher": { "low": 0.8, "high": 0.7, "duration": 0.3 },
+        "counterKick": { "low": 0.6, "high": 0.5, "duration": 0.18 },
+        "damaged": { "low": 0.75, "high": 0.3, "duration": 0.22 },
+        "justDodge": { "low": 0.0, "high": 0.45, "duration": 0.08 }
+    }
+}

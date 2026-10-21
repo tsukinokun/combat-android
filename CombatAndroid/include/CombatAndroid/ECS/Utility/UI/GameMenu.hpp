@@ -26,8 +26,8 @@ namespace Tsukino::Input {
 
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
-    //! 1つのメニューに並べられる選択肢の最大数（オプション画面の4項目＋もどる）
-    inline constexpr int kGameMenuMaxItems = 5;
+    //! 1つのメニューに並べられる選択肢の最大数（オプション画面の7項目＋もどる）
+    inline constexpr int kGameMenuMaxItems = 8;
 
     //! 選択中の選択肢の後ろに敷く帯の既定の幅
     inline constexpr float kGameMenuDefaultHighlightWidth = 440.0f;
@@ -113,7 +113,7 @@ namespace CombatAndroid::ECS {
     //! @brief  このフレームのカーソル移動量を読む
     //! @param  input [in] 入力
     //! @return -1: 上へ、+1: 下へ、0: 動かさない
-    //! @note   W/S・上下キー・マウスホイールを同じ「1段」として扱う（スキル選択と同じ）
+    //! @note   GameAction::MenuUp / MenuDown（W/S・上下キー・ホイール・十字キー・左スティック）を同じ「1段」として扱う
     //-------------------------------------------------------------
     [[nodiscard]]
     int ReadGameMenuStep(const Tsukino::Input::InputSystem& input);
@@ -121,7 +121,7 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  このフレームの値の増減を読む（オプション画面の左右）
     //! @param  input [in] 入力
-    //! @return -1（A・左キー）／+1（D・右キー）／0
+    //! @return -1（GameAction::MenuLeft）／+1（GameAction::MenuRight）／0
     //-------------------------------------------------------------
     [[nodiscard]]
     int ReadGameMenuValueStep(const Tsukino::Input::InputSystem& input);
@@ -129,10 +129,18 @@ namespace CombatAndroid::ECS {
     //-------------------------------------------------------------
     //! @brief  このフレームに決定が押されたかを読む
     //! @param  input [in] 入力
-    //! @return true: F か Enter が押された
+    //! @return true: GameAction::Confirm（F・Enter・A）が押された
     //-------------------------------------------------------------
     [[nodiscard]]
     bool IsGameMenuConfirmPressed(const Tsukino::Input::InputSystem& input);
+
+    //-------------------------------------------------------------
+    //! @brief  このフレームに戻るが押されたかを読む
+    //! @param  input [in] 入力
+    //! @return true: GameAction::Cancel（Esc・B）が押された
+    //-------------------------------------------------------------
+    [[nodiscard]]
+    bool IsGameMenuCancelPressed(const Tsukino::Input::InputSystem& input);
 
     //-------------------------------------------------------------
     //! @brief  このフレームのマウス操作を読む

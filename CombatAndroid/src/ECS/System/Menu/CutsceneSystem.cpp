@@ -13,6 +13,7 @@
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/UI/UiSortOrder.hpp>
 #include <CombatAndroid/ECS/Utility/UI/UiTextSize.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 
 #include <Tsukino/BuiltIn/ECS/Component/CameraComponent.hpp>
 #include <Tsukino/BuiltIn/ECS/Component/TransformComponent.hpp>
@@ -239,7 +240,7 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         const bool windowFocused = ctx->window && ctx->window->IsFocused();
         if(windowFocused && ctx->inputSystem
-           && (IsGameMenuConfirmPressed(*ctx->inputSystem) || ctx->inputSystem->IsKeyPressed(Tsukino::Input::KeyCode::Escape))) {
+           && (IsGameMenuConfirmPressed(*ctx->inputSystem) || IsGameMenuCancelPressed(*ctx->inputSystem))) {
             StopCutscene(registry, *cutscene);
             return;
         }
@@ -323,7 +324,8 @@ namespace CombatAndroid::ECS {
         StretchSprite(registry, *ctx, cutscene->letterboxBottomEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, windowWidth,
                       barHeight, kLetterboxColor);
         PlaceUiText(registry, cutscene->skipHintTextEntity, windowWidth * 0.5f, windowHeight - barHeight * 0.5f, GetUiTextScale(UiTextSize::Body),
-                   L"決定 / Esc でスキップ", kSkipHintColor);
+                   ctx->inputSystem ? FormatInputText(*ctx->inputSystem, L"{Confirm} / {Cancel} でスキップ") : std::wstring(L"決定でスキップ"),
+                   kSkipHintColor);
         UiPulse(registry, cutscene->skipHintTextEntity, 0.8f, true);    // 案内を止まったままにしない（ムービー中なので実時間）
 
         //-------------------------------------------------------------

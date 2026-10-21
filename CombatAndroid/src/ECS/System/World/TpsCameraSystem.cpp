@@ -12,6 +12,7 @@
 #include <CombatAndroid/ECS/Component/Combat/HealthComponent.hpp>
 #include <CombatAndroid/ECS/Utility/Time/WorldTimeContext.hpp>
 #include <CombatAndroid/ECS/Utility/Save/GameSettings.hpp>
+#include <CombatAndroid/ECS/Utility/Input/GameInput.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/BossBreak.hpp>
 #include <CombatAndroid/ECS/Utility/Combat/EnemyBody.hpp>
 
@@ -186,6 +187,9 @@ namespace CombatAndroid::ECS {
             Tsukino::i32 mouseDx = rawMouseDx;
             Tsukino::i32 mouseDy = rawMouseDy;
 
+            // カメラ上下反転（オプション）。マウスとスティックの上下の向きに掛ける
+            const float pitchSign = GetGameSettings().invertCameraY ? -1.0f : 1.0f;
+
             //-------------------------------------------------------------
             // 対象が倒れたか。倒れた後はマウスで回させず、カメラが自分で寄って回る
             //-------------------------------------------------------------
@@ -204,10 +208,10 @@ namespace CombatAndroid::ECS {
                 // マウス移動量でyaw/pitchを更新する
                 // 左右は反転させる（マウスを右へ動かすとカメラは左へ旋回する）
                 //-------------------------------------------------------------
-                // 感度はコンポーネントの基準値にオプションの倍率を掛ける
+                // 感度はコンポーネントの基準値にオプションの倍率を掛ける。上下反転はマウスとスティックの両方に効かせる
                 const float sensitivity = tpsCamera.mouseSensitivity * GetGameSettings().mouseSensitivityScale;
                 tpsCamera.yaw -= static_cast<float>(mouseDx) * sensitivity;
-                tpsCamera.pitch += static_cast<float>(mouseDy) * sensitivity;
+                tpsCamera.pitch += static_cast<float>(mouseDy) * sensitivity * pitchSign;
                 tpsCamera.pitch = std::clamp(tpsCamera.pitch, tpsCamera.minPitch, tpsCamera.maxPitch);
 
                 //-------------------------------------------------------------
@@ -224,6 +228,19 @@ namespace CombatAndroid::ECS {
             }
 
             tpsCamera.wasCapturedLastFrame = shouldCapture;
+
+            //-------------------------------------------------------------
+            // 右スティックでの旋回。マウスと違い「倒している間ずっと回る」ので時間を掛ける。
+            // 大技のスロー中も回る速さを落とさないよう実時間を使う。
+            // 向きはマウスに揃える（右へ倒す＝マウスを右へ動かす、上へ倒す＝マウスを上へ動かす）
+            //-------------------------------------------------------------
+            if(windowFocused && !frozen && !targetDead) {
+                const hlslpp::float2 stick = ReadCameraStick(*inputSystem);
+                const float          scale = GetGameSettings().stickSensitivityScale * realDeltaTime;
+                tpsCamera.yaw -= stick.x * GetCameraStickYawSpeed() * scale;
+                tpsCamera.pitch -= stick.y * GetCameraStickPitchSpeed() * scale * pitchSign;
+                tpsCamera.pitch = std::clamp(tpsCamera.pitch, tpsCamera.minPitch, tpsCamera.maxPitch);
+            }
 
             //-------------------------------------------------------------
             // 死亡時の寄り。倒れたら寄りの目標を1にし、ゆっくり寄せながら周りを回る。
