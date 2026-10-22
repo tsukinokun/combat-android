@@ -358,6 +358,11 @@ namespace CombatAndroid::ECS {
 
             transform.position.y = boss.groundY + boss.altitude + bob;
             transform.dirty      = true;
+
+            // 浮いている間は歩きの足運びを見せず、待機の姿勢のまま滑るように動かす（空中を歩いて見えないように）
+            auto& animSet = context.registry.GetComponent<EnemyAnimationSetComponent>(context.entity);
+            if(airborne > 0.5f && animSet.desiredState == EnemyAnimState::Walk)
+                animSet.desiredState = EnemyAnimState::Idle;
         }
 
         //-------------------------------------------------------------
