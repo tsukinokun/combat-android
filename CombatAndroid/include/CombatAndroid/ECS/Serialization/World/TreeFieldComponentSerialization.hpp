@@ -72,7 +72,24 @@ namespace CombatAndroid::ECS {
                 cereal::make_nvp("barkAoStrength", trees.barkAoStrength),
                 cereal::make_nvp("barkMossColor", trees.barkMossColor),
                 cereal::make_nvp("barkMossHeight", trees.barkMossHeight),
-                cereal::make_nvp("barkMossAmount", trees.barkMossAmount));
+                cereal::make_nvp("barkMossAmount", trees.barkMossAmount),
+                cereal::make_nvp("wallEnabled", trees.wallEnabled),
+                cereal::make_nvp("wallLayerCount", trees.wallLayerCount),
+                cereal::make_nvp("wallRadiusNear", trees.wallRadiusNear),
+                cereal::make_nvp("wallRadiusFar", trees.wallRadiusFar),
+                cereal::make_nvp("wallHeightNear", trees.wallHeightNear),
+                cereal::make_nvp("wallHeightFar", trees.wallHeightFar),
+                cereal::make_nvp("wallHeightJitter", trees.wallHeightJitter),
+                cereal::make_nvp("wallBodyRatio", trees.wallBodyRatio),
+                cereal::make_nvp("wallCrownWidthMin", trees.wallCrownWidthMin),
+                cereal::make_nvp("wallCrownWidthMax", trees.wallCrownWidthMax),
+                cereal::make_nvp("wallLeafBumpWidthMin", trees.wallLeafBumpWidthMin),
+                cereal::make_nvp("wallLeafBumpWidthMax", trees.wallLeafBumpWidthMax),
+                cereal::make_nvp("wallLeafBumpHeight", trees.wallLeafBumpHeight),
+                cereal::make_nvp("wallTextureWidth", trees.wallTextureWidth),
+                cereal::make_nvp("wallSegments", trees.wallSegments),
+                cereal::make_nvp("wallNearColor", trees.wallNearColor),
+                cereal::make_nvp("wallFarColor", trees.wallFarColor));
     }
 
     template <class Archive>
@@ -136,5 +153,22 @@ namespace CombatAndroid::ECS {
         LoadField(archive, "barkMossColor", trees.barkMossColor);
         LoadField(archive, "barkMossHeight", trees.barkMossHeight);
         LoadField(archive, "barkMossAmount", trees.barkMossAmount);
+        LoadField(archive, "wallEnabled", trees.wallEnabled);
+        LoadField(archive, "wallLayerCount", trees.wallLayerCount);
+        LoadField(archive, "wallRadiusNear", trees.wallRadiusNear);
+        LoadField(archive, "wallRadiusFar", trees.wallRadiusFar);
+        LoadField(archive, "wallHeightNear", trees.wallHeightNear);
+        LoadField(archive, "wallHeightFar", trees.wallHeightFar);
+        LoadField(archive, "wallHeightJitter", trees.wallHeightJitter);
+        LoadField(archive, "wallBodyRatio", trees.wallBodyRatio);
+        LoadField(archive, "wallCrownWidthMin", trees.wallCrownWidthMin);
+        LoadField(archive, "wallCrownWidthMax", trees.wallCrownWidthMax);
+        LoadField(archive, "wallLeafBumpWidthMin", trees.wallLeafBumpWidthMin);
+        LoadField(archive, "wallLeafBumpWidthMax", trees.wallLeafBumpWidthMax);
+        LoadField(archive, "wallLeafBumpHeight", trees.wallLeafBumpHeight);
+        LoadField(archive, "wallTextureWidth", trees.wallTextureWidth);
+        LoadField(archive, "wallSegments", trees.wallSegments);
+        LoadField(archive, "wallNearColor", trees.wallNearColor);
+        LoadField(archive, "wallFarColor", trees.wallFarColor);
     }
 }    // namespace CombatAndroid::ECS

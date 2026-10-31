@@ -102,5 +102,27 @@ namespace CombatAndroid::ECS {
         hlslpp::float3 barkMossColor       = hlslpp::float3(0.16f, 0.24f, 0.07f);    //!< 根元の苔の色
         float          barkMossHeight      = 0.12f;                                  //!< 苔が生える高さ（木の高さに対する割合）
         float          barkMossAmount      = 0.7f;                                   //!< 苔の濃さ（0で苔なし）
+
+        //----------------------------------------------------------
+        // 遠景の森。木を描く範囲の外に、樹冠の稜線を連ねた円環の帯を何層か立て、まっすぐな地平線を隠す。
+        // 中心はプレイヤーに付いて回り、稜線は世界の向きに固定なので、遠くの山並みのようにほぼ動かない
+        //----------------------------------------------------------
+        bool           wallEnabled        = true;                                   //!< falseなら遠景の森を出さない
+        int            wallLayerCount     = 3;                                      //!< 層の数（手前から奥へ、半径・高さ・色を補間する）
+        float          wallRadiusNear     = 3600.0f;                                //!< 一番手前の層の半径（木の描画範囲より外、地面の端より内）
+        float          wallRadiusFar      = 4800.0f;                                //!< 一番奥の層の半径
+        float          wallHeightNear     = 420.0f;                                 //!< 一番手前の層の樹冠の高さの目安
+        float          wallHeightFar      = 760.0f;                                 //!< 一番奥の層の樹冠の高さの目安
+        float          wallHeightJitter   = 0.35f;                                  //!< 樹冠ごとの高さのばらつき（目安に対する比）
+        float          wallBodyRatio      = 0.6f;                                   //!< 樹冠と樹冠の間の谷の高さ（目安に対する比）
+        float          wallCrownWidthMin  = 160.0f;                                 //!< 樹冠1つの幅の最小
+        float          wallCrownWidthMax  = 420.0f;                                 //!< 樹冠1つの幅の最大
+        float          wallLeafBumpWidthMin = 30.0f;                                //!< 稜線に重ねる葉の塊の小さな膨らみの幅の最小
+        float          wallLeafBumpWidthMax = 90.0f;                                //!< 同じく幅の最大
+        float          wallLeafBumpHeight   = 0.06f;                                //!< 同じく高さ（樹冠の高さの目安に対する比）
+        float          wallTextureWidth   = 520.0f;                                 //!< 帯の模様1枚ぶんの横幅（円周に整数枚並ぶよう丸める）
+        int            wallSegments       = 2048;                                   //!< 1層の円周の区切り数（多いほど稜線が滑らか）
+        hlslpp::float3 wallNearColor      = hlslpp::float3(0.55f, 0.65f, 0.60f);   //!< 一番手前の層に掛ける色
+        hlslpp::float3 wallFarColor       = hlslpp::float3(0.50f, 0.60f, 0.70f);   //!< 一番奥の層に掛ける色（霧に溶けるよう青白く）
     };
 }    // namespace CombatAndroid::ECS

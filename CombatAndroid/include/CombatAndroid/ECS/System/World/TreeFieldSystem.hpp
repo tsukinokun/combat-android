@@ -20,6 +20,13 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+namespace Tsukino::EngineIntegration {
+    struct EngineContext;
+}
+namespace Tsukino::Renderer {
+    struct PipelineState;
+}
 // 名前空間 : CombatAndroid::ECS
 namespace CombatAndroid::ECS {
     struct TreeFieldComponent;
@@ -129,6 +136,10 @@ namespace CombatAndroid::ECS {
         //! 落ちる葉を描く
         void DrawFallingLeaves(Tsukino::ECS::Registry& registry, const TreeFieldComponent& field);
 
+        //! 遠景の森（地平線を隠す円環の帯）を描く
+        void DrawForestWall(Tsukino::EngineIntegration::EngineContext& ctx, const TreeFieldComponent& field, const hlslpp::float3& center,
+                            Tsukino::Renderer::PipelineState* pipeline);
+
         std::vector<TreeVariant> m_variants;          //!< 木の形（最初の更新で作る。作った後は数を変えない＝描画コマンドが指す先を動かさない）
         bool                     m_buildFailed = false;    //!< 形を作れなかった（以後は何もしない）
 
@@ -158,5 +169,13 @@ namespace CombatAndroid::ECS {
 
         Tsukino::Renderer::MeshBuffer     m_leafQuad;          //!< 落ちる葉の四角形（全部の葉で共用）
         Tsukino::Renderer::InstanceBuffer m_leafInstances;     //!< 落ちる葉ごとの位置・大きさ・回転（毎フレーム書き直す）
+
+        //-------------------------------------------------------------
+        // 遠景の森
+        //-------------------------------------------------------------
+        std::vector<Tsukino::Renderer::MeshBuffer> m_wallLayers;                                       //!< 層ごとの円環（最初の描画で作る。手前から奥の順）
+        bool                                       m_wallBuildFailed = false;                          //!< 円環を作れなかった（以後は描かない）
+        hlslpp::float3                             m_wallPrevCenter  = hlslpp::float3(0.0f, 0.0f, 0.0f);    //!< 前フレームの中心（モーションブラーの速度を出さないため）
+        bool                                       m_wallHasPrev     = false;                          //!< 前フレームの中心があるか
     };
 }    // namespace CombatAndroid::ECS

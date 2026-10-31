@@ -58,6 +58,23 @@
         "barkAoStrength": 0.6,
         "barkMossColor": { "x": 0.16, "y": 0.24, "z": 0.07 },
         "barkMossHeight": 0.12,
-        "barkMossAmount": 0.7
+        "barkMossAmount": 0.7,
+        "wallEnabled": true,
+        "wallLayerCount": 3,
+        "wallRadiusNear": 3600.0,
+        "wallRadiusFar": 4800.0,
+        "wallHeightNear": 420.0,
+        "wallHeightFar": 760.0,
+        "wallHeightJitter": 0.35,
+        "wallBodyRatio": 0.6,
+        "wallCrownWidthMin": 160.0,
+        "wallCrownWidthMax": 420.0,
+        "wallLeafBumpWidthMin": 30.0,
+        "wallLeafBumpWidthMax": 90.0,
+        "wallLeafBumpHeight": 0.06,
+        "wallTextureWidth": 520.0,
+        "wallSegments": 2048,
+        "wallNearColor": { "x": 0.55, "y": 0.65, "z": 0.60 },
+        "wallFarColor": { "x": 0.50, "y": 0.60, "z": 0.70 }
     }
 }

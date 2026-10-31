@@ -217,6 +217,196 @@ namespace CombatAndroid::ECS {
         }
 
         //-------------------------------------------------------------
+        // 遠景の森の帯に貼る模様（葉の茂みのまだら模様。全部不透明）。
+        // 上下の端は kWallEdgeV だけ空けて、繰り返しの補間で反対側の端が混ざらないようにする。
+        // 葉の輪郭はアルファでくり抜かず、稜線の形（BuildWallMesh）で出す。
+        // くり抜くと遠くでミップマップがアルファを薄め、隙間から空が透けて見えるため
+        //-------------------------------------------------------------
+        constexpr int   kWallTextureWidth  = 256;
+        constexpr int   kWallTextureHeight = 128;
+        constexpr float kWallEdgeV         = 0.02f;
+        constexpr float kWallSinkDepth     = 80.0f;    //!< 帯の下端を地面より沈める深さ（起伏や揺れで足元が浮かないように）
+
+        //-------------------------------------------------------------
+        //! @brief  遠景の森の帯に貼る模様を得る（同じ色・種なら作り直さず使い回す）
+        //! @note   横は帯の円周方向に繰り返すので、模様も左右の端でつながるように作る。
+        //!         下へ行くほど暗くし、木々の足元の陰に見せる
+        //-------------------------------------------------------------
+        ID3D11ShaderResourceView* GetWallTextureSRV(Tsukino::EngineIntegration::EngineContext& context, const TreeFieldComponent& field) {
+            if(!context.assetManager || !context.renderer)
+                return nullptr;
+
+            float dark[3]  = {field.leafBottomColor.x, field.leafBottomColor.y, field.leafBottomColor.z};
+            float light[3] = {field.leafTopColor.x, field.leafTopColor.y, field.leafTopColor.z};
+            auto  toByte   = [](float v) { return static_cast<int>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
+            std::string key = "procedural|tree|wall|" + std::to_string(field.seed);
+            for(int k = 0; k < 3; ++k)
+                key += "_" + std::to_string(toByte(dark[k])) + "_" + std::to_string(toByte(light[k]));
+            const Tsukino::Asset::AssetHandle handle = Tsukino::Asset::AssetHandleGenerator::GenerateFromKey(key);
+
+            if(Tsukino::Core::Ref<Tsukino::Asset::IAsset> existing = context.assetManager->Get(handle)) {
+                auto texture = std::static_pointer_cast<Tsukino::Asset::TextureAsset>(existing);
+                return context.renderer->GetResources().GetTextureSRV(*texture);
+            }
+
+            constexpr int width  = kWallTextureWidth;
+            constexpr int height = kWallTextureHeight;
+
+            // 左右でつながる値ノイズ（cell は width を割り切る大きさ）
+            auto hash = [&](int x, int y) { return static_cast<float>(Mix(field.seed ^ Mix(static_cast<std::uint32_t>(x) * 0x8da6b343u ^ static_cast<std::uint32_t>(y) * 0xd8163841u)) >> 8) / static_cast<float>(1u << 24); };
+            auto noise = [&](float x, float y, int cell) {
+                const int   cellsX = width / cell;
+                const float fx = x / cell, fy = y / cell;
+                const int   x0 = static_cast<int>(std::floor(fx)), y0 = static_cast<int>(std::floor(fy));
+                const float tx = fx - x0, ty = fy - y0;
+                auto        at = [&](int cx, int cy) { return hash(((cx % cellsX) + cellsX) % cellsX + cell * 1000, cy); };
+                const float sx = tx * tx * (3.0f - 2.0f * tx), sy = ty * ty * (3.0f - 2.0f * ty);
+                const float top    = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
+                const float bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
+                return top + (bottom - top) * sy;
+            };
+
+            std::vector<std::uint8_t> pixels(static_cast<size_t>(width) * height * 4);
+            for(int y = 0; y < height; ++y) {
+                for(int x = 0; x < width; ++x) {
+                    const float px = x + 0.5f, py = y + 0.5f;
+
+                    // 茂みのまだら（大小2つのノイズ）と、下ほど暗くする陰
+                    const float mottle = 0.65f * noise(px, py, 16) + 0.35f * noise(px, py, 4);
+                    const float v      = py / height;
+                    const float shade  = 1.0f - 0.55f * std::clamp((v - 0.15f) / 0.85f, 0.0f, 1.0f);
+                    const float t      = std::clamp(0.2f + 0.7f * mottle, 0.0f, 1.0f);
+
+                    std::uint8_t* pixel = &pixels[(static_cast<size_t>(y) * width + x) * 4];
+                    for(int k = 0; k < 3; ++k)
+                        pixel[k] = static_cast<std::uint8_t>(toByte((dark[k] + (light[k] - dark[k]) * t) * shade));
+                    pixel[3] = 255;
+                }
+            }
+
+            auto texture          = std::make_shared<Tsukino::Asset::TextureAsset>();
+            texture->width        = static_cast<Tsukino::u32>(width);
+            texture->height       = static_cast<Tsukino::u32>(height);
+            texture->format       = DXGI_FORMAT_R8G8B8A8_UNORM;
+            texture->pixels       = std::move(pixels);
+            texture->generateMips = true;    // 遠くから見るので、ミップマップでちらつきを抑える
+            texture->SetHandle(handle);
+            context.assetManager->RegisterAsset(handle, texture);
+            return context.renderer->GetResources().GetTextureSRV(*texture);
+        }
+
+        //-------------------------------------------------------------
+        //! @brief  遠景の森の円環の帯を1層ぶん作る
+        //! @param  layer  [in] 層の番号（稜線の乱数を層ごとに変える）
+        //! @param  radius [in] 円環の半径
+        //! @param  height [in] 樹冠の高さの目安
+        //! @note   円周を樹冠で区切って丸い膨らみを連ね、その稜線の高さで縦の帯を立てる。
+        //!         大きな樹冠の上に小さな葉の塊の膨らみを重ね、葉のでこぼこした輪郭も形で作る（帯は不透明）。
+        //!         1列は「地面の下 → 稜線」の2頂点。
+        //!         原点中心のローカル座標で作り、描くときにプレイヤーの位置へ平行移動する。
+        //!         内側（プレイヤー側）から見るので、法線は内向きに少し上を向け（樹冠の上面が光を受けるように）、
+        //!         どちらの巻き方向でも描けるよう表裏の三角形を両方積む
+        //-------------------------------------------------------------
+        Tsukino::GraphicsCommon::MeshData BuildWallMesh(const TreeFieldComponent& field, int layer, float radius, float height) {
+            const int   segments      = std::clamp(field.wallSegments, 64, 8192);
+            const float circumference = kTwoPi * radius;
+            const float step          = circumference / static_cast<float>(segments);
+            const float body          = height * std::clamp(field.wallBodyRatio, 0.0f, 1.0f);
+            const float widthMin      = std::max(field.wallCrownWidthMin, step * 2.0f);
+            const float widthMax      = std::max(field.wallCrownWidthMax, widthMin);
+            const float jitter        = std::clamp(field.wallHeightJitter, 0.0f, 0.95f);
+
+            //-------------------------------------------------------------
+            // 稜線の高さ。樹冠を少しずつ重ねながら円周に並べ、各列はかぶさる樹冠の一番高い所を取る
+            //-------------------------------------------------------------
+            std::vector<float> ridge(static_cast<size_t>(segments), body);
+            CellRandom         random(layer, -9999, field.seed);
+            for(float position = 0.0f; position < circumference;) {
+                const float width  = widthMin + (widthMax - widthMin) * random.Next01();
+                // 谷からの盛り上がりは幅の半分までにする（細く高い膨らみは木ではなく岩の尖塔に見える）
+                const float top    = body + std::min(height * (1.0f + jitter * (random.Next01() * 2.0f - 1.0f)) - body, width * 0.5f);
+                const float center = position + width * 0.5f;
+                const float half   = width * 0.6f;
+                for(int k = static_cast<int>(std::floor((center - half) / step)); k <= static_cast<int>(std::ceil((center + half) / step)); ++k) {
+                    const float t = (static_cast<float>(k) * step - center) / half;
+                    if(std::abs(t) >= 1.0f)
+                        continue;
+                    float& value = ridge[static_cast<size_t>(((k % segments) + segments) % segments)];
+                    value        = std::max(value, body + (top - body) * std::sqrt(1.0f - t * t));
+                }
+                position += width * 0.8f;
+            }
+
+            //-------------------------------------------------------------
+            // 葉の塊の小さな膨らみ。今の稜線を底にして、上へ小さく盛る（輪郭をギザギザにする）
+            //-------------------------------------------------------------
+            const std::vector<float> base     = ridge;
+            const float              bumpMin  = std::max(field.wallLeafBumpWidthMin, step * 2.0f);
+            const float              bumpMax  = std::max(field.wallLeafBumpWidthMax, bumpMin);
+            const float              bumpTall = height * std::max(field.wallLeafBumpHeight, 0.0f);
+            for(float position = 0.0f; position < circumference && bumpTall > 0.0f;) {
+                const float width  = bumpMin + (bumpMax - bumpMin) * random.Next01();
+                const float lift   = bumpTall * (0.4f + 0.6f * random.Next01());
+                const float center = position + width * 0.5f;
+                const float half   = width * 0.5f;
+                for(int k = static_cast<int>(std::floor((center - half) / step)); k <= static_cast<int>(std::ceil((center + half) / step)); ++k) {
+                    const float t = (static_cast<float>(k) * step - center) / half;
+                    if(std::abs(t) >= 1.0f)
+                        continue;
+                    const size_t index = static_cast<size_t>(((k % segments) + segments) % segments);
+                    ridge[index]       = std::max(ridge[index], base[index] + lift * std::sqrt(1.0f - t * t));
+                }
+                position += width * 0.7f;
+            }
+
+            //-------------------------------------------------------------
+            // 頂点。最後の列は最初の列と同じ位置に、模様の横位置だけ1周ぶん進めて置く（模様の継ぎ目を出さない）
+            //-------------------------------------------------------------
+            const float repeats = std::max(1.0f, std::round(circumference / std::max(field.wallTextureWidth, 1.0f)));
+            std::vector<Tsukino::GraphicsCommon::VertexPNUV> vertices;
+            vertices.reserve(static_cast<size_t>(segments + 1) * 2);
+            float maxY = 0.0f;
+            for(int i = 0; i <= segments; ++i) {
+                const float angle = kTwoPi * static_cast<float>(i) / static_cast<float>(segments);
+                const float c = std::cos(angle), s = std::sin(angle);
+                const float top = ridge[static_cast<size_t>(i % segments)];
+                const float u   = repeats * static_cast<float>(i) / static_cast<float>(segments);
+                hlslpp::float3 normal = hlslpp::normalize(hlslpp::float3(-c * 0.7f, 0.7f, -s * 0.7f));
+
+                const float ys[2] = {-kWallSinkDepth, top};
+                const float vs[2] = {1.0f - kWallEdgeV, kWallEdgeV};
+                for(int r = 0; r < 2; ++r) {
+                    Tsukino::GraphicsCommon::VertexPNUV vertex{};
+                    vertex.position = DirectX::XMFLOAT3(c * radius, ys[r], s * radius);
+                    vertex.normal   = DirectX::XMFLOAT3(normal.x, normal.y, normal.z);
+                    vertex.uv       = DirectX::XMFLOAT2(u, vs[r]);
+                    vertices.push_back(vertex);
+                }
+                maxY = std::max(maxY, top);
+            }
+
+            std::vector<std::uint32_t> indices;
+            indices.reserve(static_cast<size_t>(segments) * 12);
+            for(int i = 0; i < segments; ++i) {
+                const std::uint32_t a = static_cast<std::uint32_t>(i * 2), b = a + 2, c = b + 1, d = a + 1;
+                for(std::uint32_t index : {a, b, c, a, c, d, a, c, b, a, d, c})
+                    indices.push_back(index);
+            }
+
+            Tsukino::GraphicsCommon::MeshData mesh;
+            mesh.format       = Tsukino::GraphicsCommon::VertexFormat::PositionNormalUV;
+            mesh.vertexStride = sizeof(Tsukino::GraphicsCommon::VertexPNUV);
+            mesh.vertexCount  = static_cast<Tsukino::u32>(vertices.size());
+            mesh.vertexData.resize(vertices.size() * sizeof(Tsukino::GraphicsCommon::VertexPNUV));
+            std::memcpy(mesh.vertexData.data(), vertices.data(), mesh.vertexData.size());
+            mesh.indices    = std::move(indices);
+            mesh.indexCount = static_cast<Tsukino::u32>(mesh.indices.size());
+            mesh.bounds.min = hlslpp::float3(-radius, -kWallSinkDepth, -radius);
+            mesh.bounds.max = hlslpp::float3(radius, maxY, radius);
+            return mesh;
+        }
+
+        //-------------------------------------------------------------
         //! @brief  木の形の1種類ぶんの値を、TreeFieldComponentの範囲から乱数で選ぶ
         //-------------------------------------------------------------
         TreeShapeParams MakeShapeParams(const TreeFieldComponent& field, int variantIndex) {
@@ -888,6 +1078,78 @@ namespace CombatAndroid::ECS {
             it = m_colliders.erase(it);
         }
 
+        DrawForestWall(*ctx, *field, center, pipeline.get());
         DrawFallingLeaves(registry, *field);
+    }
+
+    //-------------------------------------------------------------
+    //! @brief  遠景の森（地平線を隠す円環の帯）を描く
+    //! @note   木と同じパイプライン（TreeSway.vs ＋ エンジンのGBuffer.ps）で描くので、ライティング・霧・夜の暗さがそのまま乗る。
+    //!         円環はプレイヤーの位置へ平行移動するだけで回さない（稜線が世界の向きに固定され、遠景としてほぼ動かない）。
+    //!         前フレームの行列にも前フレームの中心を渡し、プレイヤーと一緒に動くぶんがモーションブラーにならないようにする。
+    //!         影は落とさず、プレイヤーを遮ることもないのでくり抜きもしない
+    //-------------------------------------------------------------
+    void TreeFieldSystem::DrawForestWall(Tsukino::EngineIntegration::EngineContext& ctx, const TreeFieldComponent& field, const hlslpp::float3& center,
+                                         Tsukino::Renderer::PipelineState* pipeline) {
+        if(!field.wallEnabled || m_wallBuildFailed)
+            return;
+
+        const int   layerCount = std::clamp(field.wallLayerCount, 1, 8);
+        auto        layerT     = [&](int layer) { return layerCount > 1 ? static_cast<float>(layer) / static_cast<float>(layerCount - 1) : 0.0f; };
+        auto        lerp       = [](float a, float b, float t) { return a + (b - a) * t; };
+
+        //-------------------------------------------------------------
+        // 円環を作る（最初の1回だけ）
+        //-------------------------------------------------------------
+        if(m_wallLayers.empty()) {
+            for(int layer = 0; layer < layerCount; ++layer) {
+                const float t      = layerT(layer);
+                const float radius = std::max(lerp(field.wallRadiusNear, field.wallRadiusFar, t), 100.0f);
+                const float height = std::max(lerp(field.wallHeightNear, field.wallHeightFar, t), 1.0f);
+                Tsukino::Renderer::MeshBuffer mesh = Tsukino::Renderer::CreateMeshBuffer(ctx.renderer->GetDevice(), BuildWallMesh(field, layer, radius, height));
+                if(mesh.indexCount == 0) {
+                    Tsukino::Core::Log::Error("TreeFieldSystem - failed to create the forest wall mesh. The distant forest will not be drawn.");
+                    m_wallLayers.clear();
+                    m_wallBuildFailed = true;
+                    return;
+                }
+                m_wallLayers.push_back(std::move(mesh));
+            }
+        }
+
+        ID3D11ShaderResourceView* wallTexture = GetWallTextureSRV(ctx, field);
+        const hlslpp::float3      prevCenter  = m_wallHasPrev ? m_wallPrevCenter : center;
+        m_wallPrevCenter                      = center;
+        m_wallHasPrev                         = true;
+
+        const Tsukino::Core::Math::matrix world     = Tsukino::Core::Math::matrix::translate(center.x, 0.0f, center.z);
+        const Tsukino::Core::Math::matrix prevWorld = Tsukino::Core::Math::matrix::translate(prevCenter.x, 0.0f, prevCenter.z);
+
+        for(size_t layer = 0; layer < m_wallLayers.size(); ++layer) {
+            const float t = layerT(static_cast<int>(layer));
+
+            // 模様は円周方向に繰り返すので、繰り返すサンプラーに差し替える
+            Tsukino::Renderer::Material& material = AllocTreeMaterial(ctx, pipeline, wallTexture);
+            material.SetSampler(ctx.renderer->GetResources().GetSampler(Tsukino::GraphicsCommon::SamplerType::AnisotropicWrap));
+
+            Tsukino::Renderer::CBufferMaterial& data = AllocTreeMaterialData(ctx, 0.95f);
+            data.baseColor   = hlslpp::float4(lerp(field.wallNearColor.x, field.wallFarColor.x, t), lerp(field.wallNearColor.y, field.wallFarColor.y, t),
+                                              lerp(field.wallNearColor.z, field.wallFarColor.z, t), 1.0f);
+            data.specular    = 0.1f;
+
+            Tsukino::Renderer::DrawCommand cmd{};
+            cmd.mesh          = &m_wallLayers[layer];
+            cmd.material      = &material;
+            cmd.materialData  = &data;
+            cmd.transform     = world;
+            cmd.prevTransform = prevWorld;
+            cmd.hasPrevFrame  = true;
+            cmd.pass          = Tsukino::Renderer::RenderPass::GBuffer;
+            cmd.castsShadow   = false;
+            // 葉の揺れのパラメータ（稜線がわずかにそよぐ。攻撃の揺れは遠すぎて届かない）
+            cmd.userConstantBuffer = m_leafSwayBuffer.buffer.Get();
+            cmd.userConstantSlot   = Tsukino::Renderer::CBSlot::User0;
+            ctx.renderer->GetDrawQueue().Push(cmd);
+        }
     }
 }    // namespace CombatAndroid::ECS
