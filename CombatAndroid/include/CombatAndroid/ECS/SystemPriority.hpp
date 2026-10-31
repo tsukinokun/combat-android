@@ -145,6 +145,9 @@ namespace CombatAndroid::ECS {
                              // 両方より後に置く。あちらが演出を終えるフレームにactive=falseを書いても、
                              // ここが同じフレームで書き直すのでオーラが1フレーム消えない。ModelSystem（Render）が
                              // RimGlowをマテリアルへ積む前である必要がある
+        WeaponTether,        // 背中から浮いている武器へ伸ばす光の糸を描く。武器の位置（CombatSystem＝WeaponAttach）と
+                             // 板をカメラへ向けるためのカメラの位置（Camera3D/Camera）が今フレームの値で決まった後に置く。
+                             // 描画コマンドを積むだけで、他のシステムが読む値は書かない
         Bloom,               // ブルームのパラメータをRendererへ転送する（エンジンのBloomSystem）。
                              // 描画の設定を流すだけで他との依存は無いので、MotionBlurと同じく描画の直前に並べておく
         Render,

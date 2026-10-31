@@ -1,0 +1,26 @@
+{
+    "WeaponTether": {
+        "anchorBone": "mixamorig:Spine2",
+        "anchorOffset": { "x": 0.0, "y": 10.0, "z": -22.0 },
+        "anchorSize": 26.0,
+        "anchorPulse": 0.25,
+        "anchorPulseSpeed": 3.0,
+        "color": { "x": 0.45, "y": 0.85, "z": 1.0 },
+        "coreWidth": 2.2,
+        "coreIntensity": 1.6,
+        "glowWidth": 9.0,
+        "glowIntensity": 0.35,
+        "selectedBoost": 1.5,
+        "shadeColor": { "x": 0.02, "y": 0.07, "z": 0.14 },
+        "shadeAlpha": 0.45,
+        "shadeWidth": 6.0,
+        "segments": 14,
+        "sag": 8.0,
+        "lagBend": 0.12,
+        "maxBend": 45.0,
+        "bendSmoothing": 10.0,
+        "flutter": 3.0,
+        "flutterSpeed": 2.4,
+        "growSeconds": 0.3
+    }
+}

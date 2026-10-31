@@ -36,6 +36,7 @@
 #include <CombatAndroid/ECS/System/World/TpsCameraSystem.hpp>
 #include <CombatAndroid/ECS/System/Player/PlayerAnimationSystem.hpp>
 #include <CombatAndroid/ECS/System/Weapon/PickupSystem.hpp>
+#include <CombatAndroid/ECS/System/Weapon/WeaponTetherSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/HealthBarSystem.hpp>
 #include <CombatAndroid/ECS/System/UI/DamageNumberSystem.hpp>
 #include <CombatAndroid/ECS/System/Weapon/EnemyWeaponDropSystem.hpp>
@@ -283,6 +284,8 @@ namespace CombatAndroid {
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::MotionBlurSystem>(), (int)ECS::SystemPriority::MotionBlur);
         // 取得スキル（七つの大罪）の色で体の輪郭をうっすら光らせる（オーラの主役の粒はSkillAuraParticleSystem）
         m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::SkillAuraSystem>(), (int)ECS::SystemPriority::SkillAura);
+        // 背中から浮いている武器へ伸ばす光の糸（武器が浮いている理由を絵で見せる）
+        m_scene.AddSystem(std::make_shared<CombatAndroid::ECS::WeaponTetherSystem>(), (int)ECS::SystemPriority::WeaponTether);
         // ブルーム。BloomComponentを持つエンティティが居なければ何もしない（今はシーンに置いていない）
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::BloomSystem>(), (int)ECS::SystemPriority::Bloom);
         m_scene.AddSystem(std::make_shared<Tsukino::BuiltIn::ECS::SpriteRenderSystem>(), (int)ECS::SystemPriority::Render);
