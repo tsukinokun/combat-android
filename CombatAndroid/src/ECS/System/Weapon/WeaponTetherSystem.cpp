@@ -272,8 +272,8 @@ namespace CombatAndroid::ECS {
         //-------------------------------------------------------------
         ID3D11ShaderResourceView* softLine = GetSoftTextureSRV(*ctx, false);
         ID3D11ShaderResourceView* softDot  = GetSoftTextureSRV(*ctx, true);
-        //! shadeがtrueなら暗い帯（普通の半透明。intensityを透明度に使う）。Transparentパスは積んだ順に描くので、
-        //! 暗い帯を光より先に積めば、光がその上に重なる
+        //! shadeがtrueなら暗い帯（普通の半透明。intensityを透明度に使う）。Transparentパスは積んだ順に描く約束
+        //! （エンジンのRenderPassの注記）なので、暗い帯を光より先に積めば、光がその上に重なる
         auto pushStrip = [&](const hlslpp::float3& from, const hlslpp::float3& to, float width, const hlslpp::float3& color, float intensity,
                              ID3D11ShaderResourceView* texture, bool shade = false) {
             const hlslpp::float3 along  = to - from;
@@ -296,6 +296,8 @@ namespace CombatAndroid::ECS {
             Tsukino::Renderer::CBufferMaterial& data = ctx->renderer->GetDrawQueue().AllocMaterialData();
             data                                     = Tsukino::Renderer::CBufferMaterial{};
             data.baseColor = shade ? hlslpp::float4(color, std::min(intensity, 1.0f)) : hlslpp::float4(color * intensity, std::min(intensity, 1.0f));
+            // 霧の掛け方。光（加算）は霧の色へ寄せず、遠いほど弱める
+            data.spriteFog = hlslpp::float4(shade ? 0.0f : 1.0f, 0.0f, 0.0f, 0.0f);
 
             // 行ベクトル規約：1行目が板の横（幅）、2行目が板の法線、3行目が長さ方向、4行目が根元の位置
             Tsukino::Renderer::DrawCommand cmd{};
@@ -306,8 +308,7 @@ namespace CombatAndroid::ECS {
                                                                                hlslpp::float4(forward * length, 0.0f), hlslpp::float4(from, 1.0f)));
             cmd.prevTransform = cmd.transform;
             cmd.hasPrevFrame  = false;
-            // フォグの後のTransparentパスで描く。Worldパスはフォグより前で、フォグは深度バッファから距離を測るため、
-            // 深度を書かない糸の画素には奥の景色（遠くの木や森の帯）の距離ぶんの霧が上から掛かり、背景によって糸が消えていた
+            // 深度を書かないので、フォグの後のTransparentで描く（エンジンのRenderPassの約束。自分の距離ぶんの霧はSprite.ps.hlslが掛ける）
             cmd.pass          = Tsukino::Renderer::RenderPass::Transparent;
             cmd.castsShadow   = false;
             ctx->renderer->GetDrawQueue().Push(cmd);

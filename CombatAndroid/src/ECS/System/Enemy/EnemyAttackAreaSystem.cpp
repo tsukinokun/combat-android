@@ -227,7 +227,8 @@ namespace CombatAndroid::ECS {
                                                         Tsukino::Core::Math::matrix::translate(position)));
             cmd.prevTransform = cmd.transform;
             cmd.hasPrevFrame  = false;
-            cmd.pass          = Tsukino::Renderer::RenderPass::World;
+            // 深度を書かない半透明なので、フォグの後のTransparentで描く（自分の距離ぶんの霧はSprite.ps.hlslが掛ける）
+            cmd.pass          = Tsukino::Renderer::RenderPass::Transparent;
             cmd.castsShadow   = false;
 
             ctx->renderer->GetDrawQueue().Push(cmd);
