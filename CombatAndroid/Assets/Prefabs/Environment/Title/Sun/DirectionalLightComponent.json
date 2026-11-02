@@ -11,6 +11,13 @@
             "z": 1.0
         },
         "intensity": 5.0,
-        "castShadow": true
+        "castShadow": true,
+        "shadow": {
+            "distance": 1400.0,
+            "splitStart": 400.0,
+            "splitLambda": 0.88,
+            "mapSize": 2048,
+            "casterMargin": 2000.0
+        }
     }
 }
