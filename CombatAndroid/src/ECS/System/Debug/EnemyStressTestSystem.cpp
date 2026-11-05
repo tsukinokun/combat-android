@@ -304,7 +304,7 @@ namespace CombatAndroid::ECS {
                     "# spawned は本システムが湧かせた数。シーン標準の敵4体は別途常駐している\n"
                     "spawned,frame_ms,fps,worst_ms,update_ms,render_ms,"
                     "draws_total,draws_gbuffer,draws_shadow,draws_overlay,commands,skinned_draws,triangles,skin_cb_mb,"
-                    "systems\n";
+                    "systems,gpu\n";
         }
 
         file << kCountSteps[m_benchmarkStepIndex] << ',' << avgFrameMs << ',' << fps << ',' << m_benchmarkFrameMsWorst << ','
@@ -329,6 +329,20 @@ namespace CombatAndroid::ECS {
                 continue;
 
             file << ((timing.name != nullptr) ? timing.name : "?") << '=' << timing.averageMs << ' ';
+        }
+        file << "\",";
+
+        //---------------------------------------------------------
+        // パス別のGPU時間も同じく "名前=ミリ秒" で1セルに詰める。
+        // 計測窓の平均ではなく、書き出す直前に届いていた1フレーム分の値
+        //---------------------------------------------------------
+        file << '"';
+        if(context.renderer && context.renderer->GetFrameStats().gpu.valid) {
+            const Tsukino::Renderer::GpuFrameTimings& gpu = context.renderer->GetFrameStats().gpu;
+            file << "Frame=" << gpu.frameMs << ' ';
+            for(const Tsukino::Renderer::GpuPassTiming& pass : gpu.passes) {
+                file << pass.name << '=' << pass.ms << ' ';
+            }
         }
         file << "\"\n";
 
@@ -470,6 +484,28 @@ namespace CombatAndroid::ECS {
 
                 if(written > 0)
                     text.append(buffer, static_cast<size_t>(written));
+
+                //-------------------------------------------------
+                // パス別のGPU時間。上のCPU側の数字だけでは、GPUのどのパスが重いのかが分からない。
+                // 値はGPUを待たないよう2フレーム以上前のもの。結果が届くまでは出さない
+                //-------------------------------------------------
+                const Tsukino::Renderer::GpuFrameTimings& gpu = stats.gpu;
+                if(gpu.valid) {
+                    written = swprintf_s(buffer, L"GPU %6.2f ms\n", static_cast<double>(gpu.frameMs));
+                    if(written > 0)
+                        text.append(buffer, static_cast<size_t>(written));
+
+                    // 1行に4パスずつ並べる（縦に13行並べるとHUDが画面を覆う）
+                    constexpr size_t kPassesPerLine = 4;
+                    for(size_t i = 0; i < gpu.passes.size(); ++i) {
+                        written = swprintf_s(buffer, L"  %-11hs%5.2f", gpu.passes[i].name, static_cast<double>(gpu.passes[i].ms));
+                        if(written > 0)
+                            text.append(buffer, static_cast<size_t>(written));
+
+                        if((i + 1) % kPassesPerLine == 0 || i + 1 == gpu.passes.size())
+                            text.push_back(L'\n');
+                    }
+                }
             }
 
             //-----------------------------------------------------

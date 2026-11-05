@@ -45,9 +45,11 @@ project "CombatAndroid"
     -- （組み込み Assets / Tools / ライセンス条文）
     tsukino_release_payload()
 
-    -- ゲーム自身の Assets は自分でコピーする
+    -- ゲーム自身の Assets は自分でコピーする。実行時に読まないものは配布物に入れない:
+    --   *.efkproj … Effekseer のエディタ用プロジェクト（約41MB）。実行時は .efk / .efkefc だけ読む
+    --   *.py / *.js / *.md … アセット作成用のスクリプトと説明書き
     filter "configurations:Release"
-        postbuildcommands {
-            "{COPYDIR} %{wks.location}/../CombatAndroid/Assets %{cfg.targetdir}/CombatAndroid/Assets",
-        }
+        postbuildcommands(tsukino_mirror_commands("CombatAndroid/Assets", "CombatAndroid/Assets", {
+            excludeFiles = { "*.efkproj", "*.py", "*.js", "*.md" },
+        }))
     filter {}
