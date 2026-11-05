@@ -45,6 +45,10 @@ project "CombatAndroid"
     -- （組み込み Assets / Tools / ライセンス条文）
     tsukino_release_payload()
 
+    -- exe・ウィンドウのアイコン。Assets の外に置く（Release では Assets が丸ごと配布物へコピーされるため）。
+    -- 作り直しは CombatAndroid/Resources/Icon/MakeIcon.ps1
+    tsukino_icon("CombatAndroid/Resources/Icon/App.ico")
+
     -- ゲーム自身の Assets は自分でコピーする。実行時に読まないものは配布物に入れない:
     --   *.efkproj … Effekseer のエディタ用プロジェクト（約41MB）。実行時は .efk / .efkefc だけ読む
     --   *.py / *.js / *.md … アセット作成用のスクリプトと説明書き
